@@ -1,49 +1,29 @@
 # Edge Functions
 
-| Function  | What it does |
-| --------- | ------------ |
-| `send-po` | E-mails a **Released** purchase order to the supplier with the final PDF attached, and records the send (date, time, user, supplier e-mail). The PO becomes **Sent to Supplier**. |
-| `po-pdf`  | Builds the same PDF and returns a short-lived download link. Nothing is e-mailed. |
-| `send-quotation` | E-mails an **Approved** sales quotation to the customer with the PDF attached and records the send (date, time, user, customer e-mail). An Approved quotation becomes **Sent** and the first follow-up date is saved. |
-| `quotation-pdf`  | Builds the customer's PDF of an approved quotation (no cost, no margin) and returns a short-lived download link. Nothing is e-mailed. |
+The ERP does **not** send e-mail. The client mails purchase orders and quotations by hand; these functions only produce the PDF to attach
+(the Excel version is made in the browser, so it needs no function).
 
-Shared code is in `_shared/` (PDF builders, mail adapter, helpers, logo). `send-po` / `po-pdf` check the caller first with the database function `can_send_po(poId)` **using the caller's own login**: only people with **Write** on *Purchase Orders* or *Purchase Approvals* can send or download, and only for a PO that is *Released* or *Sent to Supplier*.
+| Function        | What it does |
+| --------------- | ------------ |
+| `po-pdf`        | Builds the PDF of a **Released** purchase order and returns a short-lived download link. |
+| `quotation-pdf` | Builds the customer's PDF of an approved quotation (no cost, no margin) and returns a short-lived download link. |
 
-The quotation functions (`send-quotation`, `quotation-pdf`) work the same way: they first ask the database function `can_send_quotation(id)` **using the caller's own login** (Write on *Sales Quotation* with access to customer names and prices, and the quotation must be *Approved* or *Sent*). They use the same three mail secrets below, so nothing more to set once e-mail is switched on for purchase orders. **Until the mail secrets exist, a send fails with "E-mail is not set up yet" and the quotation stays Approved** (use *I send it another way* in the Send popup for WhatsApp / print).
+Shared code is in `_shared/` (PDF builders, helpers, logo). `po-pdf` checks the caller first with the database function `can_send_po(poId)` **using the caller's own login**: only people with **Write** on *Purchase Orders* or *Purchase Approvals* can download, and only for a PO that is *Released* or *Sent to Supplier*. `quotation-pdf` does the same with `can_send_quotation(id)` (Write on *Sales Quotation* with access to customer names and prices; the quotation must be *Approved* or *Sent*).
 
 ## Before you deploy: database
 
-Run the SQL migrations in order up to `33_invoice_payment_pdf.sql` and, for the quotation functions, also `34_sales_module.sql`, `35_followups.sql` and `36_quotation_send.sql` (36 creates the `quotation-pdfs` bucket, the e-mail log, `can_send_quotation`, `queue_quotation_send` and `mark_quotation_sent`). Migration 33 creates the `po-pdfs` storage bucket, the `company_settings` table, `can_send_po`, `queue_po_send` and the new `mark_po_sent`).
+Run the SQL migrations in order up to `33_invoice_payment_pdf.sql` and, for the quotation function, also `34_sales_module.sql`, `35_followups.sql` and `36_quotation_send.sql`. Migration 33 creates the `po-pdfs` storage bucket, the `company_settings` table and `can_send_po`; 36 creates the `quotation-pdfs` bucket and `can_send_quotation`.
 
-## Secrets to set (never put these in the repo, in `.env`, or in the web app)
-
-| Secret           | Example value (placeholder) | Meaning |
-| ---------------- | --------------------------- | ------- |
-| `RESEND_API_KEY` | `re_xxxxxxxx`               | API key from your Resend account (resend.com → API Keys). |
-| `MAIL_FROM`      | `Everest Purchase <purchase@your-domain.com>` | Sender. The domain must be verified in Resend. |
-| `MAIL_REPLY_TO`  | `purchase@your-domain.com`  | Where the supplier's reply goes (optional but recommended). |
-| `MAIL_PROVIDER`  | `resend`                    | Optional. Only `resend` exists today; see `_shared/mail.ts` to add another. |
-
-`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to every function by Supabase automatically. Nothing to set for them.
-
-Set the secrets (replace the values; do not commit them):
-
-```
-npx supabase login
-npx supabase link --project-ref <your-project-ref>
-npx supabase secrets set RESEND_API_KEY=<key> MAIL_FROM="<name <address>>" MAIL_REPLY_TO=<address>
-```
-
-Or in the dashboard: **Project → Edge Functions → Secrets → Add new secret**.
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to every function by Supabase automatically. There are no secrets to set.
 
 ## Deploy
 
 From the project folder (the `supabase` CLI is run through `npx`, no global install needed):
 
 ```
-npx supabase functions deploy send-po
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
 npx supabase functions deploy po-pdf
-npx supabase functions deploy send-quotation
 npx supabase functions deploy quotation-pdf
 ```
 
@@ -51,12 +31,12 @@ JWT verification stays **on** (the default): only signed-in users can call the f
 
 ### If the CLI is not available (dashboard editor)
 
-The dashboard editor deploys one function at a time and does not see the shared `_shared/` folder next to it. The easiest way round it is:
+The dashboard editor deploys one function at a time and does not see the shared `_shared/` folder next to it:
 
-1. In the dashboard open **Edge Functions → Deploy a new function → Via Editor**, name it `send-po`.
-2. Add one file for each file in `supabase/functions/_shared/` (same names: `format.ts`, `http.ts`, `logo.ts`, `mail.ts`, `po-data.ts`, `po-pdf.ts`, `deps.ts`) next to `index.ts`, and paste the contents.
+1. In the dashboard open **Edge Functions → Deploy a new function → Via Editor**, name it `po-pdf`.
+2. Add one file for each file in `supabase/functions/_shared/` (same names: `format.ts`, `http.ts`, `logo.ts`, `po-data.ts`, `po-pdf.ts`, `deps.ts`) next to `index.ts`, and paste the contents.
 3. In every file change `../_shared/` to `./` in the import lines (for example `'../_shared/http.ts'` → `'./http.ts'`).
-4. Paste `send-po/index.ts` as `index.ts` and deploy. Repeat for `po-pdf`.
+4. Paste `po-pdf/index.ts` as `index.ts` and deploy. Repeat for `quotation-pdf` (it also needs `quotation-data.ts` and `quotation-pdf.ts`).
 
 Using the CLI is much less error-prone; use the editor only if you must.
 
@@ -64,26 +44,19 @@ Using the CLI is much less error-prone; use the editor only if you must.
 
 The header and the delivery box come from the table **`company_settings`** (one row, `id = 1`). To change them:
 
-**Supabase → Table Editor → `company_settings` → edit the row** and fill in `name`, `address`, `gstin`, `phone`, `email`. A blank field is simply left out of the PDF, so the GSTIN and phone are not printed until you fill them in. Users of the app cannot read or change this table; only the Edge Function (service role) and you in the dashboard can.
+**Supabase → Table Editor → `company_settings` → edit the row** and fill in `name`, `address`, `gstin`, `phone`, `email`. A blank field is simply left out of the PDF. Users of the app cannot read or change this table; only the Edge Function (service role) and you in the dashboard can.
 
 The logo is embedded in `_shared/logo.ts` (a small copy of `public/everest-logo-transparent.png`). To change it, replace the base64 string in that file and redeploy.
 
 ## Test
 
-1. In the app open a **Released** PO as a Director or Plant Head → **Download PDF** (uses `po-pdf`, sends nothing).
-2. Make sure the supplier has an e-mail in **Supplier Master**, then **Send to Supplier**. Use your own e-mail as the supplier address first.
-3. The PO page's **Email Logs** tab shows the result. A failed send shows the provider's error and leaves the PO status unchanged; fix the cause and send again.
+In the app open a **Released** PO as a Director or Plant Head → **Download PDF**, and **Download Excel** beside it. On an approved quotation use **Print / PDF** and **Excel** (Standard or Detailed).
 
-Local run of the functions (needs Docker and the Supabase CLI; put the three secrets in `supabase/functions/.env`, which is git-ignored):
+Local run (needs Docker and the Supabase CLI):
 
 ```
-npx supabase functions serve --env-file supabase/functions/.env
+npx supabase functions serve
 curl -i http://127.0.0.1:54321/functions/v1/po-pdf -H "Authorization: Bearer <a user JWT>" -H "Content-Type: application/json" -d "{\"poId\": 1}"
 ```
 
-## Behaviour worth knowing
-
-* A second send of the same PO revision within **30 seconds** is refused (double-click guard).
-* A log row left **Queued** for more than 2 minutes (for example the function timed out) is shown in the app as *Unknown — check and retry*, not as sent. Check the supplier's inbox or the Resend dashboard before sending again.
-* After an **amendment** is released again the PO has a new revision: send it again; the log row and the PDF (`po/<po no>/rev<n>.pdf`) are labelled with the revision.
 * PDF font: the standard Helvetica built into every PDF viewer, so amounts are written **Rs.** (no ₹ sign). Characters outside Western European text are replaced by `?` instead of failing.

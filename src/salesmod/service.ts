@@ -1,7 +1,7 @@
 import { dbMessage, supabase } from '../db/client';
 import { functionError } from '../purchase/services/poService';
 import { openUrl } from '../native/native';
-import type { CostRow, ItemRow, OrderLine, OrderRow, PriceHistoryRow, QuotationAction, QuotationEmail, QuotationFollowup, QuotationHeader, QuotationLine, QuotationRow } from './types';
+import type { CostRow, ItemRow, OrderLine, OrderRow, PriceHistoryRow, QuotationAction, QuotationFollowup, QuotationHeader, QuotationLine, QuotationRow } from './types';
 
 type R = Record<string, any>;
 const s = (v: unknown) => (v == null ? '' : String(v));
@@ -36,12 +36,11 @@ export async function fetchQuotations(): Promise<QuotationRow[]> {
 }
 
 export async function fetchQuotation(id: number) {
-  const [h, i, a, f, em] = await Promise.all([
+  const [h, i, a, f] = await Promise.all([
     supabase.from('v_sales_quotations').select('*').eq('id', id).single(),
     supabase.from('v_sales_quotation_items').select('*').eq('quotation_id', id).order('line_no', { ascending: true }),
     supabase.from('v_sales_quotation_actions').select('*').eq('quotation_id', id).order('acted_at', { ascending: true }),
     supabase.from('v_sales_quotation_followups').select('*').eq('quotation_id', id).order('followup_date', { ascending: true }),
-    supabase.from('v_sales_quotation_emails').select('*').eq('quotation_id', id).order('sent_at', { ascending: false }),
   ]);
   fail(h.error);
   fail(i.error);
@@ -51,8 +50,6 @@ export async function fetchQuotation(id: number) {
     q: mapQ(h.data as R),
     lines: ((i.data ?? []) as R[]).map(mapLine),
     actions: ((a.data ?? []) as R[]).map((r): QuotationAction => ({ id: num(r.id), action: s(r.action), actor: s(r.actor), note: s(r.note), marginPct: nn(r.margin_pct), actedAt: s(r.acted_at) })),
-    // the e-mail log may not exist yet (migration 36 not run): then there is simply nothing to show
-    emails: em.error ? [] : ((em.data ?? []) as R[]).map((r): QuotationEmail => ({ id: num(r.id), sentTo: s(r.sent_to), cc: s(r.cc), note: s(r.note), sentBy: s(r.sent_by), status: s(r.delivery_status), error: s(r.error), sentAt: s(r.sent_at) })),
     followups: ((f.data ?? []) as R[]).map((r): QuotationFollowup => ({ id: num(r.id), date: s(r.followup_date), note: s(r.note), nextDate: r.next_date ?? null, by: s(r.by_name) })),
   };
 }
@@ -145,16 +142,7 @@ export async function createOrderFromQuotation(qid: number, extRef: string, deli
 }
 export const setOrderStatus = (id: number, status: string, note: string, user: string) => rpc('set_sales_order_status', { p_id: id, p_status: status, p_note: note, p_user: user });
 
-// ---------------------------------------------------------------- e-mail to the customer (Edge Functions send-quotation / quotation-pdf)
-export interface SendQuotationResult { ok: boolean; status?: string; sentTo?: string; sentAt?: string; logId?: number }
-
-export async function sendQuotationEmail(id: number, o: { to?: string; cc?: string; note?: string; nextDate?: string }): Promise<SendQuotationResult> {
-  const { data, error } = await supabase.functions.invoke('send-quotation', { body: { quotationId: id, to: o.to || undefined, cc: o.cc || undefined, note: o.note || undefined, nextDate: o.nextDate || undefined } });
-  if (error) throw new Error(await functionError(error, 'The quotation could not be sent. Please try again.', 'send-quotation'));
-  if (!data?.ok) throw new Error(String(data?.error ?? 'The quotation could not be sent.'));
-  return data as SendQuotationResult;
-}
-
+// ---------------------------------------------------------------- the customer's PDF (Edge Function quotation-pdf)
 /** the customer's PDF of an approved quotation: opens in a new tab (Edge Function quotation-pdf) */
 export async function openQuotationPdf(id: number): Promise<void> {
   const { data, error } = await supabase.functions.invoke('quotation-pdf', { body: { quotationId: id } });

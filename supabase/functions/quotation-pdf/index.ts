@@ -2,7 +2,7 @@
 //
 // POST  { quotationId: number }                                  (Authorization: Bearer <the signed-in user's JWT>)
 //   200 { ok: true, url, path, expiresIn }
-//   4xx { ok: false, error }                                      same permission check as send-quotation: can_send_quotation(id) with the caller's login
+//   4xx { ok: false, error }                                      permission check: can_send_quotation(id) with the caller's login
 import { adminClient, bearer, corsHeaders, HttpError, json, userClient } from '../_shared/http.ts';
 import { loadQuotation, quotationPdfPath, storeQuotationPdf } from '../_shared/quotation-data.ts';
 import { buildQuotationPdf } from '../_shared/quotation-pdf.ts';

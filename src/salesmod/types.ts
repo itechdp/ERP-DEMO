@@ -89,4 +89,3 @@ export interface OrderLine { product: string; grade: string; size: string; uom: 
 export interface PriceHistoryRow { quotationId: number; docNo: string; qtDate: string; customer: string; product: string; grade: string; size: string; uom: string; rate: number | null; previousRate: number | null }
 export interface ItemRow { quotationId: number; docNo: string; status: string; qtDate: string; customer: string; salesperson: string; product: string; grade: string; size: string; qty: number; netRate: number | null; amount: number | null; unitCost: number | null; marginPct: number | null }
 
-export interface QuotationEmail { id: number; sentTo: string; cc: string; note: string; sentBy: string; status: string; error: string; sentAt: string }

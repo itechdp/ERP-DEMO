@@ -14,7 +14,7 @@ export const dmy = (iso?: string | null) => {
 };
 export const inr = (n: number) => `₹ ${n.toLocaleString('en-IN')}`;
 
-// ---- amount in words: one copy, shared with the send-po Edge Function (supabase/functions/_shared/format.ts)
+// ---- amount in words: one copy, shared with the po-pdf Edge Function (supabase/functions/_shared/format.ts)
 import { rupeesInWords } from '../../supabase/functions/_shared/format';
 export { rupeesInWords };
 

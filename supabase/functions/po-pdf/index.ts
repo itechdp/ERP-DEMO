@@ -2,7 +2,7 @@
 //
 // POST  { poId: number }                                           (Authorization: Bearer <the signed-in user's JWT>)
 //   200 { ok: true, url, path, expiresIn }      url is a signed link valid for `expiresIn` seconds
-//   4xx { ok: false, error }                    same permission check as send-po: can_send_po(poId) with the caller's own login
+//   4xx { ok: false, error }                    permission check: can_send_po(poId) with the caller's own login
 import { adminClient, bearer, corsHeaders, HttpError, json, userClient } from '../_shared/http.ts';
 import { loadPo, pdfPath, storePdf } from '../_shared/po-data.ts';
 import { buildPoPdf } from '../_shared/po-pdf.ts';

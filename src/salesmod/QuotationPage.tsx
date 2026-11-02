@@ -12,7 +12,7 @@ import { inr, lineCalc, pct, plusDays, totalsCalc } from './calc';
 import { printQuotation } from './print';
 import { exportQuotationXlsx } from './exportQuotation';
 import {
-  addFollowup, createOrderFromQuotation, decideQuotation, fetchMinMargin, openQuotationPdf, respondQuotation, saveQuotation, sendQuotation, sendQuotationEmail, submitQuotation,
+  addFollowup, createOrderFromQuotation, decideQuotation, fetchMinMargin, openQuotationPdf, respondQuotation, saveQuotation, sendQuotation, submitQuotation,
 } from './service';
 import { CostSheetEditor } from './CostSheetEditor';
 import { LOST_REASONS, UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
@@ -480,12 +480,11 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
 // =================================================================================================
 export type QStep = null | 'submit' | 'approve' | 'reject' | 'revise' | 'send' | 'respond' | 'followup' | 'order';
 type Dlg = QStep;
-const STEP_TITLE: Record<string, string> = { submit: 'Submit for approval', approve: 'Approve quotation', reject: 'Reject quotation', revise: 'Send back for revision', send: 'Send quotation to the customer', respond: 'Customer response', order: 'Create Sales Order' };
+const STEP_TITLE: Record<string, string> = { submit: 'Submit for approval', approve: 'Approve quotation', reject: 'Reject quotation', revise: 'Send back for revision', send: 'Mark the quotation as sent', respond: 'Customer response', order: 'Create Sales Order' };
 
 export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id: number; onBack: () => void; onEdit?: (id: number) => void; navigate: (r: string) => void; initialStep?: QStep }) {
   const { detail, loading, error, reload } = useQuotationDetail(id);
   const { user, can, canWrite } = useAccess();
-  const [mailPrefilled, setMailPrefilled] = useState(false);
   const { toast } = useStore();
   const [busy, setBusy] = useState(false);
   const [detailed, setDetailed] = useState(false);
@@ -495,9 +494,6 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
   const [reason, setReason] = useState('');
   const [date, setDate] = useState(todayISO());
   const [next, setNext] = useState(initialStep === 'send' || initialStep === 'respond' ? plusDays(3) : '');
-  const [sendVia, setSendVia] = useState<'email' | 'other'>('email');
-  const [mailTo, setMailTo] = useState('');
-  const [mailCc, setMailCc] = useState('');
   const [extRef, setExtRef] = useState('');
   const [delivery, setDelivery] = useState('');
 
@@ -507,9 +503,6 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
     setNext(d === 'send' || d === 'respond' ? plusDays(3) : '');
     setDate(todayISO());
     setResponse('Won');
-    setSendVia('email');
-    setMailTo(detail?.q.email ?? '');
-    setMailCc('');
     setDlg(d);
   };
 
@@ -522,11 +515,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
       </div>
     );
   }
-  const { q, lines, actions, followups, emails } = detail;
-  if (!mailPrefilled) {
-    setMailPrefilled(true);
-    setMailTo(q.email);
-  }
+  const { q, lines, actions, followups } = detail;
   const me = userName(user);
   const showMargin = can('margins');
   const showMoney = can('sales_rates');
@@ -562,10 +551,6 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
 
   const confirmStep = async () => {
     if (dlg === 'submit') return run(() => submitQuotation(q.id, me), 'Submitted for approval');
-    if (dlg === 'send' && (sendVia === 'email' || q.status === 'Sent')) {
-      if (!mailTo.trim()) return toast({ kind: 'error', title: 'Enter the customer e-mail', message: 'Type the address the quotation should be sent to.' });
-      return run(() => sendQuotationEmail(q.id, { to: mailTo.trim(), cc: mailCc.trim(), note, nextDate: next }), q.status === 'Sent' ? 'Quotation sent again' : 'Quotation e-mailed to the customer');
-    }
     if (dlg === 'send') return run(() => sendQuotation(q.id, me, next), 'Marked as sent to the customer');
     if (dlg === 'approve' || dlg === 'reject' || dlg === 'revise') return decide(dlg);
     if (dlg === 'respond' && response === 'Pending') {
@@ -762,28 +747,6 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
         </div>
       </div>
 
-      {emails.length > 0 && (
-        <div className="card" style={{ marginTop: 20 }}>
-          <div className="card-head"><h3>E-mails to the customer ({emails.length})</h3></div>
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead><tr><th>When</th><th>Sent to</th><th>By</th><th className="center">Result</th><th>Details</th></tr></thead>
-              <tbody>
-                {emails.map((e) => (
-                  <tr key={e.id}>
-                    <td className="nowrap muted">{fmtDateTime(e.sentAt)}</td>
-                    <td>{e.sentTo || '—'}{e.cc ? <div className="text-xs muted">CC {e.cc}</div> : null}</td>
-                    <td>{e.sentBy || '—'}</td>
-                    <td className="center"><span className={`badge ${e.status === 'Sent' ? 'b-green' : e.status === 'Failed' ? 'b-red' : 'b-neutral'}`}>{e.status}</span></td>
-                    <td className="text-sm">{e.error || e.note || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
       <Modal
         dialog
         open={!!dlg && dlg !== 'followup'}
@@ -793,7 +756,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
           <>
             <button className="btn btn-subtle" onClick={() => setDlg(null)} disabled={busy}>Cancel</button>
             <button className={`btn ${dlg === 'reject' ? 'btn-danger' : 'btn-primary'}`} disabled={busy} onClick={confirmStep}>
-              {dlg === 'submit' ? 'Submit for approval' : dlg === 'send' ? (q.status === 'Sent' ? 'Send again' : sendVia === 'email' ? 'Send e-mail' : 'Yes, it has been sent') : dlg === 'approve' ? 'Approve & give number' : dlg === 'reject' ? 'Reject' : dlg === 'revise' ? 'Send back' : dlg === 'respond' ? (response === 'Pending' ? 'Schedule follow-up' : 'Save response') : 'Create order'}
+              {dlg === 'submit' ? 'Submit for approval' : dlg === 'send' ? 'Yes, it has been sent' : dlg === 'approve' ? 'Approve & give number' : dlg === 'reject' ? 'Reject' : dlg === 'revise' ? 'Send back' : dlg === 'respond' ? (response === 'Pending' ? 'Schedule follow-up' : 'Save response') : 'Create order'}
             </button>
           </>
         }
@@ -812,22 +775,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
           ]}
         />
           {dlg === 'submit' && <p className="text-sm muted" style={{ margin: 0 }}>The Director will see this quotation in Quotation Approvals. It cannot be edited while it waits for a decision.</p>}
-          {dlg === 'send' && q.status === 'Approved' && (
-            <Field label="How is it going to the customer?">
-              <select value={sendVia} onChange={(e) => setSendVia(e.target.value as 'email' | 'other')}>
-                <option value="email">E-mail it now from the ERP (PDF attached)</option>
-                <option value="other">I send it another way (WhatsApp, print and hand over…)</option>
-              </select>
-            </Field>
-          )}
-          {dlg === 'send' && (sendVia === 'email' || q.status === 'Sent') && (
-            <>
-              <Field label="To" required><input type="email" value={mailTo} onChange={(e) => setMailTo(e.target.value)} placeholder="customer@company.com" /></Field>
-              <Field label="CC" hint="Optional. Separate several addresses with commas"><input value={mailCc} onChange={(e) => setMailCc(e.target.value)} /></Field>
-              <Field label="Note to the customer" hint="Optional. Added to the e-mail text"><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} /></Field>
-            </>
-          )}
-          {dlg === 'send' && sendVia === 'other' && q.status === 'Approved' && <p className="text-sm muted" style={{ margin: 0 }}>Confirm that the approved quotation has been sent to {q.customer || 'the customer'}.</p>}
+          {dlg === 'send' && <p className="text-sm muted" style={{ margin: 0 }}>Confirm that the approved quotation has been sent to {q.customer || 'the customer'} (download the PDF or Excel above and mail it yourself).</p>}
           {dlg === 'send' && (
             <Field label="Next follow-up date" hint="You are reminded a day before. Clear it if no follow-up is needed.">
               <input type="date" min={todayISO()} value={next} onChange={(e) => setNext(e.target.value)} />

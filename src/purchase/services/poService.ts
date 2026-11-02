@@ -11,7 +11,6 @@ import type {
   PurchaseOrder,
   SavePOHeaderInput,
   SavePOItemInput,
-  SendPOResult,
 } from '../types';
 
 export async function fetchPORegister(): Promise<PurchaseOrder[]> {
@@ -310,7 +309,7 @@ export async function getPOPrefillFromSQ(sqId: number): Promise<POPrefillData> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Send to supplier / PDF (Edge Functions send-po and po-pdf; the e-mail key lives only in their secrets)
+// The PO's PDF (Edge Function po-pdf). Nothing is e-mailed from the ERP: the PDF / Excel is attached to a mail by hand.
 // ---------------------------------------------------------------------------------------------
 /**
  * The message to show for a failed Edge Function call. Order of preference: the text the function itself returned; then a plain-words reason
@@ -342,13 +341,6 @@ export async function functionError(error: unknown, fallback: string, fn: string
 export async function canSendPO(poId: number): Promise<boolean> {
   const { data, error } = await supabase.rpc('can_send_po', { p_po_id: poId });
   return !error && data === true;
-}
-
-export async function sendPO(poId: number, opts: { to?: string; cc?: string; note?: string }): Promise<SendPOResult> {
-  const { data, error } = await supabase.functions.invoke('send-po', { body: { poId, to: opts.to || undefined, cc: opts.cc || undefined, note: opts.note || undefined } });
-  if (error) throw new Error(await functionError(error, 'The purchase order could not be sent. Please try again.', 'send-po'));
-  if (!data?.ok) throw new Error(String(data?.error ?? 'The purchase order could not be sent.'));
-  return data as SendPOResult;
 }
 
 /** A short-lived link to the final PDF (nothing is e-mailed). */

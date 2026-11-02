@@ -1,4 +1,4 @@
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, FileSpreadsheet } from 'lucide-react';
 import { withDocNo } from '../../db/client';
 import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { openUrl } from '../../native/native';
@@ -36,9 +36,9 @@ import {
   Tabs,
 } from '../../components/ui';
 import { SizeField } from '../components/SizeField';
-import { SendPoModal } from '../components/SendPoModal';
+import { exportPurchaseOrderXlsx } from '../exportPO';
 import { fetchPOBalance } from '../services/invoiceService';
-import { fmtDate, fmtDateTime, fmtNum, matches } from '../../components/format';
+import { fmtDate, fmtNum, matches } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
 import { usePurchaseOrders, useSuppliers } from '../hooks/usePurchase';
 import {
@@ -59,7 +59,6 @@ import { printPurchaseOrder } from '../print';
 import { fetchPOReceipts } from '../services/receiptService';
 import type {
   POBalance,
-  POEmailLog,
   POReceipt,
   PODetail,
   POAttachment,
@@ -339,12 +338,6 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
   );
 }
 
-/** A send that was reserved ("Queued") but never reported back within this time is shown as unknown, not as sent. */
-const STALE_SEND_MS = 2 * 60 * 1000;
-const UNKNOWN_SEND = 'Unknown — check and retry';
-const emailLogLabel = (em: POEmailLog): string =>
-  em.deliveryStatus === 'Queued' && Date.now() - new Date(em.sentAt).getTime() > STALE_SEND_MS ? UNKNOWN_SEND : em.deliveryStatus;
-
 // ---------------------------------------------------------------------------------------------
 // 2. Purchase Order Detail Page (Header, Items, Receipt Progress, Approvals, Revisions, Email Log)
 // ---------------------------------------------------------------------------------------------
@@ -360,10 +353,9 @@ export function PurchaseOrderDetailPage({
   const [po, setPo] = useState<PODetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'items' | 'receipts' | 'approvals' | 'revisions' | 'emails'>('items');
+  const [activeTab, setActiveTab] = useState<'items' | 'receipts' | 'approvals' | 'revisions'>('items');
   const [receipts, setReceipts] = useState<POReceipt[]>([]);
   const [canSend, setCanSend] = useState(false);
-  const [sendOpen, setSendOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [balance, setBalance] = useState<POBalance | null>(null);
 
@@ -411,6 +403,15 @@ export function PurchaseOrderDetailPage({
       toast({ kind: 'error', title: 'Could not create the PDF', message: e instanceof Error ? e.message : String(e) });
     } finally {
       setPdfBusy(false);
+    }
+  };
+
+  const downloadExcel = async () => {
+    if (!po) return;
+    try {
+      await exportPurchaseOrderXlsx(po, userName);
+    } catch (e) {
+      toast({ kind: 'error', title: 'Could not create the Excel file', message: e instanceof Error ? e.message : String(e) });
     }
   };
 
@@ -539,8 +540,8 @@ export function PurchaseOrderDetailPage({
                 <button className="btn btn-subtle" onClick={downloadPdf} disabled={pdfBusy}>
                   <Download size={15} /> {pdfBusy ? 'Preparing…' : 'Download PDF'}
                 </button>
-                <button className="btn btn-primary" onClick={() => setSendOpen(true)}>
-                  <Send size={15} /> {po.emailLogs.some((l) => l.deliveryStatus === 'Sent') ? 'Send again' : 'Send to Supplier'}
+                <button className="btn btn-subtle" onClick={() => void downloadExcel()}>
+                  <FileSpreadsheet size={15} /> Download Excel
                 </button>
               </>
             )}
@@ -679,7 +680,6 @@ export function PurchaseOrderDetailPage({
             { value: 'receipts', label: 'Receipts', count: receipts.length },
             { value: 'approvals', label: 'Approval Trail', count: po.approvals.length },
             { value: 'revisions', label: 'Revision History', count: po.revisions.length },
-            { value: 'emails', label: 'Email Logs', count: po.emailLogs.length },
           ]}
         />
 
@@ -851,59 +851,8 @@ export function PurchaseOrderDetailPage({
             )
           )}
 
-          {activeTab === 'emails' && (
-            po.emailLogs.length === 0 ? (
-              <Empty title="This PO has not been e-mailed yet." text={canSend && ['Released', 'Sent to Supplier'].includes(po.status) ? 'Use Send to Supplier above.' : undefined} />
-            ) : (
-              <div className="table-wrap">
-                <table className="tbl">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 90 }}>Revision</th>
-                      <th>Recipient</th>
-                      <th>Sent By</th>
-                      <th>Status</th>
-                      <th style={{ width: 170 }}>Date &amp; Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {po.emailLogs.map((em) => (
-                      <tr key={em.id}>
-                        <td className="mono">
-                          R{em.revNo}
-                          {em.revNo === po.revNo && <span className="chip chip-subtle text-xs ml-1">current</span>}
-                        </td>
-                        <td className="strong">
-                          {em.sentTo}
-                          {em.cc && <div className="text-xs muted">CC: {em.cc}</div>}
-                        </td>
-                        <td>{em.sentBy || 'System'}</td>
-                        <td>
-                          <Badge status={emailLogLabel(em)} />
-                          {em.error && <div className="text-xs text-red mt-0.5">{em.error}</div>}
-                          {emailLogLabel(em) === UNKNOWN_SEND && <div className="text-xs muted mt-0.5">No result was recorded. Check the supplier's inbox, then send again if needed.</div>}
-                        </td>
-                        <td className="text-xs muted nowrap">{fmtDateTime(em.sentAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
         </div>
       </div>
-
-      {sendOpen && (
-        <SendPoModal
-          po={po}
-          onClose={() => setSendOpen(false)}
-          onDone={(sent) => {
-            void loadData();
-            if (sent) setSendOpen(false);
-          }}
-        />
-      )}
 
       {/* Approve Modal */}
       <Modal

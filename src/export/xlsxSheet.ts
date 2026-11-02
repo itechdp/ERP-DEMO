@@ -7,6 +7,7 @@ import { isNative, saveFile } from '../native/native';
 /** Form number and revision printed on top of each sheet — change them here, in one place. */
 export const FORM_FORMATS = {
   quotation: { formNo: 'F SL 01', revision: '00 / 01.10.25' },
+  purchaseOrder: { formNo: 'F PU 01', revision: '00 / 01.10.25' },
   taskReport: { formNo: 'F WH 01', revision: '00 / 01.10.25' },
   report: { formNo: 'F RP 01', revision: '00 / 01.10.25' },
   qcFinalInspection: { formNo: 'F QC 01', revision: '00 / 01.10.25' },
