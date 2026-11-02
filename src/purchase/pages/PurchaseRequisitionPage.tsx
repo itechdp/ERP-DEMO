@@ -23,11 +23,13 @@ import {
   Priority,
   Search,
 } from '../../components/ui';
-import { SizeField } from '../components/SizeField';
+import { MaterialPick, SizePick } from '../../masters/MaterialPick';
 import { Brief } from '../../components/Brief';
 import { fmtDate, fmtNum, matches } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
 import { withDocNo } from '../../db/client';
+import { ADD_NEW, useAddOption } from '../../masters/AddItem';
+import { useOptions } from '../../masters/useOptions';
 import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { usePRDetail, usePurchaseRequisitions } from '../hooks/usePurchase';
 import {
@@ -323,11 +325,11 @@ export function PurchaseRequisitionPage({
                           >
                             <Eye size={16} />
                           </button>
-                          {r.status === 'Draft' && (
+                          {['Draft', 'Approval Pending'].includes(r.status) && (
                             <Write res="purchase_requisitions">
                               <button
                                 className="icon-btn"
-                                title="Edit Draft PR"
+                                title={r.status === 'Draft' ? 'Edit Draft PR' : 'Edit PR (goes back to Draft for re-submission)'}
                                 onClick={() => {
                                   setEditId(r.id);
                                   setFormOpen(true);
@@ -344,7 +346,7 @@ export function PurchaseRequisitionPage({
                           )}
                           {(r.status === 'Approved' || r.status === 'Partially Ordered') && (
                             <Write res="procurement_po">
-                              <button className="icon-btn" title="Create RFQ / PO" aria-label={`Next step ${r.prNo}`} onClick={() => setSelectedPRId(r.id)}><ClipboardCheck size={16} /></button>
+                              <button className="icon-btn" title="Start procurement / PO" aria-label={`Next step ${r.prNo}`} onClick={() => setSelectedPRId(r.id)}><ClipboardCheck size={16} /></button>
                             </Write>
                           )}
                         </div>
@@ -515,6 +517,14 @@ function PRDetailView({
                 </button>
                 <button className="btn btn-primary" onClick={handleSubmit} disabled={acting}>
                   <Send size={14} /> Submit for Approval
+                </button>
+              </Write>
+            )}
+
+            {pr.status === 'Approval Pending' && (
+              <Write res="purchase_requisitions">
+                <button className="btn btn-subtle" onClick={() => onEdit(pr.id)} disabled={acting} title="Saving moves it back to Draft; submit again afterwards">
+                  <Pencil size={14} /> Edit
                 </button>
               </Write>
             )}
@@ -789,7 +799,9 @@ function PRFormModal({
 
   // Header states
   const [prDate, setPrDate] = useState(new Date().toISOString().slice(0, 10));
+  const departments = useOptions('department');
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
+  const addDepartment = useAddOption('department', (v) => setDepartment(v));
   const [requestedBy, setRequestedBy] = useState(user?.name || user?.email || 'User');
   const [urgency, setUrgency] = useState<Urgency>('Normal');
   const [remarks, setRemarks] = useState('');
@@ -814,8 +826,8 @@ function PRFormModal({
         setLoading(true);
         const { fetchPRDetail } = await import('../services/prService');
         const data = await fetchPRDetail(editId);
-        if (data.status !== 'Draft') {
-          toast({ kind: 'error', title: 'Cannot Edit', message: 'Only Draft PRs can be edited.' });
+        if (!['Draft', 'Approval Pending'].includes(data.status)) {
+          toast({ kind: 'error', title: 'Cannot Edit', message: 'Only Draft or pending-approval PRs can be edited.' });
           onClose();
           return;
         }
@@ -960,13 +972,15 @@ function PRFormModal({
             </Field>
 
             <Field label="Department" required>
-              <select value={department} onChange={(e) => setDepartment(e.target.value)}>
-                {DEPARTMENTS.map((d) => (
+              <select value={department} onChange={(e) => (e.target.value === ADD_NEW ? addDepartment.open() : setDepartment(e.target.value))}>
+                {departments.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
                 ))}
+                <option value={ADD_NEW}>+ Add new department…</option>
               </select>
+              {addDepartment.modal}
             </Field>
 
             <Field label="Requested By" required>
@@ -1034,12 +1048,7 @@ function PRFormModal({
                         />
                       </td>
                       <td>
-                        <input
-                          type="text"
-                          value={it.material}
-                          onChange={(e) => updateRow(idx, { material: e.target.value })}
-                          placeholder="e.g. Steel"
-                        />
+                        <MaterialPick material={it.material} onChange={(v) => updateRow(idx, { material: v.material, grade: v.grade })} />
                       </td>
                       <td>
                         <input
@@ -1050,7 +1059,7 @@ function PRFormModal({
                         />
                       </td>
                       <td>
-                        <SizeField value={it.size} onChange={(v) => updateRow(idx, { size: v })} />
+                        <SizePick value={it.size} onChange={(v) => updateRow(idx, { size: v })} />
                       </td>
                       <td>
                         <select

@@ -44,7 +44,7 @@ export async function exportPurchaseOrderXlsx(po: PODetail, user: string) {
     ],
     widths: [8, 11, 38, 8, 11, 13, 9, 15],
     blocks: [lines],
-    notes: [...(rates ? [`Amount in words : ${rupeesInWords(po.totalAmount || 0)}`] : []), ...(po.otherTerms ? [`Other terms : ${po.otherTerms}`] : [])],
+    notes: [...(po.attachments.length ? [`Attachments (Excel cannot carry files — send these with the mail): ${po.attachments.map((a) => a.name).join(', ')}`] : []), ...(rates ? [`Amount in words : ${rupeesInWords(po.totalAmount || 0)}`] : []), ...(po.otherTerms ? [`Other terms : ${po.otherTerms}`] : [])],
     checkedBy: user,
     reviewedBy: po.approvedBy ?? '',
   });

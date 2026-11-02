@@ -63,6 +63,8 @@ interface DieStore {
   findDie: (kind: DieKind, code: string) => Die | undefined;
   /** next code the database will assign (preview only — the database decides) */
   nextMainCode: () => string;
+  /** suggested part code for a new main die: EAF-PRT-0001 … (editable) */
+  nextPartCode: () => string;
   nextDieCode: (kind: DieKind) => string;
 }
 
@@ -73,7 +75,7 @@ const Ctx = createContext<DieStore | null>(null);
 
 const collKey = (k: DieKind) => (k === 'forging' ? 'forgingDies' : 'trimmingDies') as 'forgingDies' | 'trimmingDies';
 const nextCode = (prefix: string, codes: string[]) => {
-  const max = codes.reduce((m, c) => Math.max(m, Number(c.split('-')[1]) || 0), 0);
+  const max = codes.reduce((m, c) => Math.max(m, Number(c.split('-').pop()) || 0), 0);
   return `${prefix}-${String(max + 1).padStart(4, '0')}`;
 };
 
@@ -185,7 +187,8 @@ export function DieProvider({ children }: { children: ReactNode }) {
     returnDie,
     diesOf: (k) => data[collKey(k)],
     findDie: (k, c) => data[collKey(k)].find((x) => x.code === c),
-    nextMainCode: () => nextCode('DIE', data.mainDies.map((m) => m.code)),
+    nextMainCode: () => nextCode('EAF', data.mainDies.map((m) => m.code)),
+    nextPartCode: () => nextCode('EAF-PRT', data.mainDies.map((m) => m.partCode).filter((c) => /^EAF-PRT-\d+$/i.test(c))),
     nextDieCode: (k) => nextCode(KIND_PREFIX[k], data[collKey(k)].map((x) => x.code)),
   };
   // value identity changes with data, which is exactly when consumers need to re-render

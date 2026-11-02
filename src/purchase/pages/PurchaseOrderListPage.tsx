@@ -35,7 +35,7 @@ import {
   Search,
   Tabs,
 } from '../../components/ui';
-import { SizeField } from '../components/SizeField';
+import { MaterialPick, SizePick } from '../../masters/MaterialPick';
 import { exportPurchaseOrderXlsx } from '../exportPO';
 import { fetchPOBalance } from '../services/invoiceService';
 import { fmtDate, fmtNum, matches } from '../../components/format';
@@ -55,7 +55,7 @@ import {
   submitPO,
   uploadPOAttachment,
 } from '../services/poService';
-import { printPurchaseOrder } from '../print';
+import { printPoWithAttachments } from '../printPo';
 import { fetchPOReceipts } from '../services/receiptService';
 import type {
   POBalance,
@@ -97,7 +97,7 @@ export function PurchaseOrderRouter({
     );
   }
   if (detailId) {
-    return <PurchaseOrderDetailPage id={detailId} navigate={navigate} autoApprove={query.get('step') === 'approve'} />;
+    return <PurchaseOrderDetailPage id={detailId} navigate={navigate} autoApprove={query.get('step') === 'approve'} autoAmend={query.get('step') === 'amend'} />;
   }
   return <PurchaseOrderListPage navigate={navigate} />;
 }
@@ -293,7 +293,7 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
                               onClick={async () => {
                                 try {
                                   const detail = await fetchPODetail(o.id);
-                                  printPurchaseOrder(detail);
+                                  await printPoWithAttachments(detail, toast);
                                 } catch (e) {
                                   toast({ kind: 'error', title: 'Could not load PO for print', message: String(e) });
                                 }
@@ -301,14 +301,21 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
                             >
                               <Printer size={16} />
                             </button>
-                            {o.status === 'Draft' && (
+                            {['Draft', 'Approval Pending'].includes(o.status) && (
                               <Write res="procurement_po">
                                 <button
                                   className="icon-btn"
-                                  title="Edit Draft PO"
+                                  title={o.status === 'Draft' ? 'Edit Draft PO' : 'Edit PO (goes back to Draft for re-submission)'}
                                   aria-label={`Edit PO ${o.poNo}`}
                                   onClick={() => navigate(`purchase-orders?edit=${o.id}`)}
                                 >
+                                  <Pencil size={16} />
+                                </button>
+                              </Write>
+                            )}
+                            {['Released', 'Sent to Supplier', 'Partially Received'].includes(o.status) && (
+                              <Write res="procurement_po">
+                                <button className="icon-btn" title="Amend PO (creates a new revision)" aria-label={`Amend PO ${o.poNo}`} onClick={() => navigate(`purchase-orders?id=${o.id}&step=amend`)}>
                                   <Pencil size={16} />
                                 </button>
                               </Write>
@@ -345,10 +352,12 @@ export function PurchaseOrderDetailPage({
   id,
   navigate,
   autoApprove = false,
+  autoAmend = false,
 }: {
   id: number;
   navigate: (r: string) => void;
   autoApprove?: boolean;
+  autoAmend?: boolean;
 }) {
   const [po, setPo] = useState<PODetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -362,7 +371,7 @@ export function PurchaseOrderDetailPage({
   // Modals & Action states
   const [rejectModal, setRejectModal] = useState(false);
   const [approveModal, setApproveModal] = useState(autoApprove);
-  const [amendModal, setAmendModal] = useState(false);
+  const [amendModal, setAmendModal] = useState(autoAmend);
   const [actionNote, setActionNote] = useState('');
   const [acting, setActing] = useState(false);
 
@@ -532,7 +541,7 @@ export function PurchaseOrderDetailPage({
             <button className="btn btn-subtle" onClick={() => navigate('purchase-orders')}>
               <ArrowLeft size={15} /> Back
             </button>
-            <button className="btn btn-subtle" onClick={() => printPurchaseOrder(po)}>
+            <button className="btn btn-subtle" onClick={() => void printPoWithAttachments(po, toast)}>
               <Printer size={15} /> Print
             </button>
             {canSend && ['Released', 'Sent to Supplier'].includes(po.status) && (
@@ -557,6 +566,11 @@ export function PurchaseOrderDetailPage({
                 </button>
               </>
             )}
+            {po.status === 'Approval Pending' && canManagePO && (
+              <button className="btn btn-subtle" onClick={() => navigate(`purchase-orders?edit=${po.id}`)} title="Saving moves it back to Draft; submit again afterwards">
+                <Pencil size={15} /> Edit
+              </button>
+            )}
 
             {po.status === 'Approval Pending' && canApprove && (
               <>
@@ -577,7 +591,7 @@ export function PurchaseOrderDetailPage({
 
             {['Released', 'Sent to Supplier', 'Partially Received'].includes(po.status) && canManagePO && (
               <button className="btn btn-subtle" onClick={() => setAmendModal(true)} disabled={acting}>
-                <RefreshCw size={15} /> Amend PO
+                <Pencil size={15} /> Edit / Amend PO
               </button>
             )}
           </>
@@ -1024,8 +1038,8 @@ export function PurchaseOrderFormPage({
       try {
         setLoading(true);
         const data = await fetchPODetail(editId);
-        if (data.status !== 'Draft') {
-          toast({ kind: 'error', title: 'Locked Document', message: 'Only Draft POs can be edited.' });
+        if (!['Draft', 'Approval Pending'].includes(data.status)) {
+          toast({ kind: 'error', title: 'Locked Document', message: 'Only Draft or pending-approval POs can be edited. Use Amend PO after release.' });
           navigate(`purchase-orders?id=${editId}`);
           return;
         }
@@ -1433,14 +1447,10 @@ export function PurchaseOrderFormPage({
                         />
                       </td>
                       <td>
-                        <input
-                          value={it.grade}
-                          onChange={(e) => updateItemRow(idx, { grade: e.target.value })}
-                          placeholder="e.g. EN8D"
-                        />
+                        <MaterialPick material={it.material} grade={it.grade} onChange={(v) => updateItemRow(idx, { material: v.material, grade: v.grade })} />
                       </td>
                       <td>
-                        <SizeField value={it.size} onChange={(v) => updateItemRow(idx, { size: v })} />
+                        <SizePick value={it.size} onChange={(v) => updateItemRow(idx, { size: v })} />
                       </td>
                       <td>
                         <input

@@ -5,7 +5,7 @@ The ERP does **not** send e-mail. The client mails purchase orders and quotation
 
 | Function        | What it does |
 | --------------- | ------------ |
-| `po-pdf`        | Builds the PDF of a **Released** purchase order and returns a short-lived download link. |
+| `po-pdf`        | Builds the PDF of a purchase order (any status) — with the PDFs and pictures attached to it added behind the PO — and returns a short-lived download link. Word / Excel attachments are listed on a closing page instead. |
 | `quotation-pdf` | Builds the customer's PDF of an approved quotation (no cost, no margin) and returns a short-lived download link. |
 
 Shared code is in `_shared/` (PDF builders, helpers, logo). `po-pdf` checks the caller first with the database function `can_send_po(poId)` **using the caller's own login**: only people with **Write** on *Purchase Orders* or *Purchase Approvals* can download, and only for a PO that is *Released* or *Sent to Supplier*. `quotation-pdf` does the same with `can_send_quotation(id)` (Write on *Sales Quotation* with access to customer names and prices; the quotation must be *Approved* or *Sent*).

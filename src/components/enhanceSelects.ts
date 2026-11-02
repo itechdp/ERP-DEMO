@@ -38,7 +38,7 @@ function open(select: HTMLSelectElement) {
   const addOption = (o: HTMLOptionElement, grouped: boolean) => {
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'dd-item' + (o.selected ? ' on' : '') + (grouped ? ' grouped' : '');
+    b.className = 'dd-item' + (o.selected ? ' on' : '') + (grouped ? ' grouped' : '') + (o.value === '__new__' ? ' add' : '');
     b.setAttribute('role', 'option');
     b.setAttribute('aria-selected', String(o.selected));
     b.disabled = o.disabled;

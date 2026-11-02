@@ -124,7 +124,7 @@ export function QuotationComparisonPage({
             </select>
           </Field>
 
-          <Field label="Or compare by RFQ">
+          <Field label="Or compare by Procurement">
             <select
               value={activeRFQId || ''}
               onChange={(e) => {
@@ -148,7 +148,7 @@ export function QuotationComparisonPage({
       {!activePRId && !activeRFQId ? (
         <div className="card">
           <Empty
-            title="Select a Purchase Requisition or RFQ"
+            title="Select a Purchase Requisition or Procurement"
             text="Choose an approved requisition or request for quotation above to view the competitive price comparison matrix."
           />
         </div>

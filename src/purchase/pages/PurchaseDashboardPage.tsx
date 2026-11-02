@@ -22,7 +22,7 @@ import { useStore } from '../../store/StoreContext';
 import { usePurchaseDashboard } from '../hooks/usePurchase';
 import { fetchPayablesKpi } from '../services/invoiceService';
 import { decidePO, fetchPODetail } from '../services/poService';
-import { printPurchaseOrder } from '../print';
+import { printPoWithAttachments } from '../printPo';
 import { daysSince } from '../reports/config';
 
 const inr = (v: number) => `₹ ${v.toLocaleString('en-IN')}`;
@@ -102,10 +102,10 @@ export function PurchaseDashboardPage({ navigate }: { navigate: (r: string) => v
           onClick={() => navigate('purchase-requisitions')}
         />
         <Kpi
-          label="Open RFQs"
+          label="Open Procurements"
           value={kpis.openRFQs}
-          unit="RFQs"
-          hint={kpis.openRFQs > 0 ? 'Awaiting supplier quotes' : 'All RFQs responded/closed'}
+          unit="open"
+          hint={kpis.openRFQs > 0 ? 'Awaiting supplier quotes' : 'All procurements responded/closed'}
           icon={Send}
           tone={kpis.openRFQs > 0 ? 'teal' : 'blue'}
           onClick={() => navigate('rfqs')}
@@ -328,7 +328,7 @@ export function PurchaseDashboardPage({ navigate }: { navigate: (r: string) => v
                             onClick={async () => {
                               try {
                                 const detail = await fetchPODetail(o.id);
-                                printPurchaseOrder(detail);
+                                await printPoWithAttachments(detail, toast);
                               } catch (e) {
                                 toast({ kind: 'error', title: 'Could not load PO for print', message: String(e) });
                               }
@@ -415,7 +415,7 @@ export function PurchaseDashboardPage({ navigate }: { navigate: (r: string) => v
                             onClick={async () => {
                               try {
                                 const detail = await fetchPODetail(po.id);
-                                printPurchaseOrder(detail);
+                                await printPoWithAttachments(detail, toast);
                               } catch (e) {
                                 toast({ kind: 'error', title: 'Could not load PO for print', message: String(e) });
                               }

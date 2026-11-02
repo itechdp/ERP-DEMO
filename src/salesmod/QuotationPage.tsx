@@ -15,7 +15,11 @@ import {
   addFollowup, createOrderFromQuotation, decideQuotation, fetchMinMargin, openQuotationPdf, respondQuotation, saveQuotation, sendQuotation, submitQuotation,
 } from './service';
 import { CostSheetEditor } from './CostSheetEditor';
-import { LOST_REASONS, UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
+import { CustomerSelect } from '../masters/CustomerSelect';
+import { MaterialPick, SizePick } from '../masters/MaterialPick';
+import { ADD_NEW, useAddOption } from '../masters/AddItem';
+import { useOptions } from '../masters/useOptions';
+import { UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
 
 const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null, discountPct: 0, materialCost: null, processingCost: null, otherCost: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
@@ -229,7 +233,7 @@ export function QuotationPage({ query, navigate }: { query?: URLSearchParams; na
                         <button className="icon-btn" title="View quotation" aria-label={`View ${r.docNo}`} onClick={() => setSelected(r.id)}>
                           <Eye size={16} />
                         </button>
-                        {(r.status === 'Draft' || r.status === 'Revision Required') && (
+                        {['Draft', 'Revision Required', 'Pending Approval'].includes(r.status) && (
                           <Write res="sales_quotation">
                             <button className="icon-btn" title="Edit quotation" aria-label={`Edit ${r.docNo}`} onClick={() => { setEditId(r.id); setFormOpen(true); }}>
                               <Pencil size={16} />
@@ -299,7 +303,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
       try {
         const { fetchQuotation } = await import('./service');
         const d = await fetchQuotation(editId);
-        if (!['Draft', 'Revision Required'].includes(d.q.status)) {
+        if (!['Draft', 'Revision Required', 'Pending Approval'].includes(d.q.status)) {
           toast({ kind: 'error', title: 'Cannot edit', message: 'Only a draft or a quotation sent back for revision can be edited.' });
           onClose();
           return;
@@ -369,7 +373,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: 14 }}>
             {!editId && <DocNoField label="Quotation no. (draft)" no={doc.no} setNo={doc.setNo} />}
-            <Field label="Customer" required><input value={h.customer} onChange={(e) => set({ customer: e.target.value })} placeholder="Customer / company" /></Field>
+            <Field label="Customer" required><CustomerSelect value={h.customer} onChange={(name, c) => set({ customer: name, ...(c ? { contact: c.contact || h.contact, phone: c.phone || h.phone, email: c.email || h.email, paymentTerms: h.paymentTerms || c.paymentTerms } : {}) })} /></Field>
             <Field label="Contact person"><input value={h.contact} onChange={(e) => set({ contact: e.target.value })} /></Field>
             <Field label="Phone"><input value={h.phone} onChange={(e) => set({ phone: e.target.value })} /></Field>
             <Field label="Email"><input value={h.email} onChange={(e) => set({ email: e.target.value })} /></Field>
@@ -415,8 +419,8 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                       <tr>
                         <td className="mono muted">{i + 1}</td>
                         <td><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></td>
-                        <td><input value={l.grade} onChange={(e) => setLine(i, { grade: e.target.value })} /></td>
-                        <td><input value={l.size} onChange={(e) => setLine(i, { size: e.target.value })} /></td>
+                        <td><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></td>
+                        <td><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></td>
                         <td>
                           <select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>
                             {UOMS.map((u) => <option key={u}>{u}</option>)}
@@ -488,6 +492,8 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
   const { toast } = useStore();
   const [busy, setBusy] = useState(false);
   const [detailed, setDetailed] = useState(false);
+  const lostReasons = useOptions('lost_reason');
+  const addReason = useAddOption('lost_reason', (v) => setReason(v));
   const [dlg, setDlg] = useState<Dlg>(initialStep);
   const [note, setNote] = useState('');
   const [response, setResponse] = useState<'Won' | 'Lost' | 'Pending'>('Won');
@@ -573,6 +579,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
   };
 
   const editable = q.status === 'Draft' || q.status === 'Revision Required';
+  const editPending = q.status === 'Pending Approval';
   const printable = ['Approved', 'Sent', 'Won', 'Lost'].includes(q.status);
 
   return (
@@ -598,6 +605,11 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
               <Write res="sales_quotation">
                 <button className="btn btn-subtle" onClick={() => onEdit(q.id)}><Pencil size={14} /> Edit</button>
                 <button className="btn btn-primary" onClick={() => open('submit')}><Send size={14} /> Submit for Approval</button>
+              </Write>
+            )}
+            {editPending && onEdit && (
+              <Write res="sales_quotation">
+                <button className="btn btn-subtle" onClick={() => onEdit(q.id)} title="Saving moves it back to Draft; submit again afterwards"><Pencil size={14} /> Edit</button>
               </Write>
             )}
             {q.status === 'Pending Approval' && canApprove && (
@@ -802,10 +814,12 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
               )}
               {response === 'Lost' && (
                 <Field label="Reason lost" required>
-                  <select value={reason} onChange={(e) => setReason(e.target.value)}>
+                  <select value={reason} onChange={(e) => (e.target.value === ADD_NEW ? addReason.open() : setReason(e.target.value))}>
                     <option value="">Select a reason…</option>
-                    {LOST_REASONS.map((r) => <option key={r}>{r}</option>)}
+                    {lostReasons.map((r) => <option key={r}>{r}</option>)}
+                    <option value={ADD_NEW}>+ Add new reason…</option>
                   </select>
+                  {addReason.modal}
                 </Field>
               )}
               <Field label={reason === 'Other' ? 'Describe the reason' : 'Note'} required={reason === 'Other'}><textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} /></Field>

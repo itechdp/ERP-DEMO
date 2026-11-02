@@ -13,7 +13,7 @@ export interface MaterialSpec {
   defaultOd: number;
 }
 
-export const MATERIAL_MASTER: MaterialSpec[] = [
+export const MATERIAL_MASTER: MaterialSpec[] = [  // the built-in list; replaced by the database's material master once it is loaded (applyMaterialMaster)
   // Carbon steel
   { family: 'Carbon Steel', material: 'EN8 Steel Round Bar', grade: 'EN8 / 080M40 (C45 equivalent)', density: 7.85, defaultOd: 50 },
   { family: 'Carbon Steel', material: 'EN9 Steel Round Bar', grade: 'EN9 / 070M55 (C55 equivalent)', density: 7.85, defaultOd: 50 },
@@ -38,10 +38,22 @@ export const MATERIAL_MASTER: MaterialSpec[] = [
   { family: 'Aluminium', material: 'Aluminium 2014 Round Bar', grade: 'AA 2014 (forging alloy)', density: 2.8, defaultOd: 25 },
 ];
 
-export const MATERIAL_FAMILIES = [...new Set(MATERIAL_MASTER.map((m) => m.family))];
+export const MATERIAL_FAMILIES: string[] = [...new Set(MATERIAL_MASTER.map((m) => m.family))];
 
 /** Standard round-bar diameters stocked by mills / service centres (mm). */
-export const STANDARD_OD_MM = [12, 16, 20, 22, 25, 28, 30, 32, 35, 38, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120];
+export const STANDARD_OD_MM: number[] = [12, 16, 20, 22, 25, 28, 30, 32, 35, 38, 40, 45, 50, 55, 60, 65, 70, 75, 80, 90, 100, 110, 120];
+
+// The lists are edited in the app (Settings → Drop-down Lists, or "+ Add new" in the drop-down). The database's version replaces these
+// built-in ones when the app loads; they are changed IN PLACE so every page that imported them sees the new content.
+export function applyMaterialMaster(rows: MaterialSpec[]) {
+  if (!rows.length) return;
+  MATERIAL_MASTER.splice(0, MATERIAL_MASTER.length, ...rows);
+  MATERIAL_FAMILIES.splice(0, MATERIAL_FAMILIES.length, ...new Set(rows.map((m) => m.family)));
+}
+export function applyBarSizes(sizes: number[]) {
+  if (!sizes.length) return;
+  STANDARD_OD_MM.splice(0, STANDARD_OD_MM.length, ...sizes);
+}
 
 export const findMaterial = (material: string) => MATERIAL_MASTER.find((m) => m.material === material);
 

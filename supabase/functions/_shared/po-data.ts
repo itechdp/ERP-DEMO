@@ -12,6 +12,8 @@ export interface LoadedPo {
   status: string;
   deliveryDate: string | null;
   supplierEmail: string | null;
+  /** files attached to the PO (name + path in the po-attachments bucket) */
+  attachments: { name: string; path: string }[];
   pdf: PoPdfData;
 }
 
@@ -29,6 +31,7 @@ export async function loadPo(admin: Admin, poId: number): Promise<LoadedPo> {
     status: po.status,
     deliveryDate: po.delivery_date ?? null,
     supplierEmail: sup?.email ?? null,
+    attachments: Array.isArray(po.attachments) ? po.attachments.filter((a: { path?: string }) => a && a.path).map((a: { name?: string; path: string }) => ({ name: String(a.name ?? ''), path: String(a.path) })) : [],
     pdf: {
       // blank fields are simply left out of the PDF
       company: { name: co?.name || 'Everest Auto Forge Pvt. Ltd.', address: co?.address, gstin: co?.gstin, phone: co?.phone, email: co?.email },

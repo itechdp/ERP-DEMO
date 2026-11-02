@@ -1,4 +1,4 @@
-import { Conf, canSee, searchable, Write, colOk } from '../auth/access';
+import { Conf, canSee, searchable, Write } from '../auth/access';
 import { useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowLeftRight, ChevronRight, Download, FileText, Hammer, History, Layers, Pencil, Plus, Printer, Scissors, Undo2, Upload, Wrench, CheckCircle2, Eye } from 'lucide-react';
 import { Empty, Kpi, PageHeader, Search, Tabs, FilterMenu } from '../components/ui';
@@ -202,7 +202,7 @@ export function DieRegisterPage({ kind }: { kind: DieKind }) {
 
   const rows = dies
     .filter((d) => (!metal || mainOf(d).metal === metal) && (!maker || d.maker === maker) && (!status || d.status === status))
-    .filter((d) => matches(q, d.code, d.mainCode, mainOf(d).name, mainOf(d).partCode, d.material, searchable(d.maker), d.drawingNo, d.location))
+    .filter((d) => matches(q, d.code, d.mainCode, mainOf(d).name, mainOf(d).partCode, d.material, searchable(d.maker), d.location))
     .sort((a, b) => a.makingDate.localeCompare(b.makingDate) || a.code.localeCompare(b.code));
   const filtered = !!(q || metal || maker || status);
   const label = KIND_LABEL[kind];
@@ -447,7 +447,6 @@ export function DieDetailsPage({ query }: { query: URLSearchParams }) {
                       <Thumb big id={d.bottomImg} label="Bottom die" />
                     </div>
                     <div className="kv-grid one">
-                      {colOk('die.drawing') && <div className="kv"><span>Drawing Number</span><b>{d.drawingNo || '—'}</b></div>}
                       <div className="kv"><span>Revision</span><b>{d.revision || '—'}</b></div>
                     </div>
                     <button className="btn btn-sm" onClick={() => openUI({ kind: 'die-view', dieKind: d.kind, code: d.code })}>Open die</button>

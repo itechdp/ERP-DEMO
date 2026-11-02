@@ -23,6 +23,9 @@ import type {
   JobWork,
 } from '../store/types';
 import { ROLES, type Level } from '../auth/access';
+import { applyBarSizes, applyMaterialMaster } from '../store/materials';
+import { defaultsOf } from '../masters/optionLists';
+import type { Customer, MasterRow } from '../masters/types';
 import { APP_RESOURCES, getAllDefaultPagesForRole, getPageOverrides } from '../auth/appResources';
 import type { Die, DieData, HistoryEvent, IssueRecord, MaintenanceRecord, MainDie } from '../dies/types';
 
@@ -62,6 +65,12 @@ export interface Masters {
   machines: Record<'cutting' | 'forging' | 'trimming' | 'heatTreatment', string[]>;
   operators: string[];
   inspectors: string[];
+  /** the customer master with all details (empty for roles without access to party names) */
+  customerList: Customer[];
+  /** every machine / operator / inspector, switched-off ones too — for Settings → Drop-down Lists */
+  rows: { machines: MasterRow[]; operators: MasterRow[]; inspectors: MasterRow[] };
+  /** the editable drop-down lists, by key (migration 42); a list never edited is not here — use useOptions() */
+  options: Record<string, string[]>;
 }
 
 export async function loadMasters(): Promise<Masters> {
@@ -72,6 +81,17 @@ export async function loadMasters(): Promise<Masters> {
     read('operators', [['name', true]]),
     read('inspectors', [['name', true]]),
   ]);
+  // migration 42 (customer details, editable lists, materials): older databases simply do not have them yet
+  const extra = await Promise.all([
+    supabase.from('dropdown_lists').select('list_key, items'),
+    supabase.from('material_master').select('*').order('family').order('material'),
+  ]);
+  const options: Record<string, string[]> = {};
+  for (const r of (extra[0].data ?? []) as Row[]) options[r.list_key] = (Array.isArray(r.items) ? r.items : []).map(String);
+  const mats = ((extra[1].data ?? []) as Row[]).map((r) => ({ material: str(r.material), family: str(r.family), grade: str(r.grade), density: num0(r.density), defaultOd: num0(r.default_od) }));
+  applyMaterialMaster(mats);
+  applyBarSizes((options.od_size ?? defaultsOf('od_size')).map(Number).filter((n) => n > 0));
+  const mapRows = (rows: Row[]): MasterRow[] => rows.map((r) => ({ id: num0(r.id), name: str(r.name), stage: r.stage ? str(r.stage) : undefined, active: r.active !== false }));
   const byStage = (s: string) => machines.filter((m) => m.stage === s && m.active !== false).map((m) => str(m.name));
   return {
     suppliers: suppliers.filter((r) => r.active !== false).map((r) => str(r.name)),
@@ -79,6 +99,14 @@ export async function loadMasters(): Promise<Masters> {
     machines: { cutting: byStage('cutting'), forging: byStage('forging'), trimming: byStage('trimming'), heatTreatment: byStage('heatTreatment') },
     operators: operators.filter((r) => r.active !== false).map((r) => str(r.name)),
     inspectors: inspectors.filter((r) => r.active !== false).map((r) => str(r.name)),
+    customerList: customers.map(
+      (r): Customer => ({
+        id: num0(r.id), name: str(r.name), code: str(r.code), contact: str(r.contact), phone: str(r.phone), email: str(r.email), address: str(r.address), city: str(r.city),
+        state: str(r.state), gstin: str(r.gstin), paymentTerms: str(r.payment_terms), notes: str(r.notes), active: r.active !== false,
+      }),
+    ),
+    rows: { machines: mapRows(machines), operators: mapRows(operators), inspectors: mapRows(inspectors) },
+    options,
   };
 }
 

@@ -9,6 +9,8 @@ import { Brief } from '../components/Brief';
 import { inr } from './calc';
 import { printSalesOrder } from './print';
 import { withDocNo } from '../db/client';
+import { CustomerSelect } from '../masters/CustomerSelect';
+import { MaterialPick, SizePick } from '../masters/MaterialPick';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { fetchOrder, saveOrder, setOrderStatus, type OrderHeaderInput } from './service';
 import { ORDER_NEXT, UOMS, type OrderLine, type OrderRow } from './types';
@@ -122,7 +124,7 @@ export function SalesOrderPage({ query, navigate }: { query?: URLSearchParams; n
                             <ClipboardCheck size={16} />
                           </button>
                         )}
-                        {o.status === 'Draft' && <Write res="sales_orders"><button className="icon-btn" title="Edit" aria-label={`Edit ${o.soNo}`} onClick={() => { setEditId(o.id); setFormOpen(true); }}><Pencil size={16} /></button></Write>}
+                        {['Draft', 'Confirmed'].includes(o.status) && <Write res="sales_orders"><button className="icon-btn" title="Edit" aria-label={`Edit ${o.soNo}`} onClick={() => { setEditId(o.id); setFormOpen(true); }}><Pencil size={16} /></button></Write>}
                       </div>
                     </td>
                   </tr>
@@ -151,8 +153,8 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
     void (async () => {
       try {
         const { o, lines: ls } = await fetchOrder(editId);
-        if (o.status !== 'Draft') {
-          toast({ kind: 'error', title: 'Cannot edit', message: 'Only a draft sales order can be edited.' });
+        if (!['Draft', 'Confirmed'].includes(o.status)) {
+          toast({ kind: 'error', title: 'Cannot edit', message: 'A sales order can be edited until production starts.' });
           onClose();
           return;
         }
@@ -193,7 +195,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
           {!allowed && <div className="callout warn">A sales order holds customer names and prices. Ask the Director for access to Party names and Sales rates.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: 14 }}>
             {!editId && <DocNoField label="Sales order no." no={doc.no} setNo={doc.setNo} />}
-            <Field label="Customer" required><input value={h.customer} onChange={(e) => set({ customer: e.target.value })} /></Field>
+            <Field label="Customer" required><CustomerSelect value={h.customer} onChange={(name, c) => set({ customer: name, ...(c ? { contact: c.contact || h.contact, phone: c.phone || h.phone, email: c.email || h.email, paymentTerms: h.paymentTerms || c.paymentTerms } : {}) })} /></Field>
             <Field label="Contact person"><input value={h.contact} onChange={(e) => set({ contact: e.target.value })} /></Field>
             <Field label="Phone"><input value={h.phone} onChange={(e) => set({ phone: e.target.value })} /></Field>
             <Field label="Email"><input value={h.email} onChange={(e) => set({ email: e.target.value })} /></Field>
@@ -217,8 +219,8 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
                     <tr key={i}>
                       <td className="mono muted">{i + 1}</td>
                       <td><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></td>
-                      <td><input value={l.grade} onChange={(e) => setLine(i, { grade: e.target.value })} /></td>
-                      <td><input value={l.size} onChange={(e) => setLine(i, { size: e.target.value })} /></td>
+                      <td><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></td>
+                      <td><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></td>
                       <td><select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>{UOMS.map((u) => <option key={u}>{u}</option>)}</select></td>
                       <td><input type="number" step="any" min="0" className="right mono" value={l.qty ?? ''} onChange={(e) => setLine(i, { qty: numOrNull(e.target.value) })} /></td>
                       <td><input type="number" step="any" min="0" className="right mono" value={l.rate ?? ''} onChange={(e) => setLine(i, { rate: numOrNull(e.target.value) })} /></td>
@@ -276,7 +278,7 @@ function OrderDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id:
             {o.status !== 'Cancelled' && <button className="btn btn-subtle" onClick={() => printSalesOrder(o, lines)}><Printer size={14} /> Print</button>}
             {o.quotationId && <button className="btn btn-subtle" onClick={() => navigate(`sales-quotation?id=${o.quotationId}`)}>Quotation {o.quotationNo}</button>}
             <Write res="sales_orders">
-              {o.status === 'Draft' && <button className="btn btn-subtle" onClick={() => onEdit(o.id)}><Pencil size={14} /> Edit</button>}
+              {['Draft', 'Confirmed'].includes(o.status) && <button className="btn btn-subtle" onClick={() => onEdit(o.id)}><Pencil size={14} /> Edit</button>}
               {next && <button className="btn btn-primary" onClick={() => { setNote(''); setStepTo(next); }}>Mark as {next}</button>}
               {!['Delivered', 'Cancelled'].includes(o.status) && <button className="btn btn-danger" onClick={() => { setNote(''); setStepTo('Cancelled'); }}><XCircle size={14} /> Cancel Order</button>}
             </Write>

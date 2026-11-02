@@ -10,6 +10,7 @@ export const FORM_FORMATS = {
   purchaseOrder: { formNo: 'F PU 01', revision: '00 / 01.10.25' },
   taskReport: { formNo: 'F WH 01', revision: '00 / 01.10.25' },
   report: { formNo: 'F RP 01', revision: '00 / 01.10.25' },
+  packingList: { formNo: 'F DS 01', revision: '00 / 01.10.25' },
   qcFinalInspection: { formNo: 'F QC 01', revision: '00 / 01.10.25' },
 } as const;
 export type FormFormat = { formNo: string; revision: string };

@@ -13,6 +13,7 @@ import { dbMessage, withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { UrgencyBadge } from '../tasks/UrgencyBadge';
 import { PersonSelect } from '../components/PersonSelect';
+import { CustomerSelect } from '../masters/CustomerSelect';
 import { fetchAssignableUsers, type AssignableUser } from '../tasks/service';
 
 export interface SalesPageDef {
@@ -284,6 +285,13 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
     if (f.key === 'rate') return <NumInput value={v.rate} onChange={(x) => set('rate', x)} suffix="₹ / pc" step="any" />;
     if (f.key === 'dueDate') return <input className="input" type="date" value={v.dueDate} onChange={(e) => set('dueDate', e.target.value)} />;
     if (f.key === 'remarks') return <textarea value={v.remarks} onChange={(e) => set('remarks', e.target.value)} />;
+    if (f.key === 'party' && cfg.kind !== 'task')
+      return (
+        <CustomerSelect
+          value={v.party}
+          onChange={(name, c) => setV((x) => ({ ...x, party: name, ...(c ? { contact: x.contact || c.contact, phone: x.phone || c.phone, email: x.email || c.email } : {}) }))}
+        />
+      );
     if (f.key === 'assignee' && people.length) return <PersonSelect value={v.assignee} onChange={(name) => set('assignee', name)} people={people} />;
     if (f.options)
       return (

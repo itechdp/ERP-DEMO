@@ -5,11 +5,12 @@ import { Field, Modal, NumInput } from '../../components/ui';
 import { fmtDate, todayISO } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
 import { withDocNo } from '../../db/client';
+import { ADD_NEW, useAddOption } from '../../masters/AddItem';
+import { useOptions } from '../../masters/useOptions';
 import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { savePayment } from '../services/invoiceService';
 import type { PurchaseInvoice } from '../types';
 
-export const PAYMENT_MODES = ['Bank Transfer', 'Cheque', 'UPI', 'Cash'] as const;
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
 /**
@@ -23,7 +24,9 @@ export function PaymentModal({ invoice, choices, onClose, onSaved }: { invoice?:
   const picked = invoice ?? choices?.find((c) => c.invoiceId === invoiceId);
   const [date, setDate] = useState(todayISO());
   const [amount, setAmount] = useState(invoice ? String(Math.round(invoice.balance * 100) / 100) : '');
+  const modes = useOptions('payment_mode');
   const [mode, setMode] = useState<string>('Bank Transfer');
+  const addMode = useAddOption('payment_mode', (v) => setMode(v));
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -93,13 +96,15 @@ export function PaymentModal({ invoice, choices, onClose, onSaved }: { invoice?:
           <NumInput value={amount} onChange={setAmount} suffix="₹" step="any" bad={over} />
         </Field>
         <Field label="Mode" required>
-          <select value={mode} onChange={(e) => setMode(e.target.value)}>
-            {PAYMENT_MODES.map((m) => (
+          <select value={mode} onChange={(e) => (e.target.value === ADD_NEW ? addMode.open() : setMode(e.target.value))}>
+            {modes.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
+            <option value={ADD_NEW}>+ Add new mode…</option>
           </select>
+          {addMode.modal}
         </Field>
         <Field label={mode === 'Cheque' ? 'Cheque No.' : mode === 'UPI' ? 'UPI Transaction ID' : mode === 'Cash' ? 'Reference (optional)' : 'UTR / Reference No.'} required={needsRef}>
           <input value={reference} onChange={(e) => setReference(e.target.value)} />

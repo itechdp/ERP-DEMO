@@ -218,13 +218,13 @@ function ImagePicker({ label, value, onChange }: { label: string; value: string;
 const num = (s: string) => (s.trim() === '' ? undefined : Number(s));
 const str = (n?: number) => (n === undefined ? '' : String(n));
 
-function DimsInput({ label, value, onChange }: { label: string; value: Record<'l' | 'w' | 'h', string>; onChange: (v: Record<'l' | 'w' | 'h', string>) => void }) {
+function DimsInput({ label, value, onChange, round = false }: { label: string; value: Record<'l' | 'w' | 'h', string>; onChange: (v: Record<'l' | 'w' | 'h', string>) => void; round?: boolean }) {
   return (
     <div className="field full">
       <label>{label}</label>
       <div className="dims">
-        {(['l', 'w', 'h'] as const).map((k) => (
-          <NumInput key={k} suffix={k === 'l' ? 'L mm' : k === 'w' ? 'W mm' : 'H mm'} step="any" value={value[k]} onChange={(v) => onChange({ ...value, [k]: v })} />
+        {(round ? (['l'] as const) : (['l', 'w', 'h'] as const)).map((k) => (
+          <NumInput key={k} suffix={k === 'l' ? (round ? 'Length mm' : 'L mm') : k === 'w' ? 'W mm' : 'H mm'} step="any" value={value[k]} onChange={(v) => onChange({ ...value, [k]: v })} />
         ))}
       </div>
     </div>
@@ -260,11 +260,11 @@ const Foot = ({ onClose, onSave, label, disabled }: { onClose: () => void; onSav
 
 // -------------------------------------------------------------- Main die ---
 export function MainDieForm({ code, onClose }: { code?: string; onClose: () => void }) {
-  const { data, saveMain, nextMainCode } = useDies();
+  const { data, saveMain, nextMainCode, nextPartCode } = useDies();
   const cur = code ? data.mainDies.find((m) => m.code === code) : undefined;
   const [f, setF] = useState({
     name: cur?.name ?? '',
-    partCode: cur?.partCode ?? '',
+    partCode: cur?.partCode ?? nextPartCode(),
     description: cur?.description ?? '',
     customer: canSee('party_names') ? cur?.customer ?? '' : '', // a masked name is never loaded into the form
     metal: (cur?.metal ?? 'Brass') as Metal,
@@ -293,7 +293,7 @@ export function MainDieForm({ code, onClose }: { code?: string; onClose: () => v
           <input className={`input ${miss(f.name) ? 'bad' : ''}`} value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Brass Valve Body" autoFocus />
         </Field>
         <Field label="Part Code" required error={miss(f.partCode)}>
-          <input className={`input ${miss(f.partCode) ? 'bad' : ''}`} value={f.partCode} onChange={(e) => set('partCode', e.target.value)} placeholder="e.g. PRT-004" />
+          <input className={`input ${miss(f.partCode) ? 'bad' : ''}`} value={f.partCode} onChange={(e) => set('partCode', e.target.value)} placeholder="e.g. EAF-PRT-0001" />
         </Field>
         {canSee('party_names') && (
           <Field label="Customer Name">
@@ -330,6 +330,7 @@ interface DieFormState {
   material: string;
   top: Record<'l' | 'w' | 'h', string>;
   bottom: Record<'l' | 'w' | 'h', string>;
+  shape: 'round' | 'square';
   topWeight: string;
   bottomWeight: string;
   makingDate: string;
@@ -370,8 +371,15 @@ function DieFields({ f, set, kind, lockMain, existing }: { f: DieFormState; set:
       <Field label={`${KIND_LABEL[kind]} Die Material / Grade`} required>
         <input className="input" value={f.material} onChange={(e) => set('material', e.target.value)} placeholder="e.g. H13" />
       </Field>
-      <DimsInput label="Top Die — Length / Width / Height" value={f.top} onChange={(v) => set('top', v)} />
-      <DimsInput label="Bottom Die — Length / Width / Height" value={f.bottom} onChange={(v) => set('bottom', v)} />
+      <Field label="Die Shape" hint={f.shape === 'round' ? 'Round: top and bottom length' : 'Square: length, width and height for top and bottom'}>
+        <select value={f.shape} onChange={(e) => set('shape', e.target.value as 'round' | 'square')}>
+          <option value="round">Round</option>
+          <option value="square">Square</option>
+        </select>
+      </Field>
+      <div className="field" />
+      <DimsInput round={f.shape === 'round'} label={f.shape === 'round' ? 'Top Die — Length' : 'Top Die — Length / Width / Height'} value={f.top} onChange={(v) => set('top', v)} />
+      <DimsInput round={f.shape === 'round'} label={f.shape === 'round' ? 'Bottom Die — Length' : 'Bottom Die — Length / Width / Height'} value={f.bottom} onChange={(v) => set('bottom', v)} />
       <Field label="Top Die Weight">
         <NumInput suffix="kg" step="any" value={f.topWeight} onChange={(v) => set('topWeight', v)} />
       </Field>
@@ -385,11 +393,6 @@ function DieFields({ f, set, kind, lockMain, existing }: { f: DieFormState; set:
       {(canSee('party_names') || !existing) && (
         <Field label="Die Maker Name" required>
           <input className="input" value={f.maker} onChange={(e) => set('maker', e.target.value)} />
-        </Field>
-      )}
-      {colOk('die.drawing') && (
-        <Field label="Drawing Number">
-          <input className="input" value={f.drawingNo} onChange={(e) => set('drawingNo', e.target.value)} />
         </Field>
       )}
       <Field label="Die Revision">
@@ -434,6 +437,7 @@ function useDieForm(init?: Die, mainCode = '', prefill = false) {
     material: init?.material ?? '',
     top: dimsStr(init?.top ?? {}),
     bottom: dimsStr(init?.bottom ?? {}),
+    shape: init && (init.top.w || init.top.h || init.bottom.w || init.bottom.h) ? 'square' : 'round',
     topWeight: str(init?.topWeight),
     bottomWeight: str(init?.bottomWeight),
     makingDate: prefill ? todayISO() : init?.makingDate ?? todayISO(),
@@ -452,8 +456,8 @@ function useDieForm(init?: Die, mainCode = '', prefill = false) {
   const toInput = (): DieInput => ({
     mainCode: f.mainCode,
     material: f.material,
-    top: dimsNum(f.top),
-    bottom: dimsNum(f.bottom),
+    top: f.shape === 'round' ? { l: num(f.top.l) } : dimsNum(f.top),
+    bottom: f.shape === 'round' ? { l: num(f.bottom.l) } : dimsNum(f.bottom),
     topWeight: num(f.topWeight),
     bottomWeight: num(f.bottomWeight),
     makingDate: f.makingDate,
@@ -694,9 +698,9 @@ export function DieView({ kind, code, onClose }: { kind: DieKind; code: string; 
         <Row k="Material / Grade" v={die.material} />
         <Row k="Making Date" v={fmtDate(die.makingDate)} />
         {canSee('party_names') && <Row k="Die Maker" v={die.maker} />}
-        <Row k="Top Die (L×W×H)" v={`${fmtDims(die.top)} · ${fmtWt(die.topWeight)}`} />
-        <Row k="Bottom Die (L×W×H)" v={`${fmtDims(die.bottom)} · ${fmtWt(die.bottomWeight)}`} />
-        <Row k={colOk('die.drawing') ? 'Drawing No. / Revision' : 'Revision'} v={colOk('die.drawing') ? `${die.drawingNo || '—'} / ${die.revision || '—'}` : die.revision || '—'} />
+        <Row k="Top Die" v={`${fmtDims(die.top)} · ${fmtWt(die.topWeight)}`} />
+        <Row k="Bottom Die" v={`${fmtDims(die.bottom)} · ${fmtWt(die.bottomWeight)}`} />
+        <Row k="Revision" v={die.revision || '—'} />
         {colOk('die.location') && <Row k="Location" v={die.location} />}
         {colOk('die.pieces') && <Row k="Pieces Produced" v={die.pieces.toLocaleString('en-IN')} />}
         {canSee('die_cost') && <Row k={`${KIND_LABEL[kind]} Die Cost`} v={die.cost === undefined ? '' : `₹ ${die.cost.toLocaleString('en-IN')}`} />}

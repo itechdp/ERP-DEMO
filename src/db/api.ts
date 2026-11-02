@@ -341,4 +341,21 @@ export const createJobWork = (i: JobWorkInput, ts?: string) =>
     },
     p_ts: ts,
   });
-export const deleteJobWork = (jobNo: string, ts?: string) => call<null>('delete_job_work', { p_job_no: jobNo, p_ts: ts });
+/** Edits the challan, description, weight, customer, due date and charges of a received batch (supabase/migrations/45). */
+export const editJobWork = (jobNo: string, i: { customer: string; challanNo: string; challanDate: string; itemDescription: string; receivedWeight?: number; dueDate: string; chargeBasis: 'none' | 'piece' | 'kg' | 'process'; rate?: number; processRates?: Record<string, number> }, ts?: string) =>
+  call<null>('edit_job_work', {
+    p_job_no: jobNo,
+    p_payload: {
+      customer: i.customer.trim(),
+      challan_no: i.challanNo.trim(),
+      challan_date: i.challanDate || null,
+      item_description: i.itemDescription.trim(),
+      received_weight: i.receivedWeight ?? null,
+      due_date: i.dueDate || null,
+      charge_basis: i.chargeBasis,
+      rate: i.rate ?? null,
+      process_rates: i.processRates ?? {},
+    },
+    p_ts: ts,
+  });
+export const deleteJobWork =(jobNo: string, ts?: string) => call<null>('delete_job_work', { p_job_no: jobNo, p_ts: ts });

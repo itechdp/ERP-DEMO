@@ -61,6 +61,8 @@ export interface Session {
 // search filters). Defaults to NO access, so anything that runs while signed out shows nothing sensitive.
 let current: Session | null = null;
 export const canSee = (g: FieldGroup) => !!current?.fields[g];
+/** the signed-in person's name, for printouts and exports */
+export const currentUserName = () => current?.name || current?.email || '';
 export const levelOf = (resource: string): Level => current?.pages[resource] ?? 'hidden';
 export const canWriteNow = (resource: string) => levelOf(resource) === 'write';
 /** a column the admin added to the protected list (Settings → Access Control → Add data column); not in the list = visible */

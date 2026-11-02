@@ -6,7 +6,7 @@ import { KIND_LABEL, type Die, type DieData, type Dims, type MainDie } from './t
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-export const fmtDims = (d: Dims) => (d.l || d.w || d.h ? `${d.l ?? '—'} × ${d.w ?? '—'} × ${d.h ?? '—'} mm` : '—');
+export const fmtDims = (d: Dims) => (d.w == null && d.h == null ? (d.l ? `Length ${d.l} mm` : '—') : `${d.l ?? '—'} × ${d.w ?? '—'} × ${d.h ?? '—'} mm`);
 export const fmtWt = (n?: number) => (n === undefined ? '—' : `${n} kg`);
 
 const DIE_PRINT_CSS = `
@@ -26,8 +26,8 @@ function dieBlock(die: Die, data: DieData) {
   <table>
     <tr><th>Status</th><td>${esc(die.status)}</td><th>Material / Grade</th><td>${esc(die.material)}</td></tr>
     <tr><th>Making date</th><td>${fmtDate(die.makingDate)}</td>${canSee('party_names') ? `<th>Die maker</th><td>${esc(die.maker)}</td>` : '<th></th><td></td>'}</tr>
-    <tr><th>Top die (L×W×H)</th><td>${fmtDims(die.top)} · ${fmtWt(die.topWeight)}</td><th>Bottom die (L×W×H)</th><td>${fmtDims(die.bottom)} · ${fmtWt(die.bottomWeight)}</td></tr>
-    <tr><th>${colOk('die.drawing') ? 'Drawing no. / Rev.' : 'Revision'}</th><td>${colOk('die.drawing') ? `${esc(die.drawingNo) || '—'} / ` : ''}${esc(die.revision) || '—'}</td>${colOk('die.location') ? `<th>Location</th><td>${esc(die.location) || '—'}</td>` : '<th></th><td></td>'}</tr>
+    <tr><th>Top die</th><td>${fmtDims(die.top)} · ${fmtWt(die.topWeight)}</td><th>Bottom die</th><td>${fmtDims(die.bottom)} · ${fmtWt(die.bottomWeight)}</td></tr>
+    <tr><th>Revision</th><td>${esc(die.revision) || '—'}</td>${colOk('die.location') ? `<th>Location</th><td>${esc(die.location) || '—'}</td>` : '<th></th><td></td>'}</tr>
     <tr>${colOk('die.pieces') ? `<th>Pieces produced</th><td>${die.pieces.toLocaleString('en-IN')}</td>` : '<th></th><td></td>'}${canSee('die_cost') ? `<th>Cost</th><td>${die.cost === undefined ? '—' : '₹ ' + die.cost.toLocaleString('en-IN')}</td>` : '<th></th><td></td>'}</tr>
     <tr><th>Last maintenance</th><td>${die.lastMaintDate ? fmtDate(die.lastMaintDate) : '—'}</td><th>Maintenance remarks</th><td>${esc(die.maintRemarks) || '—'}</td></tr>
     ${die.replacesCode || die.replacedByCode ? `<tr><th>Replaces</th><td>${esc(die.replacesCode) || '—'}</td><th>Replaced by</th><td>${esc(die.replacedByCode) || '—'}</td></tr>` : ''}
@@ -71,8 +71,8 @@ export function exportDies(kind: 'forging' | 'trimming', dies: Die[], data: DieD
   download(
     `${kind}-die-master.csv`,
     csv([
-      ['Die Code', 'Main Die', 'Component', 'Material', 'Making Date', ...(canSee('party_names') ? ['Maker'] : []), ...(colOk('die.drawing') ? ['Drawing No.'] : []), 'Revision', 'Status', ...(colOk('die.location') ? ['Location'] : []), ...(colOk('die.pieces') ? ['Pieces Produced'] : []), ...(canSee('die_cost') ? ['Cost'] : [])],
-      ...dies.map((d) => [d.code, d.mainCode, data.mainDies.find((m) => m.code === d.mainCode)?.name, d.material, d.makingDate, ...(canSee('party_names') ? [d.maker] : []), ...(colOk('die.drawing') ? [d.drawingNo] : []), d.revision, d.status, ...(colOk('die.location') ? [d.location] : []), ...(colOk('die.pieces') ? [d.pieces] : []), ...(canSee('die_cost') ? [d.cost] : [])]),
+      ['Die Code', 'Main Die', 'Component', 'Material', 'Making Date', ...(canSee('party_names') ? ['Maker'] : []), 'Revision', 'Status', ...(colOk('die.location') ? ['Location'] : []), ...(colOk('die.pieces') ? ['Pieces Produced'] : []), ...(canSee('die_cost') ? ['Cost'] : [])],
+      ...dies.map((d) => [d.code, d.mainCode, data.mainDies.find((m) => m.code === d.mainCode)?.name, d.material, d.makingDate, ...(canSee('party_names') ? [d.maker] : []), d.revision, d.status, ...(colOk('die.location') ? [d.location] : []), ...(colOk('die.pieces') ? [d.pieces] : []), ...(canSee('die_cost') ? [d.cost] : [])]),
     ]),
   );
 }

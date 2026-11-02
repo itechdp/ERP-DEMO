@@ -27,7 +27,7 @@ import {
   PageHeader,
   Search,
 } from '../../components/ui';
-import { SizeField } from '../components/SizeField';
+import { MaterialPick, SizePick } from '../../masters/MaterialPick';
 import { fmtDate, fmtNum, matches } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
 import {
@@ -799,7 +799,7 @@ function CreateQuotationModal({
             </select>
           </Field>
 
-          <Field label="Linked RFQ (Optional)">
+          <Field label="Linked Procurement (Optional)">
             <select
               value={rfqId}
               onChange={(e) => setRfqId(e.target.value ? Number(e.target.value) : '')}
@@ -929,12 +929,7 @@ function CreateQuotationModal({
                         />
                       </td>
                       <td>
-                        <input
-                          type="text"
-                          value={it.material}
-                          onChange={(e) => updateRow(idx, { material: e.target.value })}
-                          placeholder="e.g. Steel"
-                        />
+                        <MaterialPick material={it.material} onChange={(v) => updateRow(idx, { material: v.material, grade: v.grade })} />
                       </td>
                       <td>
                         <input
@@ -945,7 +940,7 @@ function CreateQuotationModal({
                         />
                       </td>
                       <td>
-                        <SizeField value={it.size} onChange={(v) => updateRow(idx, { size: v })} />
+                        <SizePick value={it.size} onChange={(v) => updateRow(idx, { size: v })} />
                       </td>
                       <td>
                         <input

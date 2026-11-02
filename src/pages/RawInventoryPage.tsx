@@ -8,6 +8,7 @@ import { useStore } from '../store/StoreContext';
 import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { lotAvailableWeight, lotIssuedQty, lotStatus, materialKey } from '../store/engine';
+import { ADD_NEW, useAddMaterial, useAddOption } from '../masters/AddItem';
 import { findMaterial, MATERIAL_FAMILIES, MATERIAL_MASTER, pieceWeightKg, STANDARD_OD_MM } from '../store/materials';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, rowTone, Search, SummaryLine, Tabs, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, matches, todayISO } from '../components/format';
@@ -447,6 +448,12 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
     setWeightOverride(null);
   };
 
+  const addMaterial = useAddMaterial((n) => pickMaterial(n));
+  const addSize = useAddOption('od_size', (v) => {
+    setOd(v);
+    setWeightOverride(null);
+  });
+
   // PO fields sent with the receipt. New lot: only when a line is chosen. Editing: untouched unless the link is changed; null removes it.
   const poFields = (): { poId?: number | null; poItemId?: number | null } => {
     if (poItemId) return { poId, poItemId };
@@ -496,7 +503,7 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
       <div className="section-label">Material</div>
       <div className="form-grid three">
         <Field label="Material" required>
-          <select value={material} disabled={issued > 0} onChange={(e) => pickMaterial(e.target.value)}>
+          <select value={material} disabled={issued > 0} onChange={(e) => (e.target.value === ADD_NEW ? addMaterial.open() : pickMaterial(e.target.value))}>
             {MATERIAL_FAMILIES.map((fam) => (
               <optgroup key={fam} label={fam}>
                 {MATERIAL_MASTER.filter((m) => m.family === fam).map((m) => (
@@ -506,7 +513,9 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
                 ))}
               </optgroup>
             ))}
+            <option value={ADD_NEW}>+ Add new material…</option>
           </select>
+          {addMaterial.modal}
         </Field>
         <Field label="Grade / Specification" hint={`Density ${spec.density} g/cm³`}>
           <input className="input" readOnly value={spec.grade} />
@@ -516,6 +525,7 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
             value={od}
             disabled={issued > 0}
             onChange={(e) => {
+              if (e.target.value === ADD_NEW) return addSize.open();
               setOd(e.target.value);
               setWeightOverride(null);
             }}
@@ -525,7 +535,9 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
                 {d} mm
               </option>
             ))}
+            <option value={ADD_NEW}>+ Add new size…</option>
           </select>
+          {addSize.modal}
         </Field>
       </div>
 

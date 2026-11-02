@@ -7,7 +7,7 @@ export async function fetchPRs(): Promise<PurchaseRequisition[]> {
     .from('purchase_requisitions')
     .select(`
       *,
-      purchase_requisition_items (id, qty, ordered_qty)
+      purchase_requisition_items (id, line_no, item, material, grade, size, uom, qty, ordered_qty)
     `)
     .order('created_at', { ascending: false });
 
@@ -15,7 +15,12 @@ export async function fetchPRs(): Promise<PurchaseRequisition[]> {
 
   return (data || []).map((row: any) => {
     const pr = mapPurchaseRequisition(row);
-    const items = row.purchase_requisition_items || [];
+    const items = [...(row.purchase_requisition_items || [])].sort((a: any, b: any) => Number(a.line_no || 0) - Number(b.line_no || 0));
+    // the item lines (name, material, size, quantity) so lists can describe the requisition without opening it
+    pr.items = items.map((it: any) => ({
+      id: Number(it.id), prId: Number(row.id), lineNo: Number(it.line_no || 0), item: String(it.item ?? ''), material: it.material || undefined, grade: it.grade || undefined,
+      size: it.size || undefined, uom: String(it.uom ?? ''), qty: Number(it.qty || 0), orderedQty: Number(it.ordered_qty || 0),
+    }));
     pr.itemCount = items.length;
     pr.totalQty = items.reduce((sum: number, it: any) => sum + Number(it.qty || 0), 0);
     pr.totalOrderedQty = items.reduce((sum: number, it: any) => sum + Number(it.ordered_qty || 0), 0);

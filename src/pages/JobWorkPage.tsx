@@ -1,9 +1,10 @@
 import * as api from '../db/api';
 import { useMemo, useState } from 'react';
-import { Eye, Handshake, Plus, Printer, Trash2 } from 'lucide-react';
+import { Eye, Handshake, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { Conf, Write, canSee, searchable, useAccess } from '../auth/access';
 import { useStore } from '../store/StoreContext';
 import { withDocNo } from '../db/client';
+import { CustomerSelect } from '../masters/CustomerSelect';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { STAGE_LABEL } from '../store/engine';
 import { jobWorkDeleteReason } from '../store/deletable';
@@ -29,6 +30,7 @@ export function JobWorkPage() {
   const [stageF, setStageF] = useState('all');
   const [srcF, setSrcF] = useState('all');
   const [deleting, setDeleting] = useState<JobWork | null>(null);
+  const [editing, setEditing] = useState<JobWork | null>(null);
 
   const jobOf = (w: JobWork) => state.jobs.find((j) => j.jobNo === w.jobNo);
   const list = useMemo(() => [...state.jobWork].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.jobNo.localeCompare(a.jobNo)), [state.jobWork]);
@@ -136,6 +138,9 @@ export function JobWorkPage() {
                                 <Printer size={16} />
                               </button>
                               <Write res="job_work">
+                                <button className="icon-btn" title="Edit details" aria-label={`Edit ${w.jobNo}`} onClick={() => setEditing(w)}>
+                                  <Pencil size={16} />
+                                </button>
                                 <button className="icon-btn danger" title={reason ?? 'Delete'} aria-label={`Delete ${w.jobNo}`} disabled={!!reason} onClick={() => setDeleting(w)}>
                                   <Trash2 size={16} />
                                 </button>
@@ -152,6 +157,7 @@ export function JobWorkPage() {
           </>
         )}
       </div>
+      {editing && <JobWorkEdit w={editing} onClose={() => setEditing(null)} />}
       <Confirm
         open={!!deleting}
         title="Delete job-work batch"
@@ -165,10 +171,115 @@ export function JobWorkPage() {
   );
 }
 
+// ============================================================== edit a received batch ===
+/** Correct the challan, description, weight, customer, due date and charges. Quantity, processes and material stay as received (they drive stock). */
+function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
+  const { state, run } = useStore();
+  const { can } = useAccess();
+  const job = state.jobs.find((j) => j.jobNo === w.jobNo);
+  const [f, setF] = useState({ customer: job?.customer ?? '', challanNo: w.challanNo, challanDate: w.challanDate ?? '', itemDescription: w.itemDescription, weight: w.receivedWeight ? String(w.receivedWeight) : '', dueDate: job?.dueDate ?? '' });
+  const [basis, setBasis] = useState<JobWork['chargeBasis']>(w.chargeBasis);
+  const [rate, setRate] = useState(w.rate ? String(w.rate) : '');
+  const [pRates, setPRates] = useState<Record<string, string>>(Object.fromEntries(Object.entries(w.processRates ?? {}).map(([k, v]) => [k, String(v)])));
+  const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
+  const valid = !can('party_names') || f.customer.trim() !== '';
+
+  const submit = async () => {
+    const processRates: Record<string, number> = {};
+    for (const x of PROCESSES) if (w.processes[x.key] && Number(pRates[x.key]) > 0) processRates[x.key] = Number(pRates[x.key]);
+    const input = {
+      customer: f.customer,
+      challanNo: f.challanNo,
+      challanDate: f.challanDate,
+      itemDescription: f.itemDescription,
+      receivedWeight: Number(f.weight) > 0 ? Number(f.weight) : undefined,
+      dueDate: f.dueDate,
+      chargeBasis: can('sales_rates') ? basis : w.chargeBasis,
+      rate: can('sales_rates') && (basis === 'piece' || basis === 'kg') && Number(rate) > 0 ? Number(rate) : undefined,
+      processRates: can('sales_rates') && basis === 'process' ? processRates : undefined,
+    };
+    if (await run((ts) => api.editJobWork(w.jobNo, input, ts), { title: 'Job work updated', message: w.jobNo })) onClose();
+  };
+
+  return (
+    <Modal
+      dialog
+      open
+      onClose={onClose}
+      size="lg"
+      icon={Pencil}
+      title={`Edit ${w.jobNo}`}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" disabled={!valid} onClick={submit}>
+            Save changes
+          </button>
+        </>
+      }
+    >
+      <div className="callout info" style={{ marginBottom: 16 }}>
+        <Pencil size={16} />
+        <div>
+          Quantity ({fmtNum(w.receivedQty)} PCS), processes and material source stay as received because they drive stock. To change those, delete the batch (before work starts) and receive it again.
+        </div>
+      </div>
+      <div className="form-grid three">
+        <Field label="Customer" required={can('party_names')}>
+          <CustomerSelect value={f.customer} onChange={(name) => set('customer', name)} required={can('party_names')} />
+        </Field>
+        <Field label="Customer Challan No.">
+          <input className="input" value={f.challanNo} onChange={(e) => set('challanNo', e.target.value)} />
+        </Field>
+        <Field label="Challan Date">
+          <input className="input" type="date" max={todayISO()} value={f.challanDate} onChange={(e) => set('challanDate', e.target.value)} />
+        </Field>
+        <Field label="Weight Received">
+          <NumInput value={f.weight} onChange={(v) => set('weight', v)} suffix="KG" step="any" />
+        </Field>
+        <Field label="Due Date">
+          <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+        </Field>
+        <Field label="Item Description" full>
+          <input className="input" value={f.itemDescription} onChange={(e) => set('itemDescription', e.target.value)} />
+        </Field>
+      </div>
+      {can('sales_rates') && (
+        <>
+          <div className="section-label">Charges (confidential)</div>
+          <div className="form-grid three">
+            <Field label="Charged">
+              <select value={basis} onChange={(e) => setBasis(e.target.value as JobWork['chargeBasis'])}>
+                <option value="none">Not recorded</option>
+                <option value="piece">Per piece</option>
+                <option value="kg">Per kg</option>
+                <option value="process">Per process</option>
+              </select>
+            </Field>
+            {(basis === 'piece' || basis === 'kg') && (
+              <Field label={basis === 'piece' ? 'Rate per piece' : 'Rate per kg'}>
+                <NumInput value={rate} onChange={setRate} suffix={basis === 'piece' ? '₹ / pc' : '₹ / kg'} step="any" />
+              </Field>
+            )}
+            {basis === 'process' &&
+              PROCESSES.filter((x) => w.processes[x.key]).map((x) => (
+                <Field key={x.key} label={`${x.label} — per piece`}>
+                  <NumInput value={pRates[x.key] ?? ''} onChange={(v) => setPRates((r) => ({ ...r, [x.key]: v }))} suffix="₹ / pc" step="any" />
+                </Field>
+              ))}
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
 // ============================================================== the form ===
 /** Receive a customer's parts: what came in, which processes to do, whose material, QC, and how it is charged. */
 export function JobWorkForm({ onClose }: { onClose: () => void }) {
-  const { state, masters, run } = useStore();
+  const { state, run } = useStore();
   const { can } = useAccess();
   const [f, setF] = useState({ customer: '', challanNo: '', challanDate: todayISO(), productId: '', itemDescription: '', qty: '', weight: '', dueDate: '' });
   const [proc, setProc] = useState<Proc>({ cutting: false, forging: false, trimming: false, heatTreatment: true });
@@ -234,12 +345,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
       <div className="form-grid three">
         <DocNoField label="Job Card No." no={doc.no} setNo={doc.setNo} />
         <Field label="Customer" required={can('party_names')}>
-          <input className="input" list="jw-customers" value={f.customer} onChange={(e) => set('customer', e.target.value)} placeholder={can('party_names') ? 'Select or type' : 'As on the challan'} autoComplete="off" />
-          <datalist id="jw-customers">
-            {masters.customers.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          <CustomerSelect value={f.customer} onChange={(name) => set('customer', name)} required={can('party_names')} />
         </Field>
         <Field label="Customer Challan No.">
           <input className="input" value={f.challanNo} onChange={(e) => set('challanNo', e.target.value)} placeholder="Their delivery challan" />

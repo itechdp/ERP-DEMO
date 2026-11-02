@@ -1,4 +1,4 @@
-import { canSee } from '../auth/access';
+import { canSee, currentUserName } from '../auth/access';
 import { printHtml } from '../components/printHtml';
 import { PO_UFLOW_CSS, rupeesInWords } from '../sales/print';
 import type { PODetail } from './types';
@@ -218,16 +218,16 @@ export function printPurchaseOrder(po: PODetail) {
     <table class="po-sig-table">
       <tr>
         <td>
-          <div class="po-sig-space"></div>
-          <div class="po-sig-line">PREPARED BY<br/><small style="text-transform:none;color:#94a3b8;font-weight:normal;">${esc(po.createdBy || 'Purchase Team')}</small></div>
+          <div class="po-sig-space"><span class="po-sig-name">${esc(po.createdBy || currentUserName())}</span></div>
+          <div class="po-sig-line">PREPARED BY<div class="po-sig-sub">${esc(dmy(po.createdAt))}</div></div>
         </td>
         <td>
-          <div class="po-sig-space"></div>
-          <div class="po-sig-line">APPROVED BY<br/><small style="text-transform:none;color:#94a3b8;font-weight:normal;">${esc(po.approvedBy || 'Pending')}</small></div>
+          <div class="po-sig-space"><span class="po-sig-name">${esc(po.approvedBy || '')}</span></div>
+          <div class="po-sig-line">APPROVED BY<div class="po-sig-sub">${po.approvedBy ? esc(dmy(po.approvedAt)) : 'Pending'}</div></div>
         </td>
         <td>
-          <div class="po-sig-space"></div>
-          <div class="po-sig-line">AUTHORISED SIGNATORY<br/><small style="text-transform:none;color:#94a3b8;font-weight:normal;">${esc(po.releasedBy || 'Everest Auto Forge')}</small></div>
+          <div class="po-sig-space"><span class="po-sig-name">${esc(po.releasedBy || '')}</span></div>
+          <div class="po-sig-line">AUTHORISED SIGNATORY<div class="po-sig-sub">For Everest Auto Forge Pvt. Ltd.</div></div>
         </td>
       </tr>
     </table>

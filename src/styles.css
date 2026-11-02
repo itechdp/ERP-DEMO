@@ -1337,3 +1337,16 @@ select.filter { padding-right: 36px; }
 .dd-item:disabled { opacity: 0.45; cursor: not-allowed; }
 .dd-tick { color: var(--primary); font-weight: 800; }
 .dd-group { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.dd-item.add { color: var(--primary); font-weight: 650; border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; margin-top: 4px; padding-top: 11px; }
+
+/* ---- Settings → Drop-down Lists */
+.lists-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .lists-layout { grid-template-columns: 1fr; } }
+.lists-nav { padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+.lists-nav-item { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border: 0; background: none; border-radius: 10px; cursor: pointer; }
+.lists-nav-item:hover { background: var(--surface-3); }
+.lists-nav-item.on { background: var(--primary-50); }
+.opt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+.opt-row { display: flex; align-items: center; gap: 8px; }
+.opt-row .input { flex: 1; }
+.opt-n { width: 24px; text-align: right; }

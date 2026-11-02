@@ -24,8 +24,17 @@ import {
 } from '../../components/ui';
 import { fmtDate, fmtNum, matches } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
-import { usePurchaseRequisitions, useRFQDetail, useRFQs, useSuppliers } from '../hooks/usePurchase';
+import { usePRDetail, usePurchaseRequisitions, useRFQDetail, useRFQs, useSuppliers } from '../hooks/usePurchase';
 import { markRFQSent, saveRFQ } from '../services/rfqService';
+import type { PurchaseRequisition } from '../types';
+
+/** one line that says what a requisition is for: number, department, the item(s) and the quantity */
+const prLabel = (p: PurchaseRequisition) => {
+  const first = p.items?.[0];
+  const what = first ? `${first.item}${[first.material, first.size].filter(Boolean).length ? ` (${[first.material, first.size].filter(Boolean).join(' ')})` : ''}${(p.itemCount ?? 0) > 1 ? ` +${(p.itemCount ?? 1) - 1} more` : ''}` : `${p.itemCount ?? 0} items`;
+  const qty = first && (p.itemCount ?? 0) === 1 ? ` · ${first.qty} ${first.uom}` : p.totalQty ? ` · total qty ${p.totalQty}` : '';
+  return `${p.prNo} — ${p.department || 'Stores'} — ${what}${qty} [${p.status}]`;
+};
 
 export function RFQPage({
   query,
@@ -121,7 +130,7 @@ export function RFQPage({
     <>
       <PageHeader
         eyebrow="Upstream Procurement"
-        title="Requests for Quotation (RFQ)"
+        title="Procurement of Material"
         actions={
           <>
             <button className="btn btn-subtle" onClick={() => reload()} disabled={loading}>
@@ -135,7 +144,7 @@ export function RFQPage({
                   setCreateModal(true);
                 }}
               >
-                <Plus size={15} /> Create RFQ
+                <Plus size={15} /> Create Procurement
               </button>
             </Write>
           </>
@@ -148,12 +157,12 @@ export function RFQPage({
             <Search
               value={q}
               onChange={setQ}
-              placeholder="Search by RFQ No, PR No, notes..."
+              placeholder="Search by Procurement No, PR No, notes..."
             />
             <FilterMenu groups={filterGroups} />
           </div>
           <div className="right text-xs muted">
-            Showing {shown.length} of {rfqs.length} RFQs
+            Showing {shown.length} of {rfqs.length} procurements
           </div>
         </div>
 
@@ -163,11 +172,11 @@ export function RFQPage({
           <div className="card-center-msg text-red">{error}</div>
         ) : shown.length === 0 ? (
           <Empty
-            title="No RFQs found"
+            title="No procurements found"
             text={
               rfqs.length === 0
-                ? 'Create an RFQ to request competitive price quotations from multiple suppliers for an approved PR.'
-                : 'No RFQs match your search criteria.'
+                ? 'Start a procurement of material to ask several suppliers for competitive price quotations against an approved requisition.'
+                : 'No procurements match your search criteria.'
             }
             action={
               rfqs.length === 0 ? (
@@ -179,7 +188,7 @@ export function RFQPage({
                       setCreateModal(true);
                     }}
                   >
-                    <Plus size={15} /> Create RFQ
+                    <Plus size={15} /> Create Procurement
                   </button>
                 </Write>
               ) : undefined
@@ -190,7 +199,7 @@ export function RFQPage({
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ width: 140 }}>RFQ No</th>
+                  <th style={{ width: 140 }}>Procurement No</th>
                   <th style={{ width: 140 }}>Requisition</th>
                   <th style={{ width: 120 }}>Due Date</th>
                   <th className="center" style={{ width: 130 }}>Suppliers Invited</th>
@@ -239,7 +248,7 @@ export function RFQPage({
                       <div className="icon-actions">
                         <button
                           className="icon-btn"
-                          title="View RFQ details"
+                          title="View procurement details"
                           onClick={() => setSelectedRFQId(r.id)}
                         >
                           <Eye size={16} />
@@ -253,7 +262,7 @@ export function RFQPage({
                         </button>
                         {(r.status === 'Open' || r.status === 'Quotes Received') && (
                           <Write res="rfq">
-                            <button className="icon-btn" title="Open to update this RFQ" aria-label={`Next step ${r.rfqNo}`} onClick={() => setSelectedRFQId(r.id)}><ClipboardCheck size={16} /></button>
+                            <button className="icon-btn" title="Open to update this procurement" aria-label={`Next step ${r.rfqNo}`} onClick={() => setSelectedRFQId(r.id)}><ClipboardCheck size={16} /></button>
                           </Write>
                         )}
                       </div>
@@ -292,7 +301,7 @@ function RFQDetailView({
   if (loading) {
     return (
       <div className="card">
-        <div className="card-center-msg">Loading RFQ details…</div>
+        <div className="card-center-msg">Loading procurement details…</div>
       </div>
     );
   }
@@ -300,10 +309,10 @@ function RFQDetailView({
   if (error || !rfq) {
     return (
       <div className="card">
-        <div className="card-center-msg text-red">{error || 'RFQ not found.'}</div>
+        <div className="card-center-msg text-red">{error || 'Procurement not found.'}</div>
         <div className="center mt-4">
           <button className="btn btn-subtle" onClick={onBack}>
-            <ArrowLeft size={15} /> Back to RFQs
+            <ArrowLeft size={15} /> Back to Procurement of Material
           </button>
         </div>
       </div>
@@ -317,7 +326,7 @@ function RFQDetailView({
       toast({
         kind: 'success',
         title: 'Marked as Sent',
-        message: `RFQ sent status recorded for ${supName}.`,
+        message: `Sent status recorded for ${supName}.`,
       });
       void reload();
     } catch (e) {
@@ -333,7 +342,7 @@ function RFQDetailView({
   return (
     <>
       <PageHeader
-        eyebrow="Request for Quotation Detail"
+        eyebrow="Procurement of Material Detail"
         title={rfq.rfqNo}
         actions={
           <>
@@ -485,7 +494,7 @@ function RFQDetailView({
                       {!s.sentAt && (
                         <button
                           className="btn btn-xs btn-subtle"
-                          title="Record RFQ email/inquiry sent"
+                          title="Record that the inquiry was sent to this supplier"
                           onClick={() => handleMarkSent(s.supplierId, s.supplierName || 'Supplier')}
                           disabled={acting}
                         >
@@ -541,6 +550,8 @@ function CreateRFQModal({
   });
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<number[]>([]);
 
+  const { pr: prDetail } = usePRDetail(prId === '' ? null : prId);
+
   // Eligible PRs for RFQ: Approved or Partially Ordered
   const eligiblePRs = useMemo(() => {
     return requisitions.filter(
@@ -571,7 +582,7 @@ function CreateRFQModal({
       toast({
         kind: 'error',
         title: 'Suppliers required',
-        message: 'Select at least one supplier to invite to this RFQ.',
+        message: 'Select at least one supplier to invite to this procurement.',
       });
       return;
     }
@@ -593,12 +604,12 @@ function CreateRFQModal({
 
       toast({
         kind: 'success',
-        title: 'RFQ Created',
-        message: 'Request for quotation initiated with invited suppliers.',
+        title: 'Procurement Created',
+        message: 'Procurement of material started with the invited suppliers.',
       });
       onSaved(newId);
     } catch (e) {
-      toast({ kind: 'error', title: 'Create RFQ failed', message: String(e) });
+      toast({ kind: 'error', title: 'Could not create the procurement', message: String(e) });
     } finally {
       setSaving(false);
     }
@@ -607,7 +618,7 @@ function CreateRFQModal({
   return (
     <Modal
       open={true}
-      title="Create Request for Quotation (RFQ)"
+      title="Create Procurement of Material"
       onClose={onClose}
       size="lg"
       footer={
@@ -616,14 +627,14 @@ function CreateRFQModal({
             Cancel
           </button>
           <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>
-            {saving ? 'Creating RFQ…' : 'Create & Invite Suppliers'}
+            {saving ? 'Creating…' : 'Create & Invite Suppliers'}
           </button>
         </>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 14 }}>
-          <DocNoField label="RFQ No." no={doc.no} setNo={doc.setNo} />
+          <DocNoField label="Procurement No." no={doc.no} setNo={doc.setNo} />
           <Field label="Approved Purchase Requisition" required>
             <select
               value={prId}
@@ -632,11 +643,35 @@ function CreateRFQModal({
               <option value="">-- Select Requisition --</option>
               {eligiblePRs.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.prNo} — {p.department || 'Stores'} ({p.itemCount} items) [{p.status}]
+                  {prLabel(p)}
                 </option>
               ))}
             </select>
           </Field>
+
+          {prId !== '' && prDetail && (
+            <div className="card" style={{ gridColumn: '1 / -1', padding: 12 }}>
+              <div className="text-xs muted" style={{ marginBottom: 6 }}>
+                <b>{prDetail.prNo}</b> · Department: <b>{prDetail.department || '—'}</b> · Requested by: <b>{prDetail.requestedBy || '—'}</b> · {prDetail.urgency}
+              </div>
+              <table className="tbl" style={{ fontSize: 13 }}>
+                <thead>
+                  <tr><th style={{ width: 36 }}>#</th><th>Item</th><th>Material / grade / size</th><th className="r">Qty</th><th className="r">Still to order</th></tr>
+                </thead>
+                <tbody>
+                  {prDetail.items.map((it, i) => (
+                    <tr key={it.id}>
+                      <td className="mono muted">{i + 1}</td>
+                      <td className="strong">{it.item}</td>
+                      <td>{[it.material, it.grade, it.size].filter(Boolean).join(' · ') || '—'}</td>
+                      <td className="r num">{it.qty} {it.uom}</td>
+                      <td className="r num">{Math.max(0, it.qty - it.orderedQty)} {it.uom}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <Field label="Quotation Due Date">
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />

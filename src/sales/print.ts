@@ -163,9 +163,11 @@ body { margin: 0 !important; padding: 0 !important; font-family: 'Inter', -apple
 .po-terms-list li { margin-bottom: 3px; }
 
 .po-sig-sec { margin-top: 24px; }
-.po-sig-table { width: 100%; border-collapse: collapse; }
-.po-sig-table td { width: 50%; text-align: center; vertical-align: bottom; padding: 0 25px; }
-.po-sig-space { height: 48px; }
+.po-sig-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.po-sig-table td { text-align: center; vertical-align: bottom; padding: 0 22px; }
+.po-sig-space { height: 48px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; }
+.po-sig-name { font-size: 12px; font-weight: 700; color: #0f172a; }
+.po-sig-sub { margin-top: 3px; font-size: 8.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #94a3b8; }
 .po-sig-line { border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 9.5px; font-weight: 600; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; }
 
 .po-foot-meta { border-top: 1px solid #e2e8f0; margin-top: 30px; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8.5px; color: #94a3b8; }

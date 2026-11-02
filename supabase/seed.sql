@@ -39,10 +39,11 @@ insert into customers (name) values
   ('ABC Industries'), ('Sigma Valves Pvt. Ltd.'), ('Metro Electricals'), ('Apex Auto Components'), ('Nova Hydraulics')
 on conflict (name) do nothing;
 
-insert into suppliers (name) values
-  ('ABC Metals'), ('XYZ Metals'), ('PQR Industries'), ('Shree Steel Traders'), ('Mahalaxmi Alloys'),
-  ('Shakti Stainless Traders'), ('Om Alloys & Metals')
-on conflict (name) do nothing;
+-- suppliers carry a required code (SUP-0001 …); give each new name the next free one, so this works with or without the code trigger
+insert into suppliers (code, name)
+select 'SUP-' || lpad(((select coalesce(max(id), 0) from suppliers) + row_number() over (order by n))::text, 4, '0'), n
+  from unnest(array['ABC Metals', 'XYZ Metals', 'PQR Industries', 'Shree Steel Traders', 'Mahalaxmi Alloys', 'Shakti Stainless Traders', 'Om Alloys & Metals']) as n
+ where not exists (select 1 from suppliers s where s.name = n);
 
 insert into machines (name, stage) values
   ('Bandsaw BS-01', 'cutting'), ('Bandsaw BS-02', 'cutting'), ('Circular Saw CS-01', 'cutting'),

@@ -6,6 +6,8 @@ import { useStore } from '../store/StoreContext';
 import { jobDeleteReason, productDeleteReason } from '../store/deletable';
 import { jobSummary, PROCESS_STAGES, STAGE_LABEL } from '../store/engine';
 import { MATERIAL_FAMILIES, MATERIAL_MASTER, findMaterial } from '../store/materials';
+import { ADD_NEW, useAddMaterial } from '../masters/AddItem';
+import { CustomerSelect } from '../masters/CustomerSelect';
 import type { Product } from '../store/types';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
@@ -361,6 +363,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
   });
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const pickMaterial = (m: string) => setF((x) => ({ ...x, material: m, od: x.od || String(findMaterial(m)?.defaultOd ?? '') }));
+  const addMaterial = useAddMaterial((n) => pickMaterial(n));
   const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0;
   const submit = async () => {
     const input: Omit<Product, 'id'> = {
@@ -414,7 +417,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           </Field>
         </Conf>
         <Field label="Raw Material" required>
-          <select value={f.material} onChange={(e) => pickMaterial(e.target.value)}>
+          <select value={f.material} onChange={(e) => (e.target.value === ADD_NEW ? addMaterial.open() : pickMaterial(e.target.value))}>
             <option value="">Select material…</option>
             {MATERIAL_FAMILIES.map((fam) => (
               <optgroup key={fam} label={fam}>
@@ -425,7 +428,9 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
                 ))}
               </optgroup>
             ))}
+            <option value={ADD_NEW}>+ Add new material…</option>
           </select>
+          {addMaterial.modal}
         </Field>
         <Field label="Bar OD" required>
           <NumInput value={f.od} onChange={(v) => set('od', v)} suffix="mm" step="any" />
@@ -458,7 +463,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           <div className="form-grid">
             {can('party_names') && (
               <Field label="Default Customer">
-                <input className="input" value={f.defaultCustomer} onChange={(e) => set('defaultCustomer', e.target.value)} />
+                <CustomerSelect value={f.defaultCustomer} onChange={(name) => set('defaultCustomer', name)} />
               </Field>
             )}
             {can('sales_rates') && (

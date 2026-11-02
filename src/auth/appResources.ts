@@ -67,6 +67,15 @@ export const APP_RESOURCES: AppResourceDefinition[] = [
 
   // ---------------------------------------------------- Sales & Orders ---
   {
+    key: 'customers',
+    route: 'customers',
+    label: 'Customers',
+    section: 'Sales & Orders',
+    sort: 10,
+    writable: true,
+    defaultLevels: { qc: 'hidden', operator: 'hidden', viewer: 'read' },
+  },
+  {
     key: 'sales_dashboard',
     route: 'sales-dashboard',
     label: 'Sales Dashboard',
@@ -188,7 +197,7 @@ export const APP_RESOURCES: AppResourceDefinition[] = [
   {
     key: 'rfq',
     route: 'rfqs',
-    label: 'Requests for Quotation (RFQ)',
+    label: 'Procurement of Material',
     section: 'Purchase & Procurement',
     sort: 24,
     writable: true,

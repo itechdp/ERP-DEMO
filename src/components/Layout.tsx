@@ -39,6 +39,7 @@ import {
   Settings,
   Eye,
   Users,
+  ListOrdered,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -61,11 +62,11 @@ const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.map((s) => ({
   label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label,
   icon: s.icon,
 })).concat([{ route: 'job-work', label: 'Job Work', icon: Handshake }]);
-const SALES_NAV: NavItem[] = SALES_PAGES.map((p) => ({ route: p.route, label: p.label, icon: p.icon }));
+const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
 const PURCHASE_NAV: NavItem[] = [
   { route: 'purchase-dashboard', label: 'Purchase Dashboard', icon: LayoutGrid },
   { route: 'purchase-requisitions', label: 'Purchase Requisitions', icon: FileText },
-  { route: 'rfqs', label: 'Requests for Quotation', icon: Send },
+  { route: 'rfqs', label: 'Procurement of Material', icon: Send },
   { route: 'supplier-quotations', label: 'Supplier Quotations', icon: FileSpreadsheet },
   { route: 'purchase-orders', label: 'Purchase Orders', icon: ReceiptText },
   { route: 'purchase-invoices', label: 'Purchase Invoices', icon: Receipt },
@@ -97,7 +98,7 @@ const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = 
   { id: 'reports', title: 'Reports & Masters', icon: BarChart3, items: REPORT_NAV },
 ];
 
-const SETTINGS_SECTION = { id: 'settings', title: 'Settings', icon: Settings, items: [{ route: 'settings', label: 'Access Control', icon: KeyRound }, { route: 'users', label: 'Users', icon: Users }, { route: 'units', label: 'Units', icon: Ruler }] as NavItem[] };
+const SETTINGS_SECTION = { id: 'settings', title: 'Settings', icon: Settings, items: [{ route: 'settings', label: 'Access Control', icon: KeyRound }, { route: 'users', label: 'Users', icon: Users }, { route: 'lists', label: 'Drop-down Lists', icon: ListOrdered }, { route: 'units', label: 'Units', icon: Ruler }] as NavItem[] };
 
 const readLS = (k: string) => {
   try {
