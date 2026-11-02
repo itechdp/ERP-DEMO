@@ -27,6 +27,8 @@ import { SizeField } from '../components/SizeField';
 import { Brief } from '../../components/Brief';
 import { fmtDate, fmtNum, matches } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { usePRDetail, usePurchaseRequisitions } from '../hooks/usePurchase';
 import {
   cancelPR,
@@ -783,6 +785,7 @@ function PRFormModal({
   const { toast } = useStore();
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('pr', !editId);
 
   // Header states
   const [prDate, setPrDate] = useState(new Date().toISOString().slice(0, 10));
@@ -908,7 +911,7 @@ function PRFormModal({
       }));
 
       const userName = user?.name || user?.email || 'User';
-      const savedId = await savePR(editId, headerInput, itemsInput, userName);
+      const savedId = await withDocNo(editId ? undefined : doc.custom, () => savePR(editId, headerInput, itemsInput, userName));
 
       if (submitAfter) {
         await submitPR(savedId, userName);
@@ -951,6 +954,7 @@ function PRFormModal({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Header row */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 14 }}>
+            {!editId && <DocNoField label="Requisition No." no={doc.no} setNo={doc.setNo} />}
             <Field label="Requisition Date" required>
               <input type="date" value={prDate} onChange={(e) => setPrDate(e.target.value)} />
             </Field>

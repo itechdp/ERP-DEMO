@@ -1291,6 +1291,8 @@ select.filter { padding-right: 36px; }
 .boot img { position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; }
 .boot-spin { position: absolute; left: 50%; top: calc(50% + 70px); width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; border: 3px solid rgba(5, 148, 148, 0.22); border-top-color: #059494; animation: boot-spin 0.8s linear infinite; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
+/* the loading screen is for phones and tablets only */
+@media (min-width: 900px) { .boot { display: none; } }
 
 /* ---- sidebar: a light teal on hover (and while a finger is on it) instead of grey, and no blue tap box in the phone app ---- */
 * { -webkit-tap-highlight-color: transparent; }
@@ -1302,3 +1304,36 @@ select.filter { padding-right: 36px; }
 }
 :root[data-theme='dark'] .nav-item:not(.active):hover, :root[data-theme='dark'] .nav-head:hover,
 :root[data-theme='dark'] .nav-item:not(.active):active, :root[data-theme='dark'] .nav-head:active { color: var(--text); }
+
+/* ---- active notifications (task assigned …) */
+.notif-stack { position: fixed; top: 76px; right: 20px; z-index: 210; display: flex; flex-direction: column; gap: 10px; width: 360px; max-width: calc(100vw - 32px); }
+.notif-all { align-self: flex-end; }
+.notif { display: flex; gap: 12px; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--primary); border-radius: 14px; padding: 13px 14px; box-shadow: var(--shadow-lg); animation: rise 0.2s ease; }
+.notif.high { border-left-color: #d97706; }
+.notif.urgent { border-left-color: var(--crit); }
+.notif .ni { color: var(--primary); margin-top: 1px; flex-shrink: 0; }
+.notif.urgent .ni { color: var(--crit); }
+.notif .nb { flex: 1; min-width: 0; }
+.notif .t { font-weight: 700; font-size: 13.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.notif .m { font-size: 12.5px; color: var(--text-2); margin-top: 2px; line-height: 1.45; }
+
+/* ---- person dropdown (name left, coloured role tag right) */
+.person-select { position: relative; }
+.person-trigger { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; }
+.person-trigger .person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-chev { color: var(--text-3); flex-shrink: 0; }
+.person-list { position: absolute; z-index: 60; left: 0; right: 0; top: calc(100% + 6px); max-height: 300px; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px; }
+.person-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; background: none; border-radius: 8px; text-align: left; cursor: pointer; font-size: 13.5px; }
+.person-row .person-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-row:hover { background: var(--surface-3); }
+.person-row.on { background: var(--primary-50); font-weight: 600; }
+
+/* ---- the drop-down list that every <select> opens (components/enhanceSelects.ts) */
+.dd-menu { position: fixed; z-index: 300; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); padding: 6px; animation: rise 0.12s ease; }
+.dd-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 9px 12px; border: 0; background: none; border-radius: 8px; text-align: left; cursor: pointer; font-size: 13.5px; color: var(--text); }
+.dd-item:hover, .dd-item:focus-visible { background: var(--surface-3); outline: none; }
+.dd-item.on { background: var(--primary-50); color: var(--primary-ink, var(--primary)); font-weight: 600; }
+.dd-item.grouped { padding-left: 22px; }
+.dd-item:disabled { opacity: 0.45; cursor: not-allowed; }
+.dd-tick { color: var(--primary); font-weight: 800; }
+.dd-group { padding: 8px 12px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }

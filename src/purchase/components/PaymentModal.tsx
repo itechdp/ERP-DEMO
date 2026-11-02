@@ -4,6 +4,8 @@ import { useAccess } from '../../auth/access';
 import { Field, Modal, NumInput } from '../../components/ui';
 import { fmtDate, todayISO } from '../../components/format';
 import { useStore } from '../../store/StoreContext';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { savePayment } from '../services/invoiceService';
 import type { PurchaseInvoice } from '../types';
 
@@ -25,6 +27,7 @@ export function PaymentModal({ invoice, choices, onClose, onSaved }: { invoice?:
   const [reference, setReference] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('pay', true);
 
   const amountN = Number(amount);
   const over = !!picked && amountN > picked.balance + 0.004;
@@ -41,7 +44,7 @@ export function PaymentModal({ invoice, choices, onClose, onSaved }: { invoice?:
     if (!picked) return;
     try {
       setSaving(true);
-      await savePayment(null, { pinv_id: picked.invoiceId, pay_date: date, amount: amountN, mode, reference: reference.trim() || null, notes: notes.trim() || null }, user?.name || user?.email || 'User');
+      await withDocNo(doc.custom, () => savePayment(null, { pinv_id: picked.invoiceId, pay_date: date, amount: amountN, mode, reference: reference.trim() || null, notes: notes.trim() || null }, user?.name || user?.email || 'User'));
       toast({ kind: 'success', title: 'Payment recorded', message: `${inr(amountN)} against ${picked.pinvNo}.` });
       onSaved();
     } catch (e) {
@@ -82,6 +85,7 @@ export function PaymentModal({ invoice, choices, onClose, onSaved }: { invoice?:
         </Field>
       )}
       <div className="form-grid">
+        <DocNoField label="Payment No." no={doc.no} setNo={doc.setNo} />
         <Field label="Payment Date" required>
           <input type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>

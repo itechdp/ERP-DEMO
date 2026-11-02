@@ -1,4 +1,6 @@
 import { ClipboardCheck } from 'lucide-react';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { openUrl } from '../../native/native';
 import { Brief } from '../../components/Brief';
 import { useEffect, useMemo, useState } from 'react';
@@ -1032,6 +1034,7 @@ export function PurchaseOrderFormPage({
 
   const [loading, setLoading] = useState(!!editId || !!fromPRId || !!fromSQId);
   const [saving, setSaving] = useState(false);
+    const doc = useDocNo('po', !editId);
 
   // Upstream linkage
   const [prId, setPrId] = useState<number | null>(fromPRId || null);
@@ -1295,7 +1298,7 @@ export function PurchaseOrderFormPage({
       }));
 
       const userName = user?.name || user?.email || 'User';
-      const savedId = await savePO(editId || null, headerInput, itemsInput, userName);
+      const savedId = await withDocNo(editId ? undefined : doc.custom, () => savePO(editId || null, headerInput, itemsInput, userName));
 
       if (submitAfter) {
         await submitPO(savedId, userName);
@@ -1364,6 +1367,7 @@ export function PurchaseOrderFormPage({
         <div className="card-body form-page" style={{ padding: '20px 24px' }}>
           <div className="section-label">Order Header & Conditions</div>
           <div className="form-grid three">
+            {!editId && <DocNoField label="PO No." no={doc.no} setNo={doc.setNo} />}
             <Field label="Supplier / Vendor" required>
               <select
                 value={supplierId}

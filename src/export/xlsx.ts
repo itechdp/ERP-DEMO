@@ -1,6 +1,6 @@
-// Real .xlsx export (write-excel-file). Numbers stay numbers so a sheet can add them up.
-import writeExcelFile from 'write-excel-file/browser';
-import { isNative, saveFile } from '../native/native';
+// Table exports (the report pages). Numbers stay numbers so a sheet can add them up.
+// The sheet itself — logo, form number, title, "Checked By" — comes from the shared company layout in xlsxSheet.ts.
+import { FORM_FORMATS, downloadFormSheet, type SheetValue } from './xlsxSheet';
 
 export interface XlsxCol {
   key: string;
@@ -9,30 +9,35 @@ export interface XlsxCol {
   total?: boolean;
 }
 type Row = Record<string, unknown>;
-type Cell = { value?: string | number | Date | boolean; type?: StringConstructor | NumberConstructor | DateConstructor | BooleanConstructor; fontWeight?: 'bold'; format?: string; backgroundColor?: string; align?: 'left' | 'right' | 'center' } | null;
 
-const body = (v: unknown, kind?: string): Cell => {
+const cell = (v: unknown, kind?: string): SheetValue => {
   if (v == null || v === '') return null;
   if (kind === 'num' || kind === 'money' || kind === 'pct') {
     const x = Number(v);
-    if (Number.isNaN(x)) return { value: String(v), type: String };
-    return { value: Math.round(x * 1000) / 1000, type: Number, format: kind === 'money' ? '#,##0.00' : kind === 'pct' ? '0.00"%"' : '#,##0.###' };
+    return Number.isNaN(x) ? String(v) : Math.round(x * 1000) / 1000;
   }
-  if (kind === 'date') return { value: String(v).slice(0, 10), type: String };
-  if (typeof v === 'boolean') return { value: v ? 'Yes' : 'No', type: String };
-  return { value: String(v), type: String };
+  if (kind === 'date') return String(v).slice(0, 10);
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  return String(v);
 };
 
-export async function downloadXlsx(filename: string, sheet: string, cols: XlsxCol[], rows: Row[], totals?: Row | null) {
-  const head: Cell[] = cols.map((c) => ({ value: c.label, type: String, fontWeight: 'bold', backgroundColor: '#e8eef5' }));
-  const data: Cell[][] = [head, ...rows.map((r) => cols.map((c) => body(r[c.key], c.kind)))];
-  if (totals) {
-    data.push(cols.map((c, i) => (i === 0 ? { value: 'Total', type: String, fontWeight: 'bold' } : c.total ? { ...body(totals[c.key], c.kind), fontWeight: 'bold' } as Cell : null)));
-  }
-  const columns = cols.map((c) => ({ width: Math.max(12, Math.min(34, c.label.length + 4)) }));
-  const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
-  const file = writeExcelFile(data as never, { columns, sheet: sheet.slice(0, 31), stickyRowsCount: 1 } as never);
-  // the app cannot start a download by itself: the file is saved on the phone and the share sheet opens
-  if (isNative()) await saveFile(name, await file.toBlob());
-  else await file.toFile(name);
+const today = () => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+};
+
+/** `user` is the signed-in person; it is printed as "Checked By". */
+export async function downloadXlsx(filename: string, sheet: string, cols: XlsxCol[], rows: Row[], totals?: Row | null, user = '') {
+  const body = rows.map((r, i) => ({ cells: [i + 1, ...cols.map((c) => cell(r[c.key], c.kind))] as SheetValue[] }));
+  if (totals) body.push({ cells: ['', 'Total', ...cols.slice(1).map((c) => (c.total ? cell(totals[c.key], c.kind) : null))] as SheetValue[], bold: true } as never);
+  await downloadFormSheet({
+    filename,
+    sheet,
+    form: FORM_FORMATS.report,
+    title: sheet,
+    info: [[`Report :- ${sheet}`, `Date :- ${today()}`, `Rows :- ${rows.length}`]],
+    widths: [8, ...cols.map((c) => Math.max(12, Math.min(34, c.label.length + 4)))],
+    blocks: [{ headers: ['Sr. No.', ...cols.map((c) => c.label)], align: ['center'], rows: body }],
+    checkedBy: user,
+  });
 }

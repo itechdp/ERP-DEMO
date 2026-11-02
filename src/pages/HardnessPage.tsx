@@ -3,6 +3,8 @@ import { canSee, searchable, Write, Conf, colOk, searchableCol } from '../auth/a
 import { useMemo, useState } from 'react';
 import { ClipboardCheck, Eye, Printer, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import {
   HARDNESS_FORM,
   HARDNESS_SCALES,
@@ -188,6 +190,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
     max: cur ? String(cur.max) : '90',
     remarks: cur?.remarks ?? '',
   }));
+  const doc = useDocNo('hardness', !id);
   const [count, setCount] = useState(String(cur?.readings.length ?? DEFAULT_READINGS));
   const [vals, setVals] = useState<string[]>(() => cur?.readings.map((x) => (x === null ? '' : String(x))) ?? []);
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
@@ -230,7 +233,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
 
   const submit = async () => {
     const readings = parsed;
-    const ok = await run(
+    const ok = await withDocNo(id ? undefined : doc.custom, () => run(
       (now) =>
         api.saveHardnessReport(
           { jobNo: f.jobNo || undefined, date: f.date, component: f.component, material: f.material, grade: f.grade, supplier: canSee('party_names') ? f.supplier : cur?.supplier ?? '', inwardQty: Number(f.inwardQty) || 0, inspectedQty: Number(f.inspectedQty), cycleNo: f.cycleNo, drawingNo: f.drawingNo, checkedBy: f.checkedBy, scale: f.scale, min: limits.min, max: limits.max, readings, remarks: f.remarks },
@@ -238,7 +241,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
           id,
         ),
       { title: id ? 'Hardness report updated' : 'Hardness report saved', message: `${f.component} — ${verdict === 'Pass' ? 'all readings OK' : verdict === 'Fail' ? 'some readings are out of range' : 'readings incomplete'}.` },
-    );
+    ));
     if (ok) onClose();
   };
 
@@ -285,6 +288,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
       }
     >
       <div className="form-grid">
+        {!id && <DocNoField label="Report No." no={doc.no} setNo={doc.setNo} />}
         <Field label="Production Job (optional)" hint={canSee('party_names') ? 'Pick a job to fill component, material, supplier and qty automatically' : 'Pick a job to fill component, material and qty automatically'}>
           <select value={f.jobNo} onChange={(e) => pickJob(e.target.value)} disabled={!!cur}>
             <option value="">— Not linked to a job —</option>

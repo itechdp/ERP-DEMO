@@ -38,6 +38,7 @@ import {
   KeyRound,
   Settings,
   Eye,
+  Users,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -45,6 +46,7 @@ import { Badge, FLOW_STEPS, go, type Icon } from './ui';
 import { pendingSteps } from './workflow';
 import { SALES_PAGES } from '../pages/SalesPages';
 import { useFollowups } from '../followups/useFollowups';
+import { NotificationBell } from '../tasks/NotificationBell';
 import { useResponsiveTables } from './responsiveTables';
 import { dueText } from '../followups/types';
 
@@ -87,15 +89,15 @@ const DIE_NAV: NavItem[] = [
 export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, ...REPORT_NAV];
 
 const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = [
-  { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
+  { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'work-hub', label: 'Work Hub', icon: ClipboardList }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
   { id: 'sales', title: 'Sales & Orders', icon: Briefcase, items: SALES_NAV },
   { id: 'purchase', title: 'Purchase & Procurement', icon: ShoppingBag, items: PURCHASE_NAV },
-  { id: 'flow', title: 'Workflow', icon: Workflow, items: WORKFLOW_NAV },
+  { id: 'flow', title: 'Workflow', icon: Workflow, items: WORKFLOW_NAV.filter((n) => n.route !== 'raw-inventory') },
   { id: 'dies', title: 'Die Management', icon: Cog, items: DIE_NAV },
   { id: 'reports', title: 'Reports & Masters', icon: BarChart3, items: REPORT_NAV },
 ];
 
-const SETTINGS_SECTION = { id: 'settings', title: 'Settings', icon: Settings, items: [{ route: 'settings', label: 'Access Control', icon: KeyRound }, { route: 'units', label: 'Units', icon: Ruler }] as NavItem[] };
+const SETTINGS_SECTION = { id: 'settings', title: 'Settings', icon: Settings, items: [{ route: 'settings', label: 'Access Control', icon: KeyRound }, { route: 'users', label: 'Users', icon: Users }, { route: 'units', label: 'Units', icon: Ruler }] as NavItem[] };
 
 const readLS = (k: string) => {
   try {
@@ -219,6 +221,7 @@ export function Layout({ route, children }: { route: string; children: ReactNode
           </button>
           <JobSearch />
           <div className="top-right">
+            <NotificationBell />
             <ActionBell />
             <button
               className="round-btn"

@@ -1,5 +1,5 @@
 import * as api from '../db/api';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, CheckCircle, Eye, FileText, LayoutGrid, Pencil, Plus, Printer, ShoppingCart, Trash2 } from 'lucide-react';
 import { Conf, Write, canSee, searchable, useAccess } from '../auth/access';
 import { NoAccess } from './NoAccess';
@@ -9,7 +9,11 @@ import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { COL_LABEL, KIND_BY_ROUTE, SALES_KINDS, type ColKey, type FieldDef, type FieldKey, type KindCfg, type SalesRecord } from '../sales/config';
 import { useSalesRecords } from '../sales/useSales';
 import { printSalesRecord } from '../sales/print';
-import { dbMessage } from '../db/client';
+import { dbMessage, withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
+import { UrgencyBadge } from '../tasks/UrgencyBadge';
+import { PersonSelect } from '../components/PersonSelect';
+import { fetchAssignableUsers, type AssignableUser } from '../tasks/service';
 
 export interface SalesPageDef {
   route: string;
@@ -21,7 +25,7 @@ export interface SalesPageDef {
 /** The Sales & Orders pages, in menu order. */
 export const SALES_PAGES: SalesPageDef[] = [
   { route: 'sales-dashboard', resource: 'sales_dashboard', label: 'Sales Dashboard', icon: LayoutGrid },
-  ...SALES_KINDS.filter((k) => k.kind === 'lead' || k.kind === 'inquiry').map((k) => ({ route: k.route, resource: k.resource, label: k.label, icon: k.icon })),
+  ...SALES_KINDS.filter((k) => k.kind === 'inquiry').map((k) => ({ route: k.route, resource: k.resource, label: k.label, icon: k.icon })),
   { route: 'sales-quotation', resource: 'sales_quotation', label: 'Sales Quotation', icon: FileText },
   { route: 'quotation-approvals', resource: 'quotation_approvals', label: 'Quotation Approvals', icon: CheckCircle },
   { route: 'sales-order', resource: 'sales_orders', label: 'Sales Order', icon: ShoppingCart },
@@ -48,6 +52,8 @@ function Cell({ r, c }: { r: SalesRecord; c: ColKey }) {
       return <td className="nowrap">{fmtDate(r.docDate)}</td>;
     case 'dueDate':
       return <td className="nowrap">{r.dueDate ? fmtDate(r.dueDate) : '—'}</td>;
+    case 'priority':
+      return <td><UrgencyBadge urgency={r.priority} /></td>;
     case 'qty':
       return <td className="r num">{r.qty == null ? '—' : fmtNum(r.qty)}</td>;
     case 'rate':
@@ -98,8 +104,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
     { label: 'Status', value: status, onChange: setStatus, options: [{ value: 'all', label: 'All', count: mine.length }, ...cfg.statuses.map((s) => ({ value: s, label: s, count: mine.filter((r) => r.status === s).length }))] },
     ...(cfg.kind !== 'task' && canSee('party_names') ? [dim('party', 'Customer', 'All customers')] : []),
     ...(cfg.kind !== 'task' ? [dim('product', 'Product', 'All products')] : []),
-    ...(cfg.kind === 'lead' ? [dim('source', 'Source', 'All sources')] : []),
-    ...(cfg.kind === 'task' ? [dim('priority', 'Priority', 'All priorities'), dim('assignee', 'Assigned to', 'Everyone')] : []),
+    ...(cfg.kind === 'task' ? [dim('priority', 'Urgency', 'All urgencies'), dim('assignee', 'Assigned to', 'Everyone')] : []),
   ];
 
   const remove = async (r: SalesRecord) => {
@@ -143,7 +148,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
                     <tr>
                       {cfg.cols.map((c) => (
                         <Conf key={c} g={colGroup(c)}>
-                          <th className={NUM_COLS.includes(c) ? 'r' : undefined}>{c === 'party' && cfg.kind === 'lead' ? 'Company / Name' : COL_LABEL[c]}</th>
+                          <th className={NUM_COLS.includes(c) ? 'r' : undefined}>{COL_LABEL[c]}</th>
                         </Conf>
                       ))}
                       <th className="act">Actions</th>
@@ -252,6 +257,11 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
   };
   const [v, setV] = useState<Record<string, string>>(() => ({ ...Object.fromEntries(fields.map((f) => [f.key, initial(f)])), docDate: rec?.docDate ?? todayISO(), status: rec?.status ?? cfg.statuses[0] }));
   const [busy, setBusy] = useState(false);
+  const [people, setPeople] = useState<AssignableUser[]>([]);
+  useEffect(() => {
+    if (cfg.kind === 'task') void fetchAssignableUsers().then(setPeople);
+  }, [cfg.kind]);
+  const doc = useDocNo(`sales_${cfg.kind}`, !rec);
   const set = (k: string, val: string) => setV((x) => ({ ...x, [k]: val }));
   const valid = fields.every((f) => !f.required || (v[f.key] ?? '').trim() !== '');
 
@@ -260,7 +270,7 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
     try {
       const payload: Record<string, string> = { status: v.status, doc_date: v.docDate };
       for (const f of fields) payload[SNAKE[f.key] ?? f.key] = (v[f.key] ?? '').trim();
-      const no = await api.saveSalesRecord(cfg.kind, rec?.id, payload);
+      const no = await withDocNo(rec ? undefined : doc.custom, () => api.saveSalesRecord(cfg.kind, rec?.id, payload));
       toast({ kind: 'success', title: rec ? `${cfg.singular} updated` : `${cfg.singular} added`, message: no });
       onDone();
     } catch (e) {
@@ -274,6 +284,7 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
     if (f.key === 'rate') return <NumInput value={v.rate} onChange={(x) => set('rate', x)} suffix="₹ / pc" step="any" />;
     if (f.key === 'dueDate') return <input className="input" type="date" value={v.dueDate} onChange={(e) => set('dueDate', e.target.value)} />;
     if (f.key === 'remarks') return <textarea value={v.remarks} onChange={(e) => set('remarks', e.target.value)} />;
+    if (f.key === 'assignee' && people.length) return <PersonSelect value={v.assignee} onChange={(name) => set('assignee', name)} people={people} />;
     if (f.options)
       return (
         <select value={v[f.key]} onChange={(e) => set(f.key, e.target.value)}>
@@ -311,6 +322,13 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
         )}
         <div className="section-label">Document</div>
         <div className="form-grid three">
+          {rec ? (
+            <Field label="Number">
+              <input className="input" value={rec.docNo} readOnly />
+            </Field>
+          ) : (
+            <DocNoField label="Number" no={doc.no} setNo={doc.setNo} />
+          )}
           <Field label="Date">
             <input className="input" type="date" value={v.docDate} onChange={(e) => set('docDate', e.target.value)} />
           </Field>

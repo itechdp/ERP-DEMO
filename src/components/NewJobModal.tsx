@@ -2,6 +2,8 @@ import * as api from '../db/api';
 import { useMemo, useState } from 'react';
 import { Layers, PackagePlus, Scissors } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { fifoLots, materialKey, parseMaterialKey } from '../store/engine';
 import type { ERPState } from '../store/types';
 import { findMaterial, pieceWeightKg } from '../store/materials';
@@ -104,9 +106,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
     return [...m.entries()];
   }, [state.rawMaterials, state.products]);
 
-  // preview only — the database assigns the real number
-  const year = new Date().getFullYear();
-  const nextJobNo = `JOB-${year}-${String(1 + state.jobs.reduce((m, j) => (j.jobNo.startsWith(`JOB-${year}-`) ? Math.max(m, Number(j.jobNo.split('-')[2]) || 0) : m), 0)).padStart(4, '0')}`;
+  const doc = useDocNo('job', open);
   const avail = materials.find(([k]) => k === matKey)?.[1] ?? 0;
   const mat = parseMaterialKey(matKey);
   const spec = findMaterial(mat.material);
@@ -127,7 +127,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
 
   const submit = async () => {
     let created = '';
-    const ok = await run(
+    const ok = await withDocNo(doc.custom, () => run(
       async (now) => {
         created = await api.createJob(
           { productId, plannedQty: plannedN, materialKey: matKey, cuttingLength: Number(cutLen), pieceWeightG: Number(weightShown) || undefined, dieNo, machineNo },
@@ -135,7 +135,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
         );
       },
       { title: 'Job card created', message: `${plannedN} PCS of ${product.name} to cut. Enter the cutting result on the Cutting page.` },
-    );
+    ));
     if (ok) {
       onClose();
       setTimeout(() => openTrace(created), 250);
@@ -162,9 +162,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
       }
     >
       <div className="form-grid three">
-        <Field label="Job Card No." hint="Auto-generated">
-          <input className="input mono" readOnly value={nextJobNo} />
-        </Field>
+        <DocNoField label="Job Card No." no={doc.no} setNo={doc.setNo} />
         <Field label="Date">
           <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>

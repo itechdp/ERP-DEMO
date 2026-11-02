@@ -2,7 +2,25 @@
 import { printHtml } from '../components/printHtml';
 import { PO_UFLOW_CSS, esc, dmy, rupeesInWords } from '../sales/print';
 import { inr } from './calc';
-import type { OrderLine, OrderRow, QuotationLine, QuotationRow } from './types';
+import type { CostRow, OrderLine, OrderRow, QuotationLine, QuotationRow } from './types';
+
+export interface QuotationOutput {
+  /** also print each line's cost sheet (input weight → final cost) */
+  detailed?: boolean;
+}
+
+export const costAmount = (r: CostRow) => (r.amount == null ? '' : r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(r.amount) ? 0 : 2 }));
+
+const costSheetHtml = (lines: QuotationLine[]) =>
+  lines
+    .filter((l) => l.costing?.length)
+    .map(
+      (l, n) => `<div class="qt-cost"><div class="qt-cost-h">Cost sheet ${lines.filter((x) => x.costing?.length).length > 1 ? n + 1 + ' · ' : '· '}${esc(l.product)}${[l.grade, l.size].filter(Boolean).length ? ' (' + esc([l.grade, l.size].filter(Boolean).join(' • ')) + ')' : ''}</div>
+        <table class="qt-table"><thead><tr><th style="width:34px">Sr.</th><th>Description</th><th>Calculation</th><th class="r" style="width:90px">Amount</th></tr></thead><tbody>${(l.costing ?? [])
+          .map((r, i) => `<tr${r.bold ? ' class="b"' : ''}><td>${i + 1}</td><td>${esc(r.label)}</td><td>${esc(r.basis)}</td><td class="r">${costAmount(r)}</td></tr>`)
+          .join('')}</tbody></table></div>`,
+    )
+    .join('');
 
 const CSS = `
 @page { size: A4; margin: 10mm 12mm 14mm 12mm; }
@@ -19,11 +37,14 @@ const CSS = `
 .qt-table .tot td { background: #1a3c61 !important; color: #fff !important; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .qt-words { font-size: 10.5px; margin-bottom: 12px; }
 .qt-terms { border: 1px solid #e2e8f0; border-radius: 4px; padding: 9px 12px; font-size: 10.5px; line-height: 1.7; margin-bottom: 18px; }
+.qt-cost { margin: 0 0 12px; page-break-inside: avoid; }
+.qt-cost-h { font-size: 10.5px; font-weight: 700; margin: 4px 0; color: #166564; }
+.qt-table tr.b td { font-weight: 700; background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .qt-sign { display: flex; justify-content: space-between; margin-top: 46px; font-size: 10.5px; }
 .qt-sign div { width: 40%; border-top: 1px solid #475569; padding-top: 4px; }
 `;
 
-export function printQuotation(q: QuotationRow, lines: QuotationLine[]) {
+export function printQuotation(q: QuotationRow, lines: QuotationLine[], opts: QuotationOutput = {}) {
   const rows = lines
     .map((l, i) => {
       const spec = [l.grade, l.size].filter(Boolean).join(' • ');
@@ -50,6 +71,7 @@ export function printQuotation(q: QuotationRow, lines: QuotationLine[]) {
   <table class="qt-table"><thead><tr><th style="width:28px">#</th><th>Product</th><th class="r">Qty</th><th>UOM</th><th class="r">Rate</th><th class="r">Disc.</th><th class="r">Net Rate</th><th class="r">Amount</th></tr></thead>
     <tbody>${rows}<tr class="tot"><td colspan="7" class="r">Total</td><td class="r">${inr(total)}</td></tr></tbody></table>
   <div class="qt-words"><b>Amount in words:</b> ${esc(rupeesInWords(total))}</div>
+  ${opts.detailed ? costSheetHtml(lines) : ''}
   <div class="qt-terms">
     <div><b>Payment terms:</b> ${esc(q.paymentTerms || '—')}</div>
     <div><b>Delivery terms:</b> ${esc(q.deliveryTerms || '—')}</div>
@@ -59,7 +81,7 @@ export function printQuotation(q: QuotationRow, lines: QuotationLine[]) {
   <div class="qt-sign"><div>Customer acceptance (signature &amp; date)</div><div>For Everest Auto Forge Pvt. Ltd.</div></div>
   <div class="po-foot-meta"><span>This is a computer-generated quotation. &nbsp;·&nbsp; E.&amp;O.E.</span><span>${esc(q.docNo)}</span></div>
 </div>`;
-  printHtml(`Quotation ${q.docNo}`, html, PO_UFLOW_CSS + CSS);
+  printHtml(`Quotation ${q.docNo}${opts.detailed ? ' (detailed)' : ''}`, html, PO_UFLOW_CSS + CSS);
 }
 
 export function printSalesOrder(o: OrderRow, lines: OrderLine[]) {

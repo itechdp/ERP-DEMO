@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle, ClipboardCheck, Download, Eye, Mail, MessageSquarePlus, Pencil, Plus, Printer, RefreshCw, Send, ShoppingCart, Trash2, Undo2, XCircle } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, FileSpreadsheet, ListTree, CheckCircle, ClipboardCheck, Download, Eye, Mail, MessageSquarePlus, Pencil, Plus, Printer, RefreshCw, Send, ShoppingCart, Trash2, Undo2, XCircle } from 'lucide-react';
 import { Write, useAccess } from '../auth/access';
 import { Badge, Empty, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, todayISO } from '../components/format';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { useQuotationDetail, useQuotations } from './hooks';
 import { Brief } from '../components/Brief';
 import { inr, lineCalc, pct, plusDays, totalsCalc } from './calc';
 import { printQuotation } from './print';
+import { exportQuotationXlsx } from './exportQuotation';
 import {
   addFollowup, createOrderFromQuotation, decideQuotation, fetchMinMargin, openQuotationPdf, respondQuotation, saveQuotation, sendQuotation, sendQuotationEmail, submitQuotation,
 } from './service';
+import { CostSheetEditor } from './CostSheetEditor';
 import { LOST_REASONS, UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
 
 const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null, discountPct: 0, materialCost: null, processingCost: null, otherCost: null });
@@ -267,10 +271,22 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
   const { toast } = useStore();
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('qt_draft', !editId);
   const [minMargin, setMinMargin] = useState(15);
   const [h, setH] = useState<QuotationHeader>({ customer: '', contact: '', phone: '', email: '', enquiryNo: '', paymentTerms: '', deliveryTerms: '', validUntil: '', remarks: '', qtDate: todayISO() });
   const [lines, setLines] = useState<QuotationLine[]>([blankLine()]);
   const [revisionNote, setRevisionNote] = useState('');
+  const [costOpen, setCostOpen] = useState<number | null>(null);
+  const moveLine = (i: number, d: -1 | 1) => {
+    setCostOpen(null);
+    setLines((c) => {
+      const j = i + d;
+      if (j < 0 || j >= c.length) return c;
+      const n = [...c];
+      [n[i], n[j]] = [n[j], n[i]];
+      return n;
+    });
+  };
   const allowed = can('party_names') && can('sales_rates') && can('margins');
 
   useEffect(() => {
@@ -310,7 +326,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
     setSaving(true);
     try {
       const me = userName(user);
-      const id = await saveQuotation(editId, h, lines, me);
+      const id = await withDocNo(editId ? undefined : doc.custom, () => saveQuotation(editId, h, lines, me));
       if (submit) {
         await submitQuotation(id, me);
         toast({ kind: 'success', title: 'Submitted for approval', message: 'The Director will see it in Quotation Approvals.' });
@@ -352,6 +368,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: 14 }}>
+            {!editId && <DocNoField label="Quotation no. (draft)" no={doc.no} setNo={doc.setNo} />}
             <Field label="Customer" required><input value={h.customer} onChange={(e) => set({ customer: e.target.value })} placeholder="Customer / company" /></Field>
             <Field label="Contact person"><input value={h.contact} onChange={(e) => set({ contact: e.target.value })} /></Field>
             <Field label="Phone"><input value={h.phone} onChange={(e) => set({ phone: e.target.value })} /></Field>
@@ -386,7 +403,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                     <th className="right" style={{ width: 100 }}>Processing</th>
                     <th className="right" style={{ width: 100 }}>Other cost</th>
                     <th className="right" style={{ width: 90 }}>Margin</th>
-                    <th style={{ width: 40 }}></th>
+                    <th style={{ width: 150 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -394,7 +411,8 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                     const c = lineCalc(l);
                     const lineBelow = c.marginPct != null && c.marginPct < minMargin;
                     return (
-                      <tr key={i}>
+                      <Fragment key={i}>
+                      <tr>
                         <td className="mono muted">{i + 1}</td>
                         <td><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></td>
                         <td><input value={l.grade} onChange={(e) => setLine(i, { grade: e.target.value })} /></td>
@@ -413,11 +431,22 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                         <td><input type="number" step="any" min="0" className="right mono" value={l.otherCost ?? ''} onChange={(e) => setLine(i, { otherCost: numOrNull(e.target.value) })} /></td>
                         <td className={`right mono strong ${lineBelow ? 'text-red' : ''}`}>{pct(c.marginPct == null ? null : Math.round(c.marginPct * 100) / 100)}</td>
                         <td className="act">
-                          <button type="button" className="icon-btn text-red" title="Remove line" onClick={() => setLines((cur) => (cur.length > 1 ? cur.filter((_, k) => k !== i) : cur))}>
+                          <button type="button" className="icon-btn" style={l.costing?.length ? { color: '#259392' } : undefined} title="Cost sheet (for the detailed quotation)" onClick={() => setCostOpen(costOpen === i ? null : i)}><ListTree size={15} /></button>
+                          <button type="button" className="icon-btn" title="Move up" disabled={i === 0} onClick={() => moveLine(i, -1)}><ArrowUp size={15} /></button>
+                          <button type="button" className="icon-btn" title="Move down" disabled={i === lines.length - 1} onClick={() => moveLine(i, 1)}><ArrowDown size={15} /></button>
+                          <button type="button" className="icon-btn text-red" title="Remove line" onClick={() => { setCostOpen(null); setLines((cur) => (cur.length > 1 ? cur.filter((_, k) => k !== i) : cur)); }}>
                             <Trash2 size={15} />
                           </button>
                         </td>
                       </tr>
+                      {costOpen === i && (
+                        <tr>
+                          <td colSpan={14}>
+                            <CostSheetEditor rows={l.costing ?? []} onChange={(r) => setLine(i, { costing: r })} onUseRate={(a) => setLine(i, { rate: a })} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -459,6 +488,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
   const [mailPrefilled, setMailPrefilled] = useState(false);
   const { toast } = useStore();
   const [busy, setBusy] = useState(false);
+  const [detailed, setDetailed] = useState(false);
   const [dlg, setDlg] = useState<Dlg>(initialStep);
   const [note, setNote] = useState('');
   const [response, setResponse] = useState<'Won' | 'Lost' | 'Pending'>('Won');
@@ -569,7 +599,16 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
           <>
             <button className="btn btn-subtle" onClick={onBack}><ArrowLeft size={14} /> Back</button>
             <button className="btn btn-subtle" onClick={() => reload()} disabled={busy}><RefreshCw size={14} /> Refresh</button>
-            {printable && <button className="btn btn-subtle" onClick={() => printQuotation(q, lines)}><Printer size={14} /> Print</button>}
+            {printable && (
+              <>
+                <select value={detailed ? 'detailed' : 'standard'} onChange={(e) => setDetailed(e.target.value === 'detailed')} title="Detailed adds each line's cost sheet" aria-label="Quotation format" style={{ width: 'auto' }}>
+                  <option value="standard">Standard</option>
+                  <option value="detailed">Detailed (with cost sheet)</option>
+                </select>
+                <button className="btn btn-subtle" onClick={() => printQuotation(q, lines, { detailed })}><Printer size={14} /> Print / PDF</button>
+                <button className="btn btn-subtle" onClick={() => exportQuotationXlsx(q, lines, me, { detailed }).catch((e) => toast({ kind: 'error', title: 'Could not export', message: e instanceof Error ? e.message : String(e) }))}><FileSpreadsheet size={14} /> Excel</button>
+              </>
+            )}
             {editable && onEdit && (
               <Write res="sales_quotation">
                 <button className="btn btn-subtle" onClick={() => onEdit(q.id)}><Pencil size={14} /> Edit</button>

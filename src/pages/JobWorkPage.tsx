@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react';
 import { Eye, Handshake, Plus, Printer, Trash2 } from 'lucide-react';
 import { Conf, Write, canSee, searchable, useAccess } from '../auth/access';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { STAGE_LABEL } from '../store/engine';
 import { jobWorkDeleteReason } from '../store/deletable';
 import { Confirm, Empty, Field, FilterMenu, JobLink, Modal, NumInput, PageHeader, Search } from '../components/ui';
@@ -175,6 +177,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
   const [basis, setBasis] = useState<JobWork['chargeBasis']>('none');
   const [rate, setRate] = useState('');
   const [pRates, setPRates] = useState<Record<string, string>>({});
+  const doc = useDocNo('job', true);
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
 
   const product = state.products.find((p) => p.id === f.productId);
@@ -206,7 +209,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
       processRates: can('sales_rates') && basis === 'process' ? processRates : undefined,
       dueDate: f.dueDate,
     };
-    if (await run((ts) => api.createJobWork(input, ts), { title: 'Parts received', message: `${fmtNum(qtyN)} PCS of ${product?.name} — job card created at ${first?.label}.` })) onClose();
+    if (await withDocNo(doc.custom, () => run((ts) => api.createJobWork(input, ts), { title: 'Parts received', message: `${fmtNum(qtyN)} PCS of ${product?.name} — job card created at ${first?.label}.` }))) onClose();
   };
 
   return (
@@ -229,6 +232,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
     >
       <div className="section-label">Parts received</div>
       <div className="form-grid three">
+        <DocNoField label="Job Card No." no={doc.no} setNo={doc.setNo} />
         <Field label="Customer" required={can('party_names')}>
           <input className="input" list="jw-customers" value={f.customer} onChange={(e) => set('customer', e.target.value)} placeholder={can('party_names') ? 'Select or type' : 'As on the challan'} autoComplete="off" />
           <datalist id="jw-customers">

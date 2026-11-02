@@ -1,7 +1,7 @@
 import { dbMessage, supabase } from '../db/client';
 import { functionError } from '../purchase/services/poService';
 import { openUrl } from '../native/native';
-import type { ItemRow, OrderLine, OrderRow, PriceHistoryRow, QuotationAction, QuotationEmail, QuotationFollowup, QuotationHeader, QuotationLine, QuotationRow } from './types';
+import type { CostRow, ItemRow, OrderLine, OrderRow, PriceHistoryRow, QuotationAction, QuotationEmail, QuotationFollowup, QuotationHeader, QuotationLine, QuotationRow } from './types';
 
 type R = Record<string, any>;
 const s = (v: unknown) => (v == null ? '' : String(v));
@@ -26,6 +26,7 @@ const mapLine = (r: R): QuotationLine => ({
   id: num(r.id), product: s(r.product), grade: s(r.grade), size: s(r.size), uom: s(r.uom) || 'PCS', qty: nn(r.qty), rate: nn(r.rate), discountPct: nn(r.discount_pct) ?? 0,
   materialCost: nn(r.material_cost), processingCost: nn(r.processing_cost), otherCost: nn(r.other_cost),
   netRate: nn(r.net_rate), amount: nn(r.amount), unitCost: nn(r.unit_cost), marginPct: nn(r.margin_pct),
+  costing: Array.isArray(r.costing) ? (r.costing as R[]).map((c): CostRow => ({ label: s(c.label), basis: s(c.basis), amount: nn(c.amount), bold: !!c.bold })) : null,
 });
 
 export async function fetchQuotations(): Promise<QuotationRow[]> {
@@ -81,6 +82,8 @@ const headerJson = (h: QuotationHeader) => ({
 const lineJson = (l: QuotationLine) => ({
   product: l.product, grade: l.grade, size: l.size, uom: l.uom, qty: l.qty, rate: l.rate, discount_pct: l.discountPct ?? 0,
   material_cost: l.materialCost, processing_cost: l.processingCost, other_cost: l.otherCost,
+  // sent only when there is a cost sheet, so saving keeps working before migration 38 is installed
+  ...(l.costing?.length ? { costing: l.costing } : {}),
 });
 
 export async function saveQuotation(id: number | null, h: QuotationHeader, lines: QuotationLine[], user: string): Promise<number> {

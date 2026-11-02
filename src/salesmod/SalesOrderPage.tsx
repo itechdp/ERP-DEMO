@@ -8,6 +8,8 @@ import { useOrderDetail, useOrders } from './hooks';
 import { Brief } from '../components/Brief';
 import { inr } from './calc';
 import { printSalesOrder } from './print';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { fetchOrder, saveOrder, setOrderStatus, type OrderHeaderInput } from './service';
 import { ORDER_NEXT, UOMS, type OrderLine, type OrderRow } from './types';
 
@@ -139,6 +141,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
   const { toast } = useStore();
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('sales_order', !editId);
   const [h, setH] = useState<OrderHeaderInput>({ customer: '', contact: '', phone: '', email: '', extRef: '', deliveryDate: '', paymentTerms: '', deliveryTerms: '', remarks: '', soDate: todayISO() });
   const [lines, setLines] = useState<OrderLine[]>([blank()]);
   const allowed = can('party_names') && can('sales_rates');
@@ -172,7 +175,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
   const save = async () => {
     setSaving(true);
     try {
-      const id = await saveOrder(editId, h, lines, userName(user));
+      const id = await withDocNo(editId ? undefined : doc.custom, () => saveOrder(editId, h, lines, userName(user)));
       toast({ kind: 'success', title: 'Sales order saved', message: 'Saved as a draft.' });
       onSaved(id);
     } catch (e) {
@@ -189,6 +192,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!allowed && <div className="callout warn">A sales order holds customer names and prices. Ask the Director for access to Party names and Sales rates.</div>}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: 14 }}>
+            {!editId && <DocNoField label="Sales order no." no={doc.no} setNo={doc.setNo} />}
             <Field label="Customer" required><input value={h.customer} onChange={(e) => set({ customer: e.target.value })} /></Field>
             <Field label="Contact person"><input value={h.contact} onChange={(e) => set({ contact: e.target.value })} /></Field>
             <Field label="Phone"><input value={h.phone} onChange={(e) => set({ phone: e.target.value })} /></Field>

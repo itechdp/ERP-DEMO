@@ -20,7 +20,6 @@ export { rupeesInWords };
 
 const TITLE: Record<SalesKind, string> = {
   quotation: 'SALES QUOTATION',
-  lead: 'LEAD',
   inquiry: 'INQUIRY',
   purchase_order: 'PURCHASE ORDER',
   sales_order: 'SALES ORDER',
@@ -29,7 +28,6 @@ const TITLE: Record<SalesKind, string> = {
 };
 const NO_LABEL: Record<SalesKind, string> = {
   quotation: 'Quotation No.',
-  lead: 'Lead No.',
   inquiry: 'Inquiry No.',
   purchase_order: 'PO No.',
   sales_order: 'Sales Order No.',
@@ -38,7 +36,6 @@ const NO_LABEL: Record<SalesKind, string> = {
 };
 const DUE_LABEL: Record<SalesKind, string> = {
   quotation: 'Valid Until',
-  lead: 'Date',
   inquiry: 'Required By',
   purchase_order: 'Delivery Date',
   sales_order: 'Delivery Date',
@@ -47,7 +44,6 @@ const DUE_LABEL: Record<SalesKind, string> = {
 };
 const REF_LABEL: Record<SalesKind, string> = {
   quotation: 'Inquiry No.',
-  lead: 'Linked To',
   inquiry: 'Lead No.',
   purchase_order: 'Quotation No.',
   sales_order: 'Quotation No.',
@@ -379,8 +375,6 @@ export function salesRecordHtml(r: SalesRecord) {
   let pairs: Pair[];
   if (k === 'task') {
     pairs = [['Task', r.title, true], ['Assigned To', r.assignee], ['Priority', r.priority], [DUE_LABEL[k], dmy(r.dueDate)], [REF_LABEL[k], r.refNo], ['Status', r.status]];
-  } else if (k === 'lead') {
-    pairs = [['Company / Name', party(r.party), true], ['Contact Person', party(r.contact)], ['Phone', party(r.phone)], ['Email', party(r.email)], ['Source', r.source], ['Interested In', r.product]];
   } else if (k === 'inquiry') {
     pairs = [['Customer', party(r.party), true], ['Contact Person', party(r.contact)], ['Phone', party(r.phone)], ['Product', r.product], ['Quantity', r.qty == null ? '' : `${r.qty} PCS`], [DUE_LABEL[k], dmy(r.dueDate)], [REF_LABEL[k], r.refNo]];
   } else {

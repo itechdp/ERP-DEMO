@@ -1,4 +1,6 @@
 import { ClipboardCheck } from 'lucide-react';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
@@ -530,6 +532,7 @@ function CreateRFQModal({
   const { toast } = useStore();
 
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('rfq', true);
   const [prId, setPrId] = useState<number | ''>(initialPRId || '');
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date();
@@ -576,14 +579,16 @@ function CreateRFQModal({
     try {
       setSaving(true);
       const userName = user?.name || user?.email || 'User';
-      const newId = await saveRFQ(
-        null,
-        {
-          pr_id: Number(prId),
-          due_date: dueDate || null,
-          supplier_ids: selectedSupplierIds,
-        },
-        userName
+      const newId = await withDocNo(doc.custom, () =>
+        saveRFQ(
+          null,
+          {
+            pr_id: Number(prId),
+            due_date: dueDate || null,
+            supplier_ids: selectedSupplierIds,
+          },
+          userName
+        )
       );
 
       toast({
@@ -618,6 +623,7 @@ function CreateRFQModal({
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 14 }}>
+          <DocNoField label="RFQ No." no={doc.no} setNo={doc.setNo} />
           <Field label="Approved Purchase Requisition" required>
             <select
               value={prId}

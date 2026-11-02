@@ -23,6 +23,8 @@
       .boot img { position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; }
       .boot-spin { position: absolute; left: 50%; top: calc(50% + 70px); width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; border: 3px solid rgba(5, 148, 148, 0.22); border-top-color: #059494; animation: boot-spin 0.8s linear infinite; }
       @keyframes boot-spin { to { transform: rotate(360deg); } }
+      /* the loading screen is for phones and tablets only */
+      @media (min-width: 900px) { .boot { display: none; } }
     </style>
     <title>ForgeFlow ERP — Forging &amp; Casting Manufacturing</title>
   </head>

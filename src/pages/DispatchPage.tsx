@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { ClipboardList, Eye, FileText, Handshake, PackageOpen, Plus, Printer, Truck, X, Trash2 } from 'lucide-react';
 import { printJobWorkReturn } from '../jobwork/print';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { dispatchDeleteReason } from '../store/deletable';
 import { fgAvailable, getProduct, isToday, round3 } from '../store/engine';
 import type { Dispatch } from '../store/types';
@@ -201,6 +203,7 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
   const fg = lots.find((f) => f.id === fgId);
   const product = fg ? getProduct(state, fg.productId) : null;
   const avail = fg ? fgAvailable(fg) : 0;
+  const doc = useDocNo('dispatch', true);
   const [vehicle, setVehicle] = useState('');
   const [date, setDate] = useState(todayISO());
   const [bags, setBags] = useState<{ qty: string; weight: string }[]>([{ qty: '', weight: '' }]);
@@ -219,10 +222,10 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
   const setBag = (i: number, k: 'qty' | 'weight', v: string) => setBags((list) => list.map((b, j) => (j === i ? { ...b, [k]: v } : b)));
 
   const submit = async () => {
-    const ok = await run(
+    const ok = await withDocNo(doc.custom, () => run(
       (now) => api.createDispatch({ fgId, vehicleNo: vehicle, date, status: 'Dispatched', bags: rows.map((r) => ({ qty: r.q, weight: r.kg })) }, tsFor(date, now)),
       { title: 'Goods dispatched', message: `${totalQty} PCS in ${bags.length} bag${bags.length === 1 ? '' : 's'} on ${vehicle.toUpperCase()}.` },
-    );
+    ));
     if (ok) onClose();
   };
 
@@ -250,6 +253,7 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
       ) : (
         <>
           <div className="form-grid three">
+            <DocNoField label="Dispatch No." no={doc.no} setNo={doc.setNo} />
             <Field label="Job Card No." required hint={product ? `${product.name} · ${fmtNum(avail)} PCS available` : undefined}>
               <select value={fgId} onChange={(e) => setFgId(e.target.value)}>
                 {lots.map((f) => (

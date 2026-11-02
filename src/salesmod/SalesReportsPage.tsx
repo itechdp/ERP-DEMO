@@ -162,7 +162,7 @@ export function SalesReportsPage({ query }: { query?: URLSearchParams }) {
 
   const exportExcel = () => {
     if (result.length === 0) return toast({ kind: 'info', title: 'Nothing to export', message: 'This report has no rows for the current filters.' });
-    void downloadXlsx(`${def.id}-${new Date().toISOString().slice(0, 10)}`, def.title, cols, result, totals);
+    void downloadXlsx(`${def.id}-${new Date().toISOString().slice(0, 10)}`, def.title, cols, result, totals, user?.name || user?.email || '');
   };
   const print = () => {
     if (result.length === 0) return toast({ kind: 'info', title: 'Nothing to print', message: 'This report has no rows for the current filters.' });

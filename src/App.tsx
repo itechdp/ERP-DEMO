@@ -9,6 +9,10 @@ import { QuotationApprovalsPage } from './salesmod/QuotationApprovalsPage';
 import { SalesOrderPage } from './salesmod/SalesOrderPage';
 import { SalesReportsPage } from './salesmod/SalesReportsPage';
 import { FollowupsPage } from './followups/FollowupsPage';
+import { WorkHubPage } from './pages/WorkHubPage';
+import { UsersPage } from './pages/UsersPage';
+import { NotificationHost } from './tasks/NotificationHost';
+import { NotificationProvider } from './tasks/notifications';
 import { dbConfigured } from './db/client';
 import { LoginPage } from './auth/LoginPage';
 import { AccessPage } from './pages/AccessPage';
@@ -98,10 +102,12 @@ function Page({ route, query, navigate }: { route: string; query: URLSearchParam
   if (route.startsWith('dieform/')) return <DieFormRoute />;
   if (route === 'settings') return canManageAccess ? <AccessPage /> : <NoAccess />;
   if (route === 'units') return canManageAccess ? <UnitsPage /> : <NoAccess />;
+  if (route === 'users') return canManageAccess ? <UsersPage /> : <NoAccess />;
   const resource = (route === 'quotation-comparison' ? 'supplier_quotations' : ROUTE_RESOURCE[route]) ?? 'dashboard';
   if (!canRead(resource)) return <NoAccess />;
   if (route === 'job-work') return <JobWorkPage />;
   if (route === 'follow-ups') return <FollowupsPage navigate={navigate} />;
+  if (route === 'work-hub') return <WorkHubPage />;
   if (route === 'sales-dashboard') return <SalesDashboardPage navigate={navigate} />;
   if (route === 'sales-quotation') return <QuotationPage query={query} navigate={navigate} />;
   if (route === 'quotation-approvals') return <QuotationApprovalsPage query={query} navigate={navigate} />;
@@ -188,6 +194,7 @@ function Shell() {
   if (!user) return <LoginPage />;
   return (
     <StoreProvider key={user.email}>
+      <NotificationProvider>
       <DieProvider>
         <Layout route={formParent(route, query) ?? route}>
           {/* key on full hash so pages reset their local filters/modals on navigation, and replay the arrival */}
@@ -199,7 +206,9 @@ function Shell() {
         <ActionHost />
         <DieHost />
         <Toasts />
+        <NotificationHost />
       </DieProvider>
+      </NotificationProvider>
     </StoreProvider>
   );
 }

@@ -2,7 +2,10 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './styles.css';
+import { enhanceSelects } from './components/enhanceSelects';
 import { SplashScreen } from '@capacitor/splash-screen';
+
+enhanceSelects();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

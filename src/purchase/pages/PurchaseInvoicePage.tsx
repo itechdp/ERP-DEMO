@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { AlertTriangle, ArrowLeft, Ban, CheckCircle, ClipboardCheck, Eye, FileCheck, Pencil, Plus, RefreshCw, Wallet } from 'lucide-react';
 import { Conf, Write, canSee, useAccess } from '../../auth/access';
 import { Badge, Empty, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search, Tabs } from '../../components/ui';
@@ -525,6 +527,7 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('pinv', !editId);
   const [error, setError] = useState<string | null>(null);
 
   const po = pos.find((p) => p.id === poId);
@@ -600,11 +603,13 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
     try {
       setSaving(true);
       const who = user?.name || user?.email || 'User';
-      const newId = await saveInvoice(
-        editId,
-        { po_id: Number(poId), supplier_inv_no: invNo.trim(), inv_date: invDate, due_date: dueDate || null, variance_note: note.trim() || null },
-        used.map((l) => ({ po_item_id: l.poItemId, qty: Number(l.qty), rate: Number(l.rate), gst_pct: l.gst })),
-        who,
+      const newId = await withDocNo(editId ? undefined : doc.custom, () =>
+        saveInvoice(
+          editId,
+          { po_id: Number(poId), supplier_inv_no: invNo.trim(), inv_date: invDate, due_date: dueDate || null, variance_note: note.trim() || null },
+          used.map((l) => ({ po_item_id: l.poItemId, qty: Number(l.qty), rate: Number(l.rate), gst_pct: l.gst })),
+          who,
+        ),
       );
       if (post) {
         try {
@@ -651,6 +656,7 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
         ) : (
           <>
             <div className="form-grid three">
+              {!editId && <DocNoField label="Invoice No. (internal)" no={doc.no} setNo={doc.setNo} />}
               <Field label="Purchase Order" required hint="Released orders only">
                 <select value={poId} disabled={!!editId} onChange={(e) => void pickPo(e.target.value ? Number(e.target.value) : '')}>
                   <option value="">Select a purchase order…</option>

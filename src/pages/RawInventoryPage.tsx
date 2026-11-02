@@ -5,6 +5,8 @@ import { ArrowDownToLine, Boxes, Eye, Layers, PackagePlus, Pencil, Send, ShieldC
 import type { RawMaterialLot } from '../store/types';
 import { lotDeleteReason } from '../store/deletable';
 import { useStore } from '../store/StoreContext';
+import { withDocNo } from '../db/client';
+import { DocNoField, useDocNo } from '../components/DocNoField';
 import { lotAvailableWeight, lotIssuedQty, lotStatus, materialKey } from '../store/engine';
 import { findMaterial, MATERIAL_FAMILIES, MATERIAL_MASTER, pieceWeightKg, STANDARD_OD_MM } from '../store/materials';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, rowTone, Search, SummaryLine, Tabs, FilterMenu, Confirm } from '../components/ui';
@@ -415,6 +417,7 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
   const [rate, setRate] = useState(lot?.purchaseRate ? String(lot.purchaseRate) : '');
   const { can } = useAccess();
   const [heatNo, setHeatNo] = useState(lot?.heatNo ?? '');
+  const doc = useDocNo('inward', !lot);
   const [qty, setQty] = useState(lot ? String(lot.inwardQty) : '');
   const [pieceLength, setPieceLength] = useState('');
   const [weightOverride, setWeightOverride] = useState<string | null>(lot ? String(lot.inwardWeight) : null);
@@ -457,10 +460,10 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
       return;
     }
     if (
-      await run((ts) => api.addInward({ material, materialType: spec.grade, od: odN, supplier, inwardDate: date, qty: qN, weight: wN, heatNo, invoiceNo: can('invoices') ? invoice : '', purchaseRate: can('purchase_rates') && Number(rate) > 0 ? Number(rate) : undefined, ...poFields() }, ts), {
+      await withDocNo(doc.custom, () => run((ts) => api.addInward({ material, materialType: spec.grade, od: odN, supplier, inwardDate: date, qty: qN, weight: wN, heatNo, invoiceNo: can('invoices') ? invoice : '', purchaseRate: can('purchase_rates') && Number(rate) > 0 ? Number(rate) : undefined, ...poFields() }, ts), {
         title: 'Raw material received',
         message: `${qN} PCS (${wN} KG) of ${material} OD ${od} mm added to stock.`,
-      })
+      }))
     )
       onClose();
   };
@@ -485,6 +488,11 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
         </>
       }
     >
+      {!lot && (
+        <div className="form-grid three">
+          <DocNoField label="Lot No." no={doc.no} setNo={doc.setNo} />
+        </div>
+      )}
       <div className="section-label">Material</div>
       <div className="form-grid three">
         <Field label="Material" required>

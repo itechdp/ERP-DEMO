@@ -1,4 +1,6 @@
 import { ClipboardCheck } from 'lucide-react';
+import { withDocNo } from '../../db/client';
+import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { openUrl } from '../../native/native';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -578,6 +580,7 @@ function CreateQuotationModal({
   const { toast } = useStore();
 
   const [saving, setSaving] = useState(false);
+  const doc = useDocNo('sq', true);
   const [uploading, setUploading] = useState(false);
 
   // Form states
@@ -750,7 +753,7 @@ function CreateQuotationModal({
       }));
 
       const userName = user?.name || user?.email || 'User';
-      const savedId = await saveQuotation(null, headerInput, itemsInput, userName);
+      const savedId = await withDocNo(doc.custom, () => saveQuotation(null, headerInput, itemsInput, userName));
 
       toast({ kind: 'success', title: 'Quotation Saved', message: 'Supplier quotation recorded successfully.' });
       onSaved(savedId);
@@ -781,6 +784,7 @@ function CreateQuotationModal({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Header grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 14 }}>
+          <DocNoField label="Quotation No." no={doc.no} setNo={doc.setNo} />
           <Field label="Supplier / Vendor" required>
             <select
               value={supplierId}

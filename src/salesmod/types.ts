@@ -48,6 +48,9 @@ export interface QuotationRow {
   submittedAt: string | null;
 }
 
+/** One row of a line's cost sheet (the "detailed" quotation). Rows are numbered by their position, so they can be added, deleted and moved freely. */
+export interface CostRow { label: string; basis: string; amount: number | null; bold?: boolean }
+
 export interface QuotationLine {
   id?: number;
   product: string;
@@ -60,6 +63,7 @@ export interface QuotationLine {
   materialCost: number | null;
   processingCost: number | null;
   otherCost: number | null;
+  costing?: CostRow[] | null;
   // computed by the database (view) — only for reading
   netRate?: number | null;
   amount?: number | null;

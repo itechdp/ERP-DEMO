@@ -128,7 +128,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
 
   const exportExcel = () => {
     if (result.length === 0) return toast({ kind: 'info', title: 'Nothing to export', message: 'This report has no rows for the current filters.' });
-    void downloadXlsx(`${def.id}-${new Date().toISOString().slice(0, 10)}`, def.title ?? def.id, cols, result, totals);
+    void downloadXlsx(`${def.id}-${new Date().toISOString().slice(0, 10)}`, def.title ?? def.id, cols, result, totals, user?.name || user?.email || '');
   };
 
   const print = () => {
