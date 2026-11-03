@@ -1,6 +1,6 @@
 // The link between a die and production: a job card names its (forging) die, and the pieces its Forging process finished are the pieces
-// that die has produced. The die's own total still changes only when the die is returned (so nothing is counted twice) — this shows what
-// production recorded, and it is offered as the pieces figure on the return form.
+// that die has produced. Migration 68 adds them to the die's total when the Forging is completed, so the return form only takes pieces made
+// outside a job card; this lists what production recorded.
 import type { ERPState } from '../store/types';
 
 export interface DieJobUse {

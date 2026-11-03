@@ -11,7 +11,16 @@ import { SAMPLES, lineResult, sampleOk, type DimLine, type DimReport } from './t
 const { LINE, txt, val } = sheetParts;
 const COLS = 12; // Sr · Parameter · Instrument · Specification · USL · LSL · 1–5 · Result
 /** column widths in characters, the ORIGINAL workbook's column widths, exactly as given (A to L) — never rounded or recalculated */
-const WIDTHS = [4.28515625, 23.7109375, 21.28515625, 18.140625, 15.7109375, 13, 15, 13, 13, 15, 13, 16];
+const ORIGINAL_WIDTHS = [4.28515625, 23.7109375, 21.28515625, 18.140625, 15.7109375, 13, 15, 13, 13, 15, 13, 16];
+const WIDTHS = ORIGINAL_WIDTHS;
+/** rows 4 to 12 (the item / customer / report lines, both heading rows and the first four parameter lines) are made almost twice as tall */
+const TALL = 1.8;
+/** rows 1 and 2 (the merged logo block): heights in points, and the logo is sized from them — 1 pt = 4/3 px, minus a margin — so it always fits inside */
+const HEAD_ROW_1 = 30;
+const HEAD_ROW_2 = 30;
+const LOGO_PX = Math.floor(((HEAD_ROW_1 + HEAD_ROW_2) * 4) / 3 - 20);
+const TALL_FROM = 4;
+const TALL_TO = 12;
 const conclusionText = (r: DimReport) => `Conclusion : ${r.conclusion || 'Lot Accepted / Rejected / Accepted Under deviation.'}`;
 
 // ---------------------------------------------------------------- Excel
@@ -49,11 +58,11 @@ export function buildDimensionSheet(r: DimReport, user: string): { data: Cell[][
   const row = (cells: Cell[], height?: number) => data.push(height && cells[0] ? [{ ...cells[0], height } as Cell, ...cells.slice(1)] : cells);
   const span = (text: string, n: number, extra: object = {}): Cell[] => [T(text, { columnSpan: n, alignVertical: 'center', ...extra }), ...hidden(n - 1)];
 
-  // company header: one tall, clean block for the logo (columns A–I: outer line only — no boxes inside it) and the Form No. / Rev. No. & Date box (J–L)
+  // company header (rows 1 and 2 are HEAD_ROW_1 / HEAD_ROW_2 pt and the logo is LOGO_PX px, always inside them): one tall, clean block for the logo (columns A–I: outer line only — no boxes inside it) and the Form No. / Rev. No. & Date box (J–L)
   const logoBlock = (top: boolean): Cell => ({ value: '', type: String, columnSpan: 9, ...edges('thin', undefined, top ? 'thin' : undefined, top ? undefined : 'thin') }) as Cell;
   const formCell = (text: string): Cell[] => span(text, 3, { fontWeight: 'bold', align: 'center', ...LINE });
-  row([logoBlock(true), ...hidden(8), ...formCell(`Form No. : ${FORM_FORMATS.qcFinalInspection.formNo}`)], 21.75);
-  row([logoBlock(false), ...hidden(8), ...formCell(`Rev. No. & Date : ${FORM_FORMATS.qcFinalInspection.revision}`)], 36);
+  row([logoBlock(true), ...hidden(8), ...formCell(`Form No. : ${FORM_FORMATS.qcFinalInspection.formNo}`)], HEAD_ROW_1);
+  row([logoBlock(false), ...hidden(8), ...formCell(`Rev. No. & Date : ${FORM_FORMATS.qcFinalInspection.revision}`)], HEAD_ROW_2);
   row(span('FINAL INSPECTION', COLS, { fontWeight: 'bold', fontSize: 14, align: 'center', ...LINE }), 36);
 
   // item · customer · report lines: plain text, boxed only on the outside (no lines between them)
@@ -97,12 +106,16 @@ export function buildDimensionSheet(r: DimReport, user: string): { data: Cell[][
   row(span(`Remarks (If any) : ${r.remarks}`, COLS, { fontWeight: 'bold', wrap: true, alignVertical: 'top', ...edges('thin', 'thin', 'thin', 'thin') }), 45.6);
   foot(`Checked By : ${r.checkedBy || user}`, `Reviewed By : ${r.reviewedBy}`, 21, true);
 
+  for (let i = TALL_FROM - 1; i < Math.min(TALL_TO, data.length); i++) {
+    const first = data[i][0] as { height?: number } | null;
+    if (first?.height) first.height = Math.round(first.height * TALL * 100) / 100;
+  }
   return { data, widths: WIDTHS };
 }
 
 export async function exportDimensionXlsx(r: DimReport, user: string) {
   const { data, widths } = buildDimensionSheet(r, user);
-  await saveSheet(data, widths, r.reportNo, `Dimension-Report-${r.reportNo}`, 88, { orientation: 'portrait', lastColumn: 'L', lastRow: data.length }); // A4, one page, print area = the report
+  await saveSheet(data, widths, r.reportNo, `Dimension-Report-${r.reportNo}`, LOGO_PX, { orientation: 'portrait', lastColumn: 'L', lastRow: data.length, merges: ['A1:I2'] }); // A4, one page, print area = the report; the logo block is one cell over rows 1 and 2
 }
 
 // ---------------------------------------------------------------- print / PDF
@@ -114,14 +127,16 @@ const DIM_CSS = `
 .dm th{font-weight:400;background:#fff}
 .dm tr.top td{height:58px}
 .dm td.logo{text-align:left;padding:6px 10px}
-.dm td.logo img{height:92px;display:block}
+.dm td.logo img{height:60px;display:block}
 .dm td.form{font-weight:700;font-size:11px}
 .dm tr.title td{height:36px;font-weight:700;font-size:15px}
-.dm tr.info td{border-top:0;border-bottom:0;border-left:0;border-right:0;text-align:left;padding:5px 8px;height:23px}
+.dm tr.info td{border-top:0;border-bottom:0;border-left:0;border-right:0;text-align:left;padding:5px 8px;height:41px}
+.dm tr.h1 th,.dm tr.head2 th{height:35px}
 .dm tr.info td:first-child{border-left:1px solid #14284b}
 .dm tr.info td:last-child{border-right:1px solid #14284b}
 .dm tr.head2 th{border-bottom:2px solid #14284b}
 .dm tr.ln td{height:27px}
+.dm tr.ln.tl td{height:48px}
 .dm .ng{background:#fde8e8;color:#b00020;font-weight:700}
 .dm .res{font-weight:400}
 .dm tr.foot td{text-align:left;font-weight:700;padding:5px 8px}
@@ -137,7 +152,7 @@ export function dimensionHtml(r: DimReport) {
       const res = lineResult(l);
       const obs = l.samples.map((s) => `<td${sampleOk(l, s) === false ? ' class="ng"' : ''}>${esc(s)}</td>`).join('');
       const tol = l.kind === 'gonogo' ? '<td colspan="2">Go &amp; Nogo</td>' : l.kind === 'text' ? '<td></td><td></td>' : `<td>${esc(l.usl)}</td><td>${esc(l.lsl)}</td>`;
-      return `<tr class="ln"><td>${i + 1}</td><td>${esc(l.parameter.toUpperCase())}</td><td>${esc(l.instrument)}</td><td>${esc(l.spec)}</td>${tol}${obs}<td class="res${res === 'NOT OK' ? ' ng' : ''}">${esc(res)}</td></tr>`;
+      return `<tr class="ln${i < TALL_TO - 8 ? ' tl' : ''}"><td>${i + 1}</td><td>${esc(l.parameter.toUpperCase())}</td><td>${esc(l.instrument)}</td><td>${esc(l.spec)}</td>${tol}${obs}<td class="res${res === 'NOT OK' ? ' ng' : ''}">${esc(res)}</td></tr>`;
     })
     .join('');
   return `<div class="rc sd pl">
@@ -149,7 +164,7 @@ export function dimensionHtml(r: DimReport) {
     <tr class="info"><td colspan="4">Item Name :- ${esc(r.itemName)}</td><td colspan="4">Item No. :- ${esc(r.itemNo)}</td><td colspan="4">Inspection Report No :- ${esc(r.reportNo)}</td></tr>
     <tr class="info"><td colspan="4">Customer Name :- ${esc(r.customer)}</td><td colspan="4">Invoice Date :- ${r.invoiceDate ? dmy(r.invoiceDate) : ''}</td><td colspan="4">Inspection Date:- ${dmy(r.reportDate)}</td></tr>
     <tr class="info"><td colspan="4">Die No:- ${esc(r.dieNo)}</td><td colspan="4">Lot / Invoice Qty. :- ${esc(r.invoiceQty)}</td><td colspan="4"></td></tr>
-    <tr><th rowspan="2">Sr. No.</th><th rowspan="2">Parameter</th><th rowspan="2">Measuring Instrument</th><th rowspan="2">Specification</th><th colspan="2">TOLERENCES</th><th colspan="${SAMPLES}">Observation on Samples</th><th rowspan="2">Result</th></tr>
+    <tr class="h1"><th rowspan="2">Sr. No.</th><th rowspan="2">Parameter</th><th rowspan="2">Measuring Instrument</th><th rowspan="2">Specification</th><th colspan="2">TOLERENCES</th><th colspan="${SAMPLES}">Observation on Samples</th><th rowspan="2">Result</th></tr>
     <tr class="head2"><th>USL</th><th>LSL</th>${Array.from({ length: SAMPLES }, (_, i) => `<th>${i + 1}</th>`).join('')}</tr>
     ${rows}
     <tr class="foot"><td colspan="8">${esc(conclusionText(r))}</td><td colspan="4">Customer Approval ( If required ) : ${esc(r.customerApproval)}</td></tr>

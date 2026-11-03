@@ -7,6 +7,7 @@ import { fmtDate, todayISO } from '../components/format';
 import { useDies, type DieInput } from './DieContext';
 import { useStore } from '../store/StoreContext';
 import { jobsOnDie } from './usage';
+import { CustomerSelect } from '../masters/CustomerSelect';
 import { printDieCard, fmtDims, fmtWt } from './print';
 import { DIE_STATUSES, KIND_LABEL, METALS, type Die, type DieKind, type DieStatus, type Dims, type HistoryEvent, type Metal } from './types';
 
@@ -299,7 +300,7 @@ export function MainDieForm({ code, onClose }: { code?: string; onClose: () => v
         </Field>
         {canSee('party_names') && (
           <Field label="Customer Name">
-            <input className="input" value={f.customer} onChange={(e) => set('customer', e.target.value)} />
+            <CustomerSelect value={f.customer} onChange={(name) => set('customer', name)} />
           </Field>
         )}
         <Field label="Metal Type">
@@ -586,7 +587,7 @@ export function ReturnForm({ kind, code, onClose }: { kind: DieKind; code: strin
   const issue = data.issues.find((i) => i.dieCode === code && !i.returnedOn);
   const used = kind === 'forging' ? jobsOnDie(state, code, issue?.issuedOn) : [];
   const made = used.reduce((t, u) => t + u.pieces, 0);
-  const [pieces, setPieces] = useState(made ? String(made) : '');
+  const [pieces, setPieces] = useState('');
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState<DieStatus>('Available');
   return (
@@ -595,7 +596,7 @@ export function ReturnForm({ kind, code, onClose }: { kind: DieKind; code: strin
         <Field label="Return Date" required>
           <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-        <Field label="Pieces Produced this run" hint={made ? `Production recorded ${made.toLocaleString('en-IN')} PCS on ${used.map((u) => u.jobNo).join(', ')} — added to the die's total` : "Added to the die's total"}>
+        <Field label="Extra pieces (outside job cards)" hint={made ? `Forging on job cards (${used.map((u) => u.jobNo).join(', ')}) already added ${made.toLocaleString('en-IN')} PCS — enter only pieces made outside a job card` : "Added to the die's total"}>
           <NumInput value={pieces} onChange={setPieces} autoFocus />
         </Field>
         <Field label="Die Condition on return">

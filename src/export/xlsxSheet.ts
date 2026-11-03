@@ -171,6 +171,8 @@ export interface PageSetup {
   /** the print area: A1 up to this column and row (the report only, not the blank cells around it) */
   lastColumn: string;
   lastRow: number;
+  /** cell ranges to merge across rows (the writer only merges across columns), e.g. ['A1:I2'] */
+  merges?: string[];
 }
 
 /**
@@ -192,6 +194,22 @@ export function applyPageSetup(xlsx: Uint8Array, sheetName: string, page: PageSe
   // the writer already puts a basic page setup (paper size and orientation): replace it with the complete one
   sheet = sheet.replace(/<printOptions[^>]*\/>/g, '').replace(/<pageMargins[^>]*\/>/g, '').replace(/<pageSetup[^>]*\/>/g, '');
   sheet = sheet.includes('<drawing') ? sheet.replace('<drawing', `${tail}<drawing`) : sheet.replace('</worksheet>', `${tail}</worksheet>`);
+  if (page.merges?.length) {
+    // a merge over rows replaces the merges it covers (overlapping merges make Excel report the file as damaged)
+    const col = (c: string) => c.split('').reduce((t, ch) => t * 26 + ch.charCodeAt(0) - 64, 0);
+    const box = (ref: string) => {
+      const [a, b = ref] = ref.split(':');
+      const pa = /([A-Z]+)(\d+)/.exec(a)!;
+      const pb = /([A-Z]+)(\d+)/.exec(b)!;
+      return { c1: col(pa[1]), r1: Number(pa[2]), c2: col(pb[1]), r2: Number(pb[2]) };
+    };
+    const inside = (x: ReturnType<typeof box>, y: ReturnType<typeof box>) => x.c1 >= y.c1 && x.c2 <= y.c2 && x.r1 >= y.r1 && x.r2 <= y.r2;
+    const news = page.merges.map(box);
+    const kept = [...sheet.matchAll(/<mergeCell ref="([^"]+)"\/>/g)].map((m) => m[1]).filter((ref) => !news.some((n) => inside(box(ref), n)));
+    const all = [...kept, ...page.merges].map((m) => `<mergeCell ref="${m}"/>`).join('');
+    const block = `<mergeCells count="${kept.length + page.merges.length}">${all}</mergeCells>`;
+    sheet = /<mergeCells[\s\S]*?<\/mergeCells>/.test(sheet) ? sheet.replace(/<mergeCells[\s\S]*?<\/mergeCells>/, block) : sheet.replace('</sheetData>', `</sheetData>${block}`);
+  }
   files[sheetPath] = strToU8(sheet);
 
   let book = strFromU8(files[bookPath]);
