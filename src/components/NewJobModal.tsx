@@ -4,10 +4,12 @@ import { Layers, PackagePlus, Scissors } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
-import { fifoLots, materialKey, parseMaterialKey } from '../store/engine';
+import { fifoLots, materialKey, parseMaterialKey, STAGE_LABEL } from '../store/engine';
+import { entryStage, useProductFlows } from '../products/flow';
+import { useStock } from '../stock/service';
 import type { ERPState } from '../store/types';
 import { findMaterial, pieceWeightKg } from '../store/materials';
-import { Field, Modal, NumInput } from './ui';
+import { Field, Modal, NumInput, go } from './ui';
 import { fmtNum, todayISO } from './format';
 
 /** FIFO allocation preview (read-only) */
@@ -84,6 +86,8 @@ export function NewJobModal({ open, onClose }: { open: boolean; onClose: () => v
 
 function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () => void; openAction: ReturnType<typeof useStore>['openAction'] }) {
   const { state, masters, run, openTrace } = useStore();
+  const pf = useProductFlows();
+  const st = useStock();
   const p0 = state.products[0];
   const [productId, setProductId] = useState(p0.id);
   const product = state.products.find((p) => p.id === productId)!;
@@ -113,7 +117,14 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
   const autoWeightG = spec && Number(cutLen) > 0 ? Math.round(pieceWeightKg(mat.od, Number(cutLen), spec.density) * 1000) : 0;
   const weightShown = weightG ?? (autoWeightG ? String(autoWeightG) : '');
   const plannedN = Number(planned);
-  const errPlanned = planned === '' ? null : !(plannedN > 0) || !Number.isInteger(plannedN) ? 'Enter a whole quantity' : plannedN > avail ? `Only ${avail} PCS in stock` : null;
+  // where this product starts: Cutting uses raw bar (net of what other job cards already planned); a later process uses our own stock of parts
+  const entry = entryStage(pf.of(productId));
+  const fromParts = entry !== 'cutting';
+  const rawRow = st.rawOf(mat.material, mat.od);
+  const rawFree = rawRow ? rawRow.free : avail;
+  const partsAvail = st.semiOf(productId, entry)?.available ?? 0;
+  const limit = fromParts ? partsAvail : rawFree;
+  const errPlanned = planned === '' ? null : !(plannedN > 0) || !Number.isInteger(plannedN) ? 'Enter a whole quantity' : plannedN > limit ? (fromParts ? `Only ${limit} PCS in stock for ${STAGE_LABEL[entry]}` : `Only ${limit} PCS free${rawRow && rawRow.reserved ? ` (${rawRow.reserved} already planned)` : ''}`) : null;
   const invalid = planned === '' || !!errPlanned || !(Number(cutLen) > 0);
 
   const pickProduct = (id: string) => {
@@ -134,7 +145,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           tsFor(date, now),
         );
       },
-      { title: 'Job card created', message: `${plannedN} PCS of ${product.name} to cut. Enter the cutting result on the Cutting page.` },
+      { title: 'Job card created', message: fromParts ? `${plannedN} PCS of ${product.name} taken from our stock — it starts at ${STAGE_LABEL[entry]}.` : `${plannedN} PCS of ${product.name} to cut. Enter the cutting result on the Cutting page.` },
     ));
     if (ok) {
       onClose();
@@ -175,7 +186,8 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
             ))}
           </select>
         </Field>
-        <Field label="Material / Bar OD" required hint={`${fmtNum(avail)} PCS in stock`}>
+        {!fromParts && (
+        <Field label="Material / Bar OD" required hint={`${fmtNum(rawFree)} PCS free${rawRow && rawRow.reserved ? ` · ${fmtNum(rawRow.reserved)} planned` : ''}`}>
           <select
             value={matKey}
             onChange={(e) => {
@@ -190,6 +202,8 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
             ))}
           </select>
         </Field>
+        )}
+        {!fromParts && (
         <Field label="Length" required>
           <NumInput
             value={cutLen}
@@ -201,10 +215,13 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
             step="any"
           />
         </Field>
+        )}
+        {!fromParts && (
         <Field label="Weight per piece" hint={autoWeightG ? `Auto from Ø${mat.od} × ${cutLen} mm` : undefined}>
           <NumInput value={weightShown} onChange={setWeightG} suffix="g" />
         </Field>
-        <Field label="Qty to Cut" required error={errPlanned}>
+        )}
+        <Field label={fromParts ? `Qty to ${STAGE_LABEL[entry]}` : 'Qty to Cut'} required error={errPlanned} hint={fromParts ? `${fmtNum(partsAvail)} PCS in our stock` : undefined}>
           <NumInput value={planned} onChange={setPlanned} bad={!!errPlanned} autoFocus />
         </Field>
         <Field label="Die No.">
@@ -220,7 +237,18 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
         </Field>
       </div>
 
-      {avail === 0 ? (
+      {fromParts ? (
+        <div className={`callout ${partsAvail > 0 ? 'info' : 'warn'}`}>
+          <PackagePlus size={16} />
+          <div style={{ flex: 1 }}>
+            {product.name} starts at <b>{STAGE_LABEL[entry]}</b>, so the pieces come from our stock of parts: <b>{fmtNum(partsAvail)} PCS</b> ready for {STAGE_LABEL[entry]}.
+            {partsAvail === 0 && ' Add the stock on this product in Product Master first.'}
+          </div>
+          <button className="btn btn-sm btn-primary" onClick={() => { onClose(); go('products'); }}>
+            Product Master
+          </button>
+        </div>
+      ) : avail === 0 ? (
         <div className="callout warn">
           <PackagePlus size={16} />
           <div style={{ flex: 1 }}>

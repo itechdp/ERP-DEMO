@@ -29,7 +29,7 @@ export function actionPage(a: Action): { key: string; label: string } | null {
     case 'newJob':
       return { key: 'cutting', label: 'Cutting' };
     case 'jobWork':
-      return { key: 'job_work', label: 'Job Work' };
+      return { key: 'job_work', label: 'Job Work In' };
     case 'product':
       return { key: 'products', label: 'Product Master' };
     case 'inward':

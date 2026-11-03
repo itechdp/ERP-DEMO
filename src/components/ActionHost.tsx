@@ -12,7 +12,7 @@ import { JobWorkForm } from '../pages/JobWorkPage';
 
 const EYEBROW: Record<string, string> = {
   newJob: 'Workflow · Cutting',
-  jobWork: 'Workflow · Job Work',
+  jobWork: 'Workflow · Job Work In',
   product: 'Masters · Product Master',
   inward: 'Workflow · Raw Inventory',
   qc: 'Workflow · Quality Control',

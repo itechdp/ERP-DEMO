@@ -4,6 +4,7 @@ import { Write, useAccess } from '../auth/access';
 import { Badge, Empty, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search } from '../components/ui';
 import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { useStore } from '../store/StoreContext';
+import { fgAvailable } from '../store/engine';
 import { useOrderDetail, useOrders } from './hooks';
 import { Brief } from '../components/Brief';
 import { inr } from './calc';
@@ -140,7 +141,7 @@ export function SalesOrderPage({ query, navigate }: { query?: URLSearchParams; n
 
 function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClose: () => void; onSaved: (id: number) => void }) {
   const { user, can } = useAccess();
-  const { toast } = useStore();
+  const { toast, state } = useStore();
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState(false);
   const doc = useDocNo('sales_order', !editId);
@@ -211,6 +212,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
               <h4 style={{ margin: 0 }}>Products ({lines.length})</h4>
               <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((c) => [...c, blank()])}><Plus size={14} /> Add Line</button>
             </div>
+            <datalist id="so-products">{state.products.map((p) => <option key={p.id} value={p.name} />)}</datalist>
             <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="tbl form-tbl" style={{ fontSize: 13, minWidth: 900 }}>
                 <thead><tr><th style={{ width: 36 }}>#</th><th style={{ minWidth: 190 }}>Product *</th><th style={{ width: 110 }}>Grade</th><th style={{ width: 130 }}>Size</th><th style={{ width: 80 }}>UOM</th><th className="right" style={{ width: 100 }}>Qty *</th><th className="right" style={{ width: 110 }}>Rate (₹) *</th><th className="right" style={{ width: 120 }}>Amount</th><th style={{ width: 40 }}></th></tr></thead>
@@ -218,7 +220,17 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
                   {lines.map((l, i) => (
                     <tr key={i}>
                       <td className="mono muted">{i + 1}</td>
-                      <td><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></td>
+                      <td>
+                        <input value={l.product} list="so-products" onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} />
+                        {(() => {
+                          // finished goods on hand for a product that matches the Product Master (by name or code)
+                          const p = state.products.find((x) => x.name.trim().toLowerCase() === l.product.trim().toLowerCase() || x.code.trim().toLowerCase() === l.product.trim().toLowerCase());
+                          if (!p) return null;
+                          const have = state.finishedGoods.filter((g) => g.productId === p.id).reduce((t, g) => t + fgAvailable(g), 0);
+                          const short = (l.qty ?? 0) - have;
+                          return <div className={`text-xs ${short > 0 ? 'text-red' : 'muted'}`} style={{ marginTop: 3 }}>{have > 0 ? `${fmtNum(have)} PCS finished goods in stock` : 'None in finished goods'}{short > 0 && l.qty ? ` — ${fmtNum(short)} PCS still to produce` : ''}</div>;
+                        })()}
+                      </td>
                       <td><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></td>
                       <td><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></td>
                       <td><select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>{UOMS.map((u) => <option key={u}>{u}</option>)}</select></td>

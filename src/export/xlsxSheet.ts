@@ -2,6 +2,7 @@
 //   logo (left) · Form No. / Rev. No. & Date (right)  →  title  →  detail lines  →  table(s)  →  notes  →  Checked By / Reviewed By
 // To add a new sheet, build a SheetSpec and call downloadFormSheet(); the header and footer come for free.
 import writeExcelFile from 'write-excel-file/browser';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { isNative, saveFile } from '../native/native';
 
 /** Form number and revision printed on top of each sheet — change them here, in one place. */
@@ -44,7 +45,7 @@ export interface SheetSpec {
   reviewedBy?: string;
 }
 
-type Cell = {
+export type Cell = {
   value?: string | number;
   type?: StringConstructor | NumberConstructor;
   fontWeight?: 'bold';
@@ -68,13 +69,13 @@ const val = (v: SheetValue, extra: object = {}): Cell => {
   return txt(v, extra);
 };
 
-async function logo(): Promise<{ content: Blob; width: number; height: number } | null> {
+async function logo(logoHeight = 34): Promise<{ content: Blob; width: number; height: number } | null> {
   try {
     const res = await fetch('/everest-logo.png');
     if (!res.ok) return null;
     const blob = await res.blob();
     const bmp = await createImageBitmap(blob);
-    const height = 46;
+    const height = logoHeight; // 34 fits the standard two header rows; a sheet with taller header rows can ask for more
     return { content: blob, width: Math.round((bmp.width / bmp.height) * height), height };
   } catch {
     return null;
@@ -89,7 +90,8 @@ export async function downloadFormSheet(spec: SheetSpec) {
   const rowAt = (cells: Cell[], height?: number) => {
     data.push(height && cells[0] ? [{ ...cells[0], height } as Cell, ...cells.slice(1)] : cells);
   };
-  const blank = (cols: number, extra: object = LINE): Cell[] => Array.from({ length: cols }, () => ({ value: '', type: String, ...extra }) as Cell);
+  // the cells hidden under a merged (columnSpan) cell must be null — the writer copies the merged cell's style and borders into them
+  const blank = (cols: number): Cell[] => Array.from({ length: cols }, () => null);
 
   // ---- header: logo box (left) and form number (right)
   const rightSpan = Math.min(3, Math.max(1, Math.floor(n / 3)));
@@ -139,9 +141,71 @@ export async function downloadFormSheet(spec: SheetSpec) {
   const file = writeExcelFile(data as never, {
     columns: spec.widths.map((width) => ({ width })),
     sheet: spec.sheet.slice(0, 31),
-    ...(img ? { images: [{ content: img.content, contentType: 'image/png', width: img.width, height: img.height, dpi: 96, anchor: { row: 1, column: 1 }, offsetX: 6, offsetY: 8 }] } : {}),
+    ...(img ? { images: [{ content: img.content, contentType: 'image/png', width: img.width, height: img.height, dpi: 96, anchor: { row: 1, column: 1 }, offsetX: 6, offsetY: 5 }] } : {}),
   } as never);
   const name = spec.filename.endsWith('.xlsx') ? spec.filename : spec.filename + '.xlsx';
   if (isNative()) await saveFile(name, await file.toBlob());
   else await file.toFile(name);
+}
+
+/** pieces shared with the other exporters that need a layout the standard form does not cover (e.g. the dimension report) */
+export const sheetParts = { LINE, txt, val, logo };
+
+export interface PageSetup {
+  orientation: 'portrait' | 'landscape';
+  /** the print area: A1 up to this column and row (the report only, not the blank cells around it) */
+  lastColumn: string;
+  lastRow: number;
+}
+
+/**
+ * Print settings the Excel writer has no option for, written straight into the file: A4, fitted to ONE page, centred, with margins and a
+ * print area that covers the report only.
+ */
+export function applyPageSetup(xlsx: Uint8Array, sheetName: string, page: PageSetup): Uint8Array {
+  const files = unzipSync(xlsx);
+  const sheetPath = Object.keys(files).find((k) => /^xl\/worksheets\/sheet1\.xml$/.test(k));
+  const bookPath = 'xl/workbook.xml';
+  if (!sheetPath || !files[bookPath]) return xlsx;
+  let sheet = strFromU8(files[sheetPath]);
+  const fit = '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>';
+  const tail =
+    '<printOptions horizontalCentered="1"/>' +
+    '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>' +
+    `<pageSetup paperSize="9" orientation="${page.orientation}" fitToWidth="1" fitToHeight="1"/>`;
+  if (!sheet.includes('<sheetPr')) sheet = sheet.replace(/(<worksheet[^>]*>)/, `$1${fit}`);
+  // the writer already puts a basic page setup (paper size and orientation): replace it with the complete one
+  sheet = sheet.replace(/<printOptions[^>]*\/>/g, '').replace(/<pageMargins[^>]*\/>/g, '').replace(/<pageSetup[^>]*\/>/g, '');
+  sheet = sheet.includes('<drawing') ? sheet.replace('<drawing', `${tail}<drawing`) : sheet.replace('</worksheet>', `${tail}</worksheet>`);
+  files[sheetPath] = strToU8(sheet);
+
+  let book = strFromU8(files[bookPath]);
+  const name = `'${sheetName.slice(0, 31).replace(/'/g, "''")}'`;
+  const area = `<definedNames><definedName name="_xlnm.Print_Area" localSheetId="0">${name}!$A$1:$${page.lastColumn}$${page.lastRow}</definedName></definedNames>`;
+  book = book.includes('<definedNames/>') ? book.replace('<definedNames/>', area) : book.includes('</definedNames>') ? book.replace('</definedNames>', `${area.slice('<definedNames>'.length, -'</definedNames>'.length)}</definedNames>`) : book.replace('</sheets>', `</sheets>${area}`);
+  files[bookPath] = strToU8(book);
+  return zipSync(files);
+}
+
+/** write a ready-made sheet (rows of cells) with the company logo in the top-left box */
+export async function saveSheet(data: Cell[][], widths: number[], sheet: string, filename: string, logoHeight?: number, page?: PageSetup) {
+  const img = await logo(logoHeight);
+  const file = writeExcelFile(data as never, {
+    columns: widths.map((width) => ({ width })),
+    sheet: sheet.slice(0, 31),
+    ...(page ? { orientation: page.orientation } : {}),
+    ...(img ? { images: [{ content: img.content, contentType: 'image/png', width: img.width, height: img.height, dpi: 96, anchor: { row: 1, column: 1 }, offsetX: 6, offsetY: 5 }] } : {}),
+  } as never);
+  const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
+  let blob: Blob = await file.toBlob();
+  if (page) blob = new Blob([applyPageSetup(new Uint8Array(await blob.arrayBuffer()), sheet, page) as BlobPart], { type: blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  if (isNative()) return saveFile(name, blob);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

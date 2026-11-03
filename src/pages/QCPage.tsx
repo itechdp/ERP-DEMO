@@ -3,6 +3,7 @@ import { searchable, Write, Conf, searchableCol } from '../auth/access';
 import { useMemo, useState } from 'react';
 import { ClipboardCheck, Eye, PackageCheck, ShieldCheck } from 'lucide-react';
 import { HardnessRegister } from './HardnessPage';
+import { DimensionTab } from '../dimension/DimensionTab';
 import { useStore } from '../store/StoreContext';
 import { getJob, getProduct } from '../store/engine';
 import { Badge, Empty, Field, InlineQty, JobLink, Modal, NumInput, PageHeader, QtyFlow, rowTone, Search, SummaryLine, Tabs, FilterMenu } from '../components/ui';
@@ -14,7 +15,7 @@ type Filter = 'QC Pending' | 'inspected' | 'Rejections' | 'all';
 
 export function QCPage() {
   const { state, openTrace, openAction } = useStore();
-  const [view, setView] = useState<'register' | 'hardness'>('register');
+  const [view, setView] = useState<'register' | 'hardness' | 'dimension'>('register');
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [productF, setProductF] = useState('all');
@@ -62,6 +63,7 @@ export function QCPage() {
             items={[
               { value: 'register', label: 'Inspection Register', count: recs.length, tone: 'blue' },
               { value: 'hardness', label: 'Hardness Reports', count: state.hardnessReports.length, tone: 'violet' },
+              { value: 'dimension', label: 'Dimension Reports', tone: 'teal' },
             ]}
           />
           {view === 'register' && total > 0 && (
@@ -77,6 +79,7 @@ export function QCPage() {
           )}
         </div>
         {view === 'hardness' && <HardnessRegister />}
+        {view === 'dimension' && <DimensionTab />}
         {view === 'register' && (<>
         <div className="toolbar">
           <Search value={q} onChange={setQ} placeholder="Search job, product, inspector…" />

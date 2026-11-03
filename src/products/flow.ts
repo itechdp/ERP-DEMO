@@ -5,6 +5,7 @@ import type { HardnessScale } from '../store/types';
 
 /** What a product goes through, and whether it needs a hardness check (Product Master → Work to be done / Hardness). */
 export interface ProductFlow {
+  cutting: boolean;
   forging: boolean;
   trimming: boolean;
   heatTreatment: boolean;
@@ -15,7 +16,7 @@ export interface ProductFlow {
 }
 
 /** a product with nothing saved yet does every process and needs no hardness check */
-export const DEFAULT_FLOW: ProductFlow = { forging: true, trimming: true, heatTreatment: true, hardnessRequired: false, hardnessScale: 'HRB' };
+export const DEFAULT_FLOW: ProductFlow = { cutting: true, forging: true, trimming: true, heatTreatment: true, hardnessRequired: false, hardnessScale: 'HRB' };
 
 const notSetUp = (m: string) => /v_product_flow|set_product_flow|schema cache|does not exist/i.test(m);
 
@@ -26,6 +27,7 @@ export async function fetchProductFlows(): Promise<Record<string, ProductFlow>> 
     (data ?? []).map((r) => [
       r.id as string,
       {
+        cutting: r.do_cutting == null ? true : !!r.do_cutting,
         forging: !!r.do_forging,
         trimming: !!r.do_trimming,
         heatTreatment: !!r.do_heat_treatment,
@@ -41,10 +43,14 @@ export async function fetchProductFlows(): Promise<Record<string, ProductFlow>> 
 export async function saveProductFlow(id: string, f: ProductFlow) {
   const { error } = await supabase.rpc('set_product_flow', {
     p_id: id,
-    p_payload: { do_forging: f.forging, do_trimming: f.trimming, do_heat_treatment: f.heatTreatment, hardness_required: f.hardnessRequired, hardness_min: f.hardnessMin ?? null, hardness_max: f.hardnessMax ?? null, hardness_scale: f.hardnessScale },
+    p_payload: { do_cutting: f.cutting, do_forging: f.forging, do_trimming: f.trimming, do_heat_treatment: f.heatTreatment, hardness_required: f.hardnessRequired, hardness_min: f.hardnessMin ?? null, hardness_max: f.hardnessMax ?? null, hardness_scale: f.hardnessScale },
   });
   if (error) throw new Error(notSetUp(error.message) ? 'Run migration 51 in the Supabase SQL editor to save the work to be done and hardness settings.' : dbMessage(error as never));
 }
+
+export type EntryStage = 'cutting' | 'forging' | 'trimming' | 'heatTreatment';
+/** the process a job of this product starts at: the first one that is ticked */
+export const entryStage = (f: ProductFlow): EntryStage => (f.cutting ? 'cutting' : f.forging ? 'forging' : f.trimming ? 'trimming' : 'heatTreatment');
 
 /** the flow of every product, re-read whenever the store reloads; `of(id)` falls back to the default */
 export function useProductFlows() {

@@ -10,6 +10,7 @@ import { STAGE_LABEL } from '../store/engine';
 import { jobWorkDeleteReason } from '../store/deletable';
 import { Confirm, Empty, Field, FilterMenu, JobLink, Modal, NumInput, PageHeader, Search, Tabs } from '../components/ui';
 import { JobCardReport } from '../jobwork/JobCardReport';
+import { useStock } from '../stock/service';
 import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { BASIS_LABEL, chargeText, printJobWorkReceipt, processText } from '../jobwork/print';
 import { inr } from '../sales/print';
@@ -50,9 +51,9 @@ export function JobWorkPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Job Work" actions={list.length > 0 ? <Write res="job_work">{add}</Write> : undefined} />
+      <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <Write res="job_work">{add}</Write> : undefined} />
       <div style={{ marginBottom: 16 }}>
-        <Tabs value={tab} onChange={setTab} items={[{ value: 'batches', label: 'Job Work', count: list.length }, { value: 'report', label: 'Job Card Report' }]} />
+        <Tabs value={tab} onChange={setTab} items={[{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'report', label: 'Job Card Report' }]} />
       </div>
       {tab === 'report' ? (
         <JobCardReport />
@@ -298,15 +299,17 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
   const [rate, setRate] = useState('');
   const [pRates, setPRates] = useState<Record<string, string>>({});
   const doc = useDocNo('job', true);
+  const st = useStock();
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
 
   const product = state.products.find((p) => p.id === f.productId);
   const qtyN = Number(f.qty);
   const anyProcess = proc.cutting || proc.forging || proc.trimming || proc.heatTreatment;
-  const src = proc.cutting ? source : 'customer'; // our own material is only used by Cutting
-  const ownAvail = product ? state.rawMaterials.filter((l) => l.material === product.material && l.od === product.od).reduce((t, l) => t + l.availableQty, 0) : 0;
+  const src = source; // our own stock: raw bar when Cutting is ticked, otherwise our stock of parts (Product Master) that are ready for the first process
+  const firstKey = PROCESSES.find((x) => proc[x.key])?.key;
+  const ownAvail = !product ? 0 : proc.cutting ? state.rawMaterials.filter((l) => l.material === product.material && l.od === product.od).reduce((t, l) => t + l.availableQty, 0) : firstKey ? st.semiOf(product.id, firstKey)?.available ?? 0 : 0;
 
-  const errQty = f.qty === '' ? null : !(qtyN > 0) || !Number.isInteger(qtyN) ? 'Enter a whole number of pieces' : src === 'own' && qtyN > ownAvail ? `Only ${fmtNum(ownAvail)} PCS of ${product?.material} OD ${product?.od} mm in our stock` : null;
+  const errQty = f.qty === '' ? null : !(qtyN > 0) || !Number.isInteger(qtyN) ? 'Enter a whole number of pieces' : src === 'own' && qtyN > ownAvail ? (proc.cutting ? `Only ${fmtNum(ownAvail)} PCS of ${product?.material} OD ${product?.od} mm in our stock` : `Only ${fmtNum(ownAvail)} PCS of ${product?.name} in our stock, ready for ${PROCESSES.find((x) => x.key === firstKey)?.label ?? 'the first process'}`) : null;
   const valid = !!f.productId && qtyN > 0 && Number.isInteger(qtyN) && anyProcess && (!can('party_names') || f.customer.trim() !== '') && !errQty;
   const first = PROCESSES.find((x) => proc[x.key]);
 
@@ -393,8 +396,8 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="form-grid three" style={{ marginTop: 16 }}>
-        <Field label="Material" hint={proc.cutting ? (src === 'own' ? `${product ? fmtNum(ownAvail) + ' PCS in our stock · ' : ''}issued oldest-first when Cutting starts` : 'Nothing is taken from our raw inventory') : 'Our own material is only used by Cutting'}>
-          <select value={src} disabled={!proc.cutting} onChange={(e) => setSource(e.target.value as 'customer' | 'own')}>
+        <Field label="Material" hint={src === 'own' ? (proc.cutting ? `${product ? fmtNum(ownAvail) + ' PCS in our stock · ' : ''}issued oldest-first when Cutting starts` : `${product ? fmtNum(ownAvail) + ' PCS of our parts ready for ' + (first?.label ?? 'the first process') + ' · ' : ''}taken from the product's stock in Product Master`) : 'Nothing is taken from our stock'}>
+          <select value={src} onChange={(e) => setSource(e.target.value as 'customer' | 'own')}>
             <option value="customer">Customer's material</option>
             <option value="own">Our material</option>
           </select>

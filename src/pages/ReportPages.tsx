@@ -1,15 +1,16 @@
 import * as api from '../db/api';
-import { Conf, Write, searchable, canSee, useAccess } from '../auth/access';
+import { Conf, Write, searchable, canSee, currentUserName, useAccess } from '../auth/access';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, Package, Pencil, Plus, ScrollText, Waypoints, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobDeleteReason, productDeleteReason } from '../store/deletable';
-import { jobSummary, PROCESS_STAGES, STAGE_LABEL } from '../store/engine';
+import { fgAvailable, jobSummary, PROCESS_STAGES, STAGE_LABEL } from '../store/engine';
 import { MATERIAL_FAMILIES, MATERIAL_MASTER, findMaterial } from '../store/materials';
 import { ADD_NEW, useAddMaterial } from '../masters/AddItem';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import type { HardnessScale, Product } from '../store/types';
-import { DEFAULT_FLOW, saveProductFlow, useProductFlows } from '../products/flow';
+import { DEFAULT_FLOW, entryStage, saveProductFlow, useProductFlows } from '../products/flow';
+import { addSemiStock, rawKey, semiKey, setStockMin, useStock } from '../stock/service';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
 
@@ -376,11 +377,21 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
     setHMin(saved.hardnessMin ? String(saved.hardnessMin) : '');
     setHMax(saved.hardnessMax ? String(saved.hardnessMax) : '');
   }, [pf.flows, id]);
+  // stock of this product: raw bar when it starts at Cutting, otherwise our own parts ready for its first process
+  const stock = useStock();
+  const entry = entryStage(flow);
+  const fromParts = entry !== 'cutting';
+  const [addQty, setAddQty] = useState('');
+  const [minDraft, setMinDraft] = useState<string | null>(null);
+  const rawRow = stock.rawOf(f.material, Number(f.od));
+  const partsRow = id ? stock.semiOf(id, entry) : undefined;
+  const currentMin = fromParts ? partsRow?.min ?? 0 : rawRow?.min ?? 0;
+  const fgOnHand = id ? state.finishedGoods.filter((g) => g.productId === id).reduce((t, g) => t + fgAvailable(g), 0) : 0;
   const hardnessOk = !flow.hardnessRequired || (Number(hMin) > 0 && Number(hMax) >= Number(hMin));
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const pickMaterial = (m: string) => setF((x) => ({ ...x, material: m, od: x.od || String(findMaterial(m)?.defaultOd ?? '') }));
   const addMaterial = useAddMaterial((n) => pickMaterial(n));
-  const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0 && hardnessOk;
+  const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0 && hardnessOk && (flow.cutting || flow.forging || flow.trimming || flow.heatTreatment) && (addQty === '' || (Number(addQty) > 0 && Number.isInteger(Number(addQty))));
   const submit = async () => {
     const input: Omit<Product, 'id'> = {
       code: f.code,
@@ -398,7 +409,14 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       salesRate: Number(f.salesRate) > 0 ? Number(f.salesRate) : undefined,
     };
     const flowToSave = { ...flow, hardnessMin: flow.hardnessRequired ? Number(hMin) : undefined, hardnessMax: flow.hardnessRequired ? Number(hMax) : undefined };
-    if (await run(async () => { const pid = await api.saveProduct(input, state.products, id); await saveProductFlow(pid || id || '', flowToSave); return pid; }, { title: id ? 'Product updated' : 'Product added', message: `${f.code.trim()} · ${f.name.trim()}` })) onClose();
+    if (await run(async () => {
+      const pid = (await api.saveProduct(input, state.products, id)) || id || '';
+      await saveProductFlow(pid, flowToSave);
+      // stock added here: parts for a product that starts after Cutting (raw bar comes in through Raw Inventory); the minimum applies to whichever stock the product uses
+      if (fromParts && Number(addQty) > 0) await addSemiStock(pid, entry, Number(addQty), '', 'Added from Product Master', currentUserName());
+      if (minDraft !== null && minDraft !== String(currentMin || '')) await setStockMin(fromParts ? semiKey(pid, entry) : rawKey(f.material, Number(f.od)), Math.max(0, Math.floor(Number(minDraft)) || 0));
+      return pid;
+    }, { title: id ? 'Product updated' : 'Product added', message: `${f.code.trim()} · ${f.name.trim()}` })) onClose();
   };
   return (
     <Modal
@@ -476,18 +494,18 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       </div>
       <div className="section-label">Work to be done</div>
       <div className="check-row">
-        <label className="check on" title="Every job starts with cutting">
-          <input type="checkbox" checked disabled readOnly />
-          Cutting
-        </label>
-        {([['forging', 'Forging'], ['trimming', 'Trimming'], ['heatTreatment', 'Heat Treatment']] as const).map(([k, label]) => (
+        {([['cutting', 'Cutting'], ['forging', 'Forging'], ['trimming', 'Trimming'], ['heatTreatment', 'Heat Treatment']] as const).map(([k, label]) => (
           <label key={k} className={`check ${flow[k] ? 'on' : ''}`}>
             <input type="checkbox" checked={flow[k]} onChange={(e) => setFlow((x) => ({ ...x, [k]: e.target.checked }))} />
             {label}
           </label>
         ))}
       </div>
-      <div className="text-xs muted" style={{ marginTop: 6 }}>A job of this product passes straight over any process left unticked. For example Cutting + Trimming only does Cutting, then Trimming.</div>
+      <div className="text-xs muted" style={{ marginTop: 6 }}>
+        A job of this product passes over any process left unticked and <b>starts at the first ticked one</b>. Starting at Cutting uses raw bar from Raw Inventory; starting at Forging, Trimming or Heat Treatment uses our own stock of
+        parts that are already cut / forged (add them under Stock below). Job work on the customer's material never uses our stock.
+      </div>
+      {!(flow.cutting || flow.forging || flow.trimming || flow.heatTreatment) && <div className="text-xs text-red" style={{ marginTop: 6 }}>Tick at least one process.</div>}
       <div className="section-label">Hardness</div>
       <label className={`check ${flow.hardnessRequired ? 'on' : ''}`}>
         <input type="checkbox" checked={flow.hardnessRequired} onChange={(e) => setFlow((x) => ({ ...x, hardnessRequired: e.target.checked }))} />
@@ -510,6 +528,30 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           </Field>
         </div>
       )}
+      <div className="section-label">Stock</div>
+      <div className="stock-line">
+        {fromParts ? (
+          <span className={`chip ${partsRow && partsRow.available > 0 ? 'chip-up' : 'chip-wait'}`}>
+            Parts ready for {STAGE_LABEL[entry]}: {id ? `${fmtNum(partsRow?.available ?? 0)} PCS` : 'none yet'}
+          </span>
+        ) : (
+          <span className={`chip ${rawRow && rawRow.free > 0 ? 'chip-up' : 'chip-wait'}`}>
+            Raw bar free: {rawRow ? `${fmtNum(rawRow.free)} PCS` : 'none'}
+            {rawRow && rawRow.reserved ? ` (${fmtNum(rawRow.reserved)} already planned)` : ''}
+          </span>
+        )}
+        {id && <span className="chip">Finished goods available: {fmtNum(fgOnHand)} PCS</span>}
+      </div>
+      <div className="form-grid three" style={{ marginTop: 12 }}>
+        {fromParts && (
+          <Field label="Add stock now" hint={`Pieces already cut / forged that go into ${STAGE_LABEL[entry]}. Saved as stock of this product.`} error={addQty !== '' && !(Number(addQty) > 0 && Number.isInteger(Number(addQty))) ? 'Whole number' : null}>
+            <NumInput value={addQty} onChange={setAddQty} suffix="PCS" />
+          </Field>
+        )}
+        <Field label="Minimum stock" hint={fromParts ? 'A warning goes to the Director / Plant Head when the parts stock reaches this' : `Applies to ${f.material || 'the raw bar'} Ø${f.od || '—'} — a warning is sent when the free bar reaches this`}>
+          <NumInput value={minDraft ?? (currentMin ? String(currentMin) : '')} onChange={setMinDraft} suffix="PCS" />
+        </Field>
+      </div>
       {(can('party_names') || can('sales_rates')) && (
         <>
           <div className="section-label">Commercial (confidential)</div>

@@ -12,11 +12,12 @@ export const lotDeleteReason = (l: RawMaterialLot): string | null => {
 export function jobDeleteReason(s: ERPState, jobNo: string): string | null {
   const job = s.jobs.find((j) => j.jobNo === jobNo);
   if (!job) return 'Job card not found';
+  // not started = nothing issued, nothing worked on, exactly one process waiting (a product that starts later has the earlier ones skipped)
+  const recs = [s.cutting, s.forging, s.trimming, s.heatTreatment].flat().filter((r) => r.jobNo === jobNo);
   const started =
-    job.currentStage !== 'cutting' ||
     job.issues.length > 0 ||
-    s.cutting.some((r) => r.jobNo === jobNo && r.status !== 'Pending') ||
-    [s.forging, s.trimming, s.heatTreatment].some((list) => list.some((r) => r.jobNo === jobNo)) ||
+    recs.some((r) => r.status !== 'Pending' && !r.params.auto) ||
+    recs.filter((r) => r.status === 'Pending').length !== 1 ||
     s.qc.some((r) => r.jobNo === jobNo);
   if (started) return 'This job card has already started in production';
   if (s.hardnessReports.some((h) => h.jobNo === jobNo)) return 'A hardness report is linked to this job card';

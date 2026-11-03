@@ -200,6 +200,10 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
   const p = getProduct(state, job.productId);
   const mat = parseMaterialKey(job.materialKey);
   const canAct = r.status !== 'Completed';
+  // Cutting only: is there enough of our own bar for this job card? (customer's material never uses our stock)
+  const ownBar = (state.jobWork.find((w) => w.jobNo === r.jobNo)?.materialSource ?? 'own') === 'own';
+  const barLeft = state.rawMaterials.filter((l) => `${l.material}|${l.od}` === job.materialKey).reduce((t, l) => t + l.availableQty, 0);
+  const stockChip = r.stage === 'cutting' && r.status === 'Pending' && ownBar ? (barLeft <= 0 ? ['chip chip-hot', 'Not in stock'] : barLeft < r.input ? ['chip chip-wait', `Low in stock (${fmtNum(barLeft)} PCS)`] : null) : null;
   const act = () => {
     if (!canAct) return;
     if (block) return toast({ kind: 'info', title: block === 'approval' ? 'Not approved to start yet' : 'No furnace yet', message: block === 'approval' ? `${r.jobNo} must be approved in Heat Treatment Planning (with its rank) before ${STAGE_LABEL[r.stage]} can start.` : `${r.jobNo} needs a furnace: assign one in Heat Treatment Planning (on hold until one is free).` });
@@ -249,6 +253,7 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
         <Badge status={r.status === 'Completed' ? 'Completed' : 'Pending'} />
         {r.status !== 'Completed' && approval && <div className="sub"><span className="chip chip-up">Approved #{approval.rank}</span></div>}
         {block && <div className="sub"><span className="chip chip-wait">{BLOCK_TEXT[block]}</span></div>}
+        {stockChip && <div className="sub"><span className={stockChip[0]}>{stockChip[1]}</span></div>}
       </td>
       <td className="r nowrap">
         <div className="icon-actions">

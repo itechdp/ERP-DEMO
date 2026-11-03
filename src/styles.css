@@ -1430,3 +1430,10 @@ select.filter { padding-right: 36px; }
 .fcard-by { font-size: 11.5px; color: var(--text-3); }
 .fcard-actions { padding-top: 2px; gap: 10px; }
 .fday { margin-top: 2px; }
+.stock-line { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* sidebar: a sub-menu inside a section (Workflow > Machinery > CNC / VMC / QC) */
+.nav-sub { display: flex; flex-direction: column; gap: 2px; }
+.nav-sub-head .chev { margin-left: auto; transition: transform .15s var(--ease-out-quart); }
+.nav-sub-head.closed .chev { transform: rotate(-90deg); }
+.nav-sub-children { margin: 2px 0 4px 12px; padding-left: 10px; border-left: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 2px; }

@@ -41,6 +41,10 @@ import {
   Users,
   ListOrdered,
   Flame,
+  BookOpen,
+  Cpu,
+  Wrench,
+  ShieldCheck,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -51,18 +55,19 @@ import { useFollowups } from '../followups/useFollowups';
 import { NotificationBell } from '../tasks/NotificationBell';
 import { useResponsiveTables } from './responsiveTables';
 import { dueText } from '../followups/types';
+import { dueLabel, daysLeft, useJobWorkOut } from '../jobworkout/service';
 
 export interface NavItem {
+  /** a group (like Machinery) has no page of its own: it opens and closes a list of pages */
+  children?: NavItem[];
   route: string;
   label: string;
   icon: Icon;
 }
 
-const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.map((s) => ({
-  route: s.route,
-  label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label,
-  icon: s.icon,
-})).concat([{ route: 'production-planning', label: 'Heat Treatment Planning', icon: ListOrdered }, { route: 'furnaces', label: 'Furnace Management', icon: Flame }, { route: 'job-work', label: 'Job Work', icon: Handshake }]);
+const flowItem = (s: (typeof FLOW_STEPS)[number]): NavItem => ({ route: s.route, label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label, icon: s.icon });
+// the Instruction page sits just above Heat Treatment
+const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.flatMap((s) => (s.key === 'heatTreatment' ? [{ route: 'instruction', label: 'Instruction', icon: BookOpen }, flowItem(s)] : [flowItem(s)])).concat([{ route: 'production-planning', label: 'Heat Treatment Planning', icon: ListOrdered }, { route: 'furnaces', label: 'Furnace Management', icon: Flame }, { route: 'job-work', label: 'Job Work In', icon: Handshake }, { route: 'job-work-out', label: 'Job Work Out', icon: Send }]);
 const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
 const PURCHASE_NAV: NavItem[] = [
   { route: 'purchase-dashboard', label: 'Purchase Dashboard', icon: LayoutGrid },
@@ -88,13 +93,22 @@ const DIE_NAV: NavItem[] = [
   { route: 'trimming-die-master', label: 'Trimming Die Master', icon: Scissors },
   { route: 'die-details', label: 'Die Details / History', icon: FileClock },
 ];
-export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, ...REPORT_NAV];
+// Machinery sits inside Workflow as its own sub-menu: CNC, VMC and QC (QC is the same page as before, listed here instead of in the main list)
+const MACHINERY_ITEMS: NavItem[] = [{ route: 'cnc', label: 'CNC', icon: Cpu }, { route: 'vmc', label: 'VMC', icon: Cog }, { route: 'qc', label: 'QC', icon: ShieldCheck }];
+export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, MACHINERY_ITEMS[0], MACHINERY_ITEMS[1], ...REPORT_NAV];
+
+// Machinery (CNC, VMC, QC) sits directly under Heat Treatment
+const withMachinery = (items: NavItem[]): NavItem[] => {
+  const at = items.findIndex((n) => n.route === 'heat-treatment');
+  const group: NavItem = { route: 'machinery', label: 'Machinery', icon: Wrench, children: MACHINERY_ITEMS };
+  return at < 0 ? [...items, group] : [...items.slice(0, at + 1), group, ...items.slice(at + 1)];
+};
 
 const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = [
   { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'work-hub', label: 'Work Hub', icon: ClipboardList }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
   { id: 'sales', title: 'Sales & Orders', icon: Briefcase, items: SALES_NAV },
   { id: 'purchase', title: 'Purchase & Procurement', icon: ShoppingBag, items: PURCHASE_NAV },
-  { id: 'flow', title: 'Workflow', icon: Workflow, items: WORKFLOW_NAV.filter((n) => n.route !== 'raw-inventory') },
+  { id: 'flow', title: 'Workflow', icon: Workflow, items: withMachinery(WORKFLOW_NAV.filter((n) => n.route !== 'raw-inventory' && n.route !== 'qc')) },
   { id: 'dies', title: 'Die Management', icon: Cog, items: DIE_NAV },
   { id: 'reports', title: 'Reports & Masters', icon: BarChart3, items: REPORT_NAV },
 ];
@@ -151,6 +165,28 @@ export function Layout({ route, children }: { route: string; children: ReactNode
     return c;
   }, [state]);
 
+  // a group shows only the pages this role may open, and not at all when there are none
+  const visible = (items: NavItem[]): NavItem[] =>
+    items
+      .map((n) => (n.children ? { ...n, children: n.children.filter((c) => canRead(ROUTE_RESOURCE[c.route])) } : n))
+      .filter((n) => (n.children ? n.children.length > 0 : canRead(ROUTE_RESOURCE[n.route])));
+
+  const leaf = (n: NavItem) => (
+    <button
+      key={n.route}
+      className={`nav-item ${route === n.route ? 'active' : ''}`}
+      title={n.label}
+      onClick={() => {
+        go(n.route);
+        setMobileOpen(false);
+      }}
+    >
+      <n.icon size={18} />
+      <span className="lbl">{n.label}</span>
+      {counts[n.route] ? <span className="nav-count">{counts[n.route]}</span> : null}
+    </button>
+  );
+
   const toggleSidebar = () => {
     if (window.innerWidth <= 960) return setMobileOpen(true);
     setMini((m) => {
@@ -173,7 +209,7 @@ export function Layout({ route, children }: { route: string; children: ReactNode
         <nav className="nav">
           {[
             // pages that are Hidden for this role are not in the menu at all
-            ...SECTIONS.map((sec) => ({ ...sec, items: sec.items.filter((n) => canRead(ROUTE_RESOURCE[n.route])) })).filter((sec) => sec.items.length > 0),
+            ...SECTIONS.map((sec) => ({ ...sec, items: visible(sec.items) })).filter((sec) => sec.items.length > 0),
             ...(canManageAccess ? [SETTINGS_SECTION] : []),
           ].map((sec) => {
             const isClosed = !mini && closed[sec.id];
@@ -193,21 +229,25 @@ export function Layout({ route, children }: { route: string; children: ReactNode
                 </button>
                 {!isClosed && (
                   <div className="nav-children">
-                    {sec.items.map((n) => (
-                      <button
-                        key={n.route}
-                        className={`nav-item ${route === n.route ? 'active' : ''}`}
-                        title={n.label}
-                        onClick={() => {
-                          go(n.route);
-                          setMobileOpen(false);
-                        }}
-                      >
-                        <n.icon size={18} />
-                        <span className="lbl">{n.label}</span>
-                        {counts[n.route] ? <span className="nav-count">{counts[n.route]}</span> : null}
-                      </button>
-                    ))}
+                    {sec.items.map((n) =>
+                      n.children ? (
+                        <div className="nav-sub" key={n.route}>
+                          <button
+                            className={`nav-item nav-sub-head ${closed[`sub:${n.route}`] ? 'closed' : ''}`}
+                            title={n.label}
+                            aria-expanded={!closed[`sub:${n.route}`]}
+                            onClick={() => setClosed((c) => ({ ...c, [`sub:${n.route}`]: !c[`sub:${n.route}`] }))}
+                          >
+                            <n.icon size={18} />
+                            <span className="lbl">{n.label}</span>
+                            <ChevronDown size={14} className="chev" />
+                          </button>
+                          {!closed[`sub:${n.route}`] && <div className="nav-sub-children">{n.children.map(leaf)}</div>}
+                        </div>
+                      ) : (
+                        leaf(n)
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -256,7 +296,8 @@ function ActionBell() {
   useOutside(ref, open, () => setOpen(false));
   const steps = useMemo(() => pendingSteps(state), [state]);
   const { due } = useFollowups();
-  const total = steps.length + due.length;
+  const jwo = useJobWorkOut();
+  const total = steps.length + due.length + jwo.due.length;
 
   return (
     <div className="rel" ref={ref}>
@@ -268,7 +309,7 @@ function ActionBell() {
         <div className="pop">
           <div className="pop-head">
             <b>Pending actions</b>
-            <div>{total ? [steps.length ? `${steps.length === 1 ? '1 job is' : `${steps.length} jobs are`} waiting for the next step` : '', due.length ? `${due.length} follow-up${due.length === 1 ? '' : 's'} due` : ''].filter(Boolean).join(' · ') : 'All jobs are up to date'}</div>
+            <div>{total ? [steps.length ? `${steps.length === 1 ? '1 job is' : `${steps.length} jobs are`} waiting for the next step` : '', due.length ? `${due.length} follow-up${due.length === 1 ? '' : 's'} due` : '', jwo.due.length ? `${jwo.due.length} job work out ${jwo.due.length === 1 ? 'is' : 'are'} due` : ''].filter(Boolean).join(' · ') : 'All jobs are up to date'}</div>
           </div>
           <div className="pop-list">
             {due.slice(0, 6).map((f) => (
@@ -277,6 +318,16 @@ function ActionBell() {
                 <span>
                   <span className="tt"><span className="mono">{f.ref}</span> · {f.what}</span>
                   <div className="ss">{f.party ? `${f.party} · ` : ''}{dueText(f.due)}</div>
+                </span>
+                <span className="go">Open →</span>
+              </button>
+            ))}
+            {jwo.due.slice(0, 6).map((j) => (
+              <button key={`jwo-${j.id}`} className="pop-item" onClick={() => { setOpen(false); go('job-work-out'); }}>
+                <span className="ic"><Send size={17} /></span>
+                <span>
+                  <span className="tt"><span className="mono">{j.outNo}</span> · {j.item}</span>
+                  <div className="ss">Job work out · {dueLabel(daysLeft(j) ?? 0)}</div>
                 </span>
                 <span className="go">Open →</span>
               </button>
