@@ -196,6 +196,7 @@ export interface JobInput {
   materialKey: string;
   cuttingLength: number;
   customer?: string; // defaults to the product's customer
+  salesOrderNo?: string; // the sales order this job card is for
   dueDate?: string;
   priority?: Job['priority'];
   pieceWeightG?: number;
@@ -218,6 +219,7 @@ export function createJob(s: ERPState, input: JobInput, ts: string): string {
     jobNo,
     productId: product.id,
     customer: input.customer?.trim() || product.defaultCustomer,
+    salesOrderNo: input.salesOrderNo || undefined,
     plannedQty: planned,
     materialKey: input.materialKey,
     createdAt: ts,

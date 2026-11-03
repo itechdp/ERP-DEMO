@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Eye, FileSpreadsheet, ListChecks, Pause, Pencil, Play, Plus, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Eye, FileSpreadsheet, FileText, ListChecks, Pause, Pencil, Play, Plus, RotateCcw, XCircle } from 'lucide-react';
 import { useAccess } from '../auth/access';
 import { Badge, Empty, Field, go, Modal, Search } from '../components/ui';
 import { fmtDate, fmtDateTime } from '../components/format';
 import { useStore } from '../store/StoreContext';
 import { UrgencyBadge } from './UrgencyBadge';
-import { TASK_REPORT_FIELDS, downloadTaskReport } from './taskReport';
+import { TASK_REPORT_FIELDS, downloadTaskReport, taskReportSpec } from './taskReport';
+import { printSpec } from '../export/docOutput';
 import { TASK_STATUSES, URGENCIES, fetchTasks, fmtDuration, setTaskStatus, taskOverdueDays, taskTimeTaken, type Task } from './service';
 
 const RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
@@ -238,12 +239,13 @@ function ReportModal({ tasks, user, onClose }: { tasks: Task[]; user: string; on
       return (!from || d >= dayStart(from)) && (!to || d <= dayStart(to));
     });
 
-  const download = async () => {
+  const download = async (as: 'excel' | 'pdf' = 'excel') => {
     setBusy(true);
     try {
       const period = from || to ? `${from ? fmtDate(from) : 'start'} to ${to ? fmtDate(to) : 'today'}` : 'All dates';
       const filters = [status !== 'all' && status, person !== 'all' && person, urgency !== 'all' && urgency].filter(Boolean).join(', ') || 'None';
-      await downloadTaskReport(rows, keys, user, period, filters);
+      if (as === 'pdf') printSpec(taskReportSpec(rows, keys, user, period, filters));
+      else await downloadTaskReport(rows, keys, user, period, filters);
       onClose();
     } catch (e) {
       toast({ kind: 'error', title: 'Could not create the report', message: e instanceof Error ? e.message : String(e) });
@@ -258,10 +260,13 @@ function ReportModal({ tasks, user, onClose }: { tasks: Task[]; user: string; on
       onClose={onClose}
       icon={FileSpreadsheet}
       title="Task Report"
-      subtitle="Pick the tasks and the columns, then download the Excel sheet."
+      subtitle="Pick the tasks and the columns, then download the Excel sheet or the PDF."
       footer={
         <>
           <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn" disabled={busy || !rows.length || !keys.length} onClick={() => void download('pdf')}>
+            <FileText size={15} /> PDF ({rows.length})
+          </button>
           <button className="btn btn-primary" disabled={busy || !rows.length || !keys.length} onClick={() => void download()}>
             <Download size={15} /> {busy ? 'Preparing…' : `Download Excel (${rows.length})`}
           </button>

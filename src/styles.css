@@ -1441,3 +1441,6 @@ select.filter { padding-right: 36px; }
 /* Access Control: the tabs of a page, listed under it */
 .acc-row.acc-tab { margin-left: 26px; border-left: 2px solid var(--border); padding-left: 12px; }
 .acc-row.acc-tab .acc-name b { font-weight: 500; }
+
+/* an action is being saved: the row icons wait until it is done */
+body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacity: 0.4; pointer-events: none; cursor: progress; }

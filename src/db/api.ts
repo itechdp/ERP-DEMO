@@ -42,9 +42,9 @@ export const addInward = (i: InwardInput, ts?: string) =>
     ...(i.poItemId ? { p_po_id: i.poId, p_po_item_id: i.poItemId } : {}),
   });
 
-export const createJob = (i: JobInput, ts?: string) => {
+export const createJob = async (i: JobInput, ts?: string) => {
   const { material, od } = parseMaterialKey(i.materialKey);
-  return call<string>('create_job', {
+  const jobNo = await call<string>('create_job', {
     p_product_id: i.productId,
     p_planned_qty: i.plannedQty,
     p_material: material,
@@ -58,6 +58,8 @@ export const createJob = (i: JobInput, ts?: string) => {
     p_machine_no: emptyToNull(i.machineNo),
     p_ts: ts,
   });
+  if (i.salesOrderNo) await call<void>('set_job_sales_order', { p_job_no: jobNo, p_so_no: i.salesOrderNo });
+  return jobNo;
 };
 
 export const startStage = (stage: ProcessStage, jobNo: string, i: StartInput, ts?: string) =>
@@ -361,6 +363,12 @@ export const editJobWork = (jobNo: string, i: { customer: string; challanNo: str
 /** Raw lot adjustment: a stock-count difference, scrap, or a return to the supplier (supabase/migrations/61). */
 export type RawAdjustKind = 'count_up' | 'count_down' | 'scrap' | 'supplier_return';
 export const adjustRawStock = (lotId: string, kind: RawAdjustKind, qty: number, reason: string) => call<null>('adjust_raw_stock', { p_lot_id: lotId, p_kind: kind, p_qty: qty, p_reason: reason });
+export type PartsAdjustKind = 'count_up' | 'count_down' | 'scrap';
+/** Our stock of parts (Product Master → Stock): a count difference or scrap, with the reason. */
+export const adjustSemiStock = (productId: string, stage: string, kind: PartsAdjustKind, qty: number, reason: string) =>
+  call<null>('adjust_semi_stock', { p_product: productId, p_stage: stage, p_kind: kind, p_qty: qty, p_reason: reason });
+/** Rejected pieces go back to our stock of parts, ready for the chosen process (then a new job card takes them). */
+export const sendForRework = (jobNo: string, stage: string, qty: number, reason: string) => call<null>('send_for_rework', { p_job_no: jobNo, p_stage: stage, p_qty: qty, p_reason: reason });
 /** Goods a customer sent back come into Finished Goods again. */
 export const returnFinishedGoods = (fgId: string, qty: number, reason: string) => call<null>('return_finished_goods', { p_fg_id: fgId, p_qty: qty, p_reason: reason });
 export const deleteJobWork =(jobNo: string, ts?: string) => call<null>('delete_job_work', { p_job_no: jobNo, p_ts: ts });

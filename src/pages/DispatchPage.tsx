@@ -24,6 +24,7 @@ type Filter = 'all' | 'Ready for Dispatch' | 'Dispatched' | 'today';
 
 export function DispatchPage() {
   const { state, openTrace, openAction, run } = useStore();
+  const soOf = (jobNo: string) => state.jobs.find((j) => j.jobNo === jobNo)?.salesOrderNo ?? '';
   const [deleting, setDeleting] = useState<Dispatch | null>(null);
   const { can } = useAccess();
   const [filter, setFilter] = useState<Filter>('all');
@@ -53,7 +54,7 @@ export function DispatchPage() {
         flow="dispatched"
         actions={
           <>
-            <ListButtons doc={() => ({ filename: 'Dispatch-Register', title: 'Dispatch Register', form: FORM_FORMATS.report, rows: rows.map((x) => ({ no: x.dispatchNo, date: x.date, job: x.jobNo, customer: canSee('party_names') ? x.customer : '', qty: x.qty, bags: x.bags.length, weight: x.weight, vehicle: colOk('dispatch.vehicle') ? x.vehicleNo : '', invoice: canSee('invoices') ? x.invoiceNo : '', status: x.status })), cols: [{ label: 'Dispatch No.', key: 'no' }, { label: 'Date', key: 'date', kind: 'date' }, { label: 'Job No.', key: 'job' }, { label: 'Customer', key: 'customer', width: 26 }, { label: 'Qty (PCS)', key: 'qty', kind: 'num' }, { label: 'Bags', key: 'bags', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Vehicle', key: 'vehicle' }, { label: 'Invoice', key: 'invoice' }, { label: 'Status', key: 'status' }], totals: ['qty', 'weight'] })} />
+            <ListButtons doc={() => ({ filename: 'Dispatch-Register', title: 'Dispatch Register', form: FORM_FORMATS.report, rows: rows.map((x) => ({ no: x.dispatchNo, date: x.date, job: x.jobNo, order: soOf(x.jobNo), customer: canSee('party_names') ? x.customer : '', qty: x.qty, bags: x.bags.length, weight: x.weight, vehicle: colOk('dispatch.vehicle') ? x.vehicleNo : '', invoice: canSee('invoices') ? x.invoiceNo : '', status: x.status })), cols: [{ label: 'Dispatch No.', key: 'no' }, { label: 'Date', key: 'date', kind: 'date' }, { label: 'Job No.', key: 'job' }, { label: 'Sales Order', key: 'order' }, { label: 'Customer', key: 'customer', width: 26 }, { label: 'Qty (PCS)', key: 'qty', kind: 'num' }, { label: 'Bags', key: 'bags', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Vehicle', key: 'vehicle' }, { label: 'Invoice', key: 'invoice' }, { label: 'Status', key: 'status' }], totals: ['qty', 'weight'] })} />
             <button className="btn btn-primary" onClick={() => newDispatch()}>
               <Plus size={16} /> New Dispatch
             </button>
@@ -130,6 +131,7 @@ export function DispatchPage() {
                       </td>
                       <td>
                         <JobLink jobNo={d.jobNo} />
+                        {soOf(d.jobNo) && <div className="sub">Order {soOf(d.jobNo)}</div>}
                       </td>
                       <td>
                         <Conf g="party_names">

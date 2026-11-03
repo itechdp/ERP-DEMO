@@ -9,6 +9,8 @@ import { usePlan } from '../planning/usePlan';
 import { clampPriority, jobPriority, priorityChip, priorityName } from '../planning/priority';
 import { getJob, getProduct } from '../store/engine';
 import { useStore } from '../store/StoreContext';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 const DAY = 24 * 3600 * 1000;
 const midnight = (t: number) => new Date(new Date(t).setHours(0, 0, 0, 0)).getTime();
@@ -115,7 +117,7 @@ export function FurnacePage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Furnace Management" actions={fu.furnaces.length > 0 ? add : undefined} />
+      <PageHeader eyebrow="Workflow" title="Furnace Management" actions={fu.furnaces.length > 0 ? <><ListButtons doc={() => ({ filename: 'Furnaces', title: 'Furnace Register', form: FORM_FORMATS.report, rows: fu.furnaces.map((f) => { const l = fu.runningIn(f.id); return { name: f.name, status: !f.active ? 'Switched off' : l ? 'Running' : 'Free', job: l?.jobNo ?? '', shift: l?.shift ?? '', cycle: l?.cycleNo ?? '', started: l?.startedAt?.slice(0, 16).replace('T', ' ') ?? '', ends: l?.endsAt?.slice(0, 16).replace('T', ' ') ?? '' }; }), cols: [{ label: 'Furnace', key: 'name', width: 22 }, { label: 'Status', key: 'status' }, { label: 'Job No.', key: 'job' }, { label: 'Shift', key: 'shift' }, { label: 'Cycle No.', key: 'cycle' }, { label: 'Started', key: 'started', width: 18 }, { label: 'Ends', key: 'ends', width: 18 }] })} />{add}</> : undefined} />
       {fu.furnaces.length === 0 ? (
         <div className="card">
           <Empty icon={Flame} title="No furnaces yet" text="Add the plant's furnaces here. Heat Treatment then waits for a free furnace before a batch can start." action={add} />

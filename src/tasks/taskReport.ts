@@ -1,6 +1,6 @@
 // Task report → Excel (company form layout). Which columns go in is the user's choice; the list below is the catalogue,
 // so a new column is one entry here. Other Work Hub sections get their own report the same way later.
-import { FORM_FORMATS, downloadFormSheet, type SheetValue } from '../export/xlsxSheet';
+import { FORM_FORMATS, downloadFormSheet, type SheetSpec, type SheetValue } from '../export/xlsxSheet';
 import { fmtDuration, taskOverdueDays, taskTimeTaken, taskTimeToStart, taskTurnaround, type Task } from './service';
 
 export interface ReportField {
@@ -40,13 +40,13 @@ export const TASK_REPORT_FIELDS: ReportField[] = [
   { key: 'remarks', label: 'Remarks', width: 30, on: false, get: (t) => t.remarks },
 ];
 
-export async function downloadTaskReport(tasks: Task[], keys: string[], user: string, periodText: string, filterText: string) {
+export function taskReportSpec(tasks: Task[], keys: string[], user: string, periodText: string, filterText: string): SheetSpec {
   const fields = TASK_REPORT_FIELDS.filter((f) => keys.includes(f.key));
   const done = tasks.filter((t) => t.status === 'Done');
   const taken = done.map((t) => taskTimeTaken(t)).filter((v): v is number => v != null);
   const avg = taken.length ? fmtDuration(taken.reduce((a, b) => a + b, 0) / taken.length) : '—';
   const today = dmy(new Date().toISOString());
-  await downloadFormSheet({
+  return {
     filename: `Task-Report-${new Date().toISOString().slice(0, 10)}`,
     sheet: 'Task Report',
     form: FORM_FORMATS.taskReport,
@@ -56,5 +56,8 @@ export async function downloadTaskReport(tasks: Task[], keys: string[], user: st
     blocks: [{ headers: ['Sr. No.', ...fields.map((f) => f.label)], align: ['center'], rows: tasks.map((t, i) => ({ cells: [i + 1, ...fields.map((f) => f.get(t))] })) }],
     notes: [`Tasks : ${tasks.length}      Completed : ${done.length}      Open / In progress : ${tasks.filter((t) => t.status === 'Open' || t.status === 'In Progress').length}      Average time taken (completed) : ${avg}`],
     checkedBy: user,
-  });
+  };
 }
+
+export const downloadTaskReport = (tasks: Task[], keys: string[], user: string, periodText: string, filterText: string) =>
+  downloadFormSheet(taskReportSpec(tasks, keys, user, periodText, filterText));

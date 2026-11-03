@@ -12,6 +12,8 @@ import { usePlan } from '../planning/usePlan';
 import { PROCESS_STAGES, STAGE_LABEL, getJob, getProduct } from '../store/engine';
 import { useStore } from '../store/StoreContext';
 import type { Job, ProcessStage, StageRecord } from '../store/types';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 type Stock = { tone: 'good' | 'warn' | 'bad'; label: string; sub?: string };
 /** `r` is the Heat Treatment order (pieces are waiting there); without it the batch is still at an earlier process. */
@@ -97,7 +99,7 @@ export function PlanningPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Heat Treatment Planning" />
+      <PageHeader eyebrow="Workflow" title="Heat Treatment Planning" actions={shown.length > 0 ? <ListButtons doc={() => ({ filename: 'Heat-Treatment-Planning', title: 'Heat Treatment Planning', form: FORM_FORMATS.report, rows: shown.map((x) => ({ job: x.jobNo, product: getProduct(state, x.job.productId).name, customer: canSee('party_names') ? x.job.customer : '', qty: x.qty, due: x.job.dueDate, stock: x.stock.label, priority: priorityName(levelOf(x)), approval: plan.find(x.jobNo, HT) ? 'Approved' : 'Waiting' })), cols: [{ label: 'Job No.', key: 'job' }, { label: 'Product', key: 'product', width: 26 }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Qty (PCS)', key: 'qty', kind: 'num' }, { label: 'Due', key: 'due', kind: 'date' }, { label: 'Stock', key: 'stock' }, { label: 'Priority', key: 'priority' }, { label: 'Approval', key: 'approval' }] })} /> : undefined} />
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ padding: '14px 18px', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 260 }} className="text-sm">

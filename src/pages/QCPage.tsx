@@ -1,7 +1,9 @@
 import * as api from '../db/api';
 import { searchable, Write, Conf, searchableCol } from '../auth/access';
 import { useMemo, useState } from 'react';
-import { ClipboardCheck, Eye, PackageCheck, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, Eye, PackageCheck, ShieldCheck, Wrench } from 'lucide-react';
+import { ReworkModal } from '../components/AdjustModals';
+import type { QCRecord } from '../store/types';
 import { HardnessRegister } from './HardnessPage';
 import { DimensionTab } from '../dimension/DimensionTab';
 import { useStore } from '../store/StoreContext';
@@ -24,6 +26,7 @@ export function QCPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [productF, setProductF] = useState('all');
+  const [rework, setRework] = useState<QCRecord | null>(null);
 
   const recs = state.qc;
   const pending = recs.filter((r) => r.status === 'QC Pending');
@@ -50,6 +53,7 @@ export function QCPage() {
 
   return (
     <>
+      {rework && <ReworkModal rec={rework} onClose={() => setRework(null)} />}
       <PageHeader
         eyebrow="Workflow · Step 6 of 8"
         title="Quality Control"
@@ -163,6 +167,13 @@ export function QCPage() {
                       </td>
                       <td className="r nowrap">
                         {r.status !== 'QC Pending' && <DocButtons compact build={(u) => docs.qcRecordSpec(state, r, u)} />}
+                        {r.rejected > 0 && (
+                          <Write res="qc">
+                            <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle' }} title="Send rejected pieces for rework" onClick={(e) => { e.stopPropagation(); setRework(r); }}>
+                              <Wrench size={16} />
+                            </button>
+                          </Write>
+                        )}
                         <button
                           className="icon-btn"
                           style={{ display: 'inline-grid', verticalAlign: 'middle' }}

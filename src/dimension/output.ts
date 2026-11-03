@@ -52,12 +52,12 @@ export function buildDimensionSheet(r: DimReport, user: string): { data: Cell[][
   // company header: one tall, clean block for the logo (columns A–I: outer line only — no boxes inside it) and the Form No. / Rev. No. & Date box (J–L)
   const logoBlock = (top: boolean): Cell => ({ value: '', type: String, columnSpan: 9, ...edges('thin', undefined, top ? 'thin' : undefined, top ? undefined : 'thin') }) as Cell;
   const formCell = (text: string): Cell[] => span(text, 3, { fontWeight: 'bold', align: 'center', ...LINE });
-  row([logoBlock(true), ...hidden(8), ...formCell(`Form No. : ${FORM_FORMATS.qcFinalInspection.formNo}`)], 48);
-  row([logoBlock(false), ...hidden(8), ...formCell(`Rev. No. & Date : ${FORM_FORMATS.qcFinalInspection.revision}`)], 48);
-  row(span('FINAL INSPECTION', COLS, { fontWeight: 'bold', fontSize: 14, align: 'center', ...LINE }), 39);
+  row([logoBlock(true), ...hidden(8), ...formCell(`Form No. : ${FORM_FORMATS.qcFinalInspection.formNo}`)], 21.75);
+  row([logoBlock(false), ...hidden(8), ...formCell(`Rev. No. & Date : ${FORM_FORMATS.qcFinalInspection.revision}`)], 36);
+  row(span('FINAL INSPECTION', COLS, { fontWeight: 'bold', fontSize: 14, align: 'center', ...LINE }), 36);
 
   // item · customer · report lines: plain text, boxed only on the outside (no lines between them)
-  const info = (a: string, b: string, c: string) => row([...span(a, 4, edges('thin', undefined, undefined, undefined)), ...span(b, 4), ...span(c, 4, edges(undefined, 'thin', undefined, undefined))], 25);
+  const info = (a: string, b: string, c: string) => row([...span(a, 4, edges('thin', undefined, undefined, undefined)), ...span(b, 4), ...span(c, 4, edges(undefined, 'thin', undefined, undefined))], 23.25);
   info(`Item Name :- ${r.itemName}`, `Item No. :- ${r.itemNo}`, `Inspection Report No :- ${r.reportNo}`);
   info(`Customer Name :- ${r.customer}`, `Invoice Date :- ${r.invoiceDate ? dmy(r.invoiceDate) : ''}`, `Inspection Date:- ${dmy(r.reportDate)}`);
   info(`Die No:- ${r.dieNo}`, `Lot / Invoice Qty. :- ${r.invoiceQty}`, '');
@@ -70,8 +70,8 @@ export function buildDimensionSheet(r: DimReport, user: string): { data: Cell[][
     typeof text === 'number'
       ? ({ value: text, type: Number, ...FONT, ...CENTER, ...edges('thin', 'thin', 'thin', 'medium') } as Cell)
       : T(text, { ...CENTER, ...edges('thin', 'thin', 'thin', 'medium') });
-  row([upper('Sr. No.'), upper('Parameter'), upper('Measuring Instrument'), upper('Specification'), ...span('TOLERENCES', 2, { ...CENTER, ...LINE }), ...span('Observation on Samples', SAMPLES, { ...CENTER, ...LINE }), upper('Result')], 20);
-  row([lower(), lower(), lower(), lower(), sub('USL'), sub('LSL'), ...Array.from({ length: SAMPLES }, (_, i) => sub(i + 1)), lower()], 20);
+  row([upper('Sr. No.'), upper('Parameter'), upper('Measuring Instrument'), upper('Specification'), ...span('TOLERENCES', 2, { ...CENTER, ...LINE }), ...span('Observation on Samples', SAMPLES, { ...CENTER, ...LINE }), upper('Result')], 19.5);
+  row([lower(), lower(), lower(), lower(), sub('USL'), sub('LSL'), ...Array.from({ length: SAMPLES }, (_, i) => sub(i + 1)), lower()], 19.5);
 
   // lines
   r.lines.forEach((l: DimLine, i) => {
@@ -86,16 +86,16 @@ export function buildDimensionSheet(r: DimReport, user: string): { data: Cell[][
         ...samples,
         T(lineResult(l), { ...CENTER, ...LINE }),
       ],
-      29,
+      26.5, // the original's two merged rows per line: 15.6 + 10.9 pt
     );
   });
 
   // conclusion · approval · remarks · sign-off: boxed on the outside, a line between the rows, the last line heavier
   const foot = (a: string, b: string, h: number, last = false) =>
     row([...span(a, 8, { fontWeight: 'bold', ...edges('thin', undefined, 'thin', last ? 'medium' : 'thin') }), ...span(b, 4, { fontWeight: 'bold', ...edges(undefined, 'thin', 'thin', last ? 'medium' : 'thin') })], h);
-  foot(conclusionText(r), `Customer Approval ( If required ) : ${r.customerApproval}`, 22);
-  row(span(`Remarks (If any) : ${r.remarks}`, COLS, { fontWeight: 'bold', wrap: true, alignVertical: 'top', ...edges('thin', 'thin', 'thin', 'thin') }), 50);
-  foot(`Checked By : ${r.checkedBy || user}`, `Reviewed By : ${r.reviewedBy}`, 25, true);
+  foot(conclusionText(r), `Customer Approval ( If required ) : ${r.customerApproval}`, 21);
+  row(span(`Remarks (If any) : ${r.remarks}`, COLS, { fontWeight: 'bold', wrap: true, alignVertical: 'top', ...edges('thin', 'thin', 'thin', 'thin') }), 45.6);
+  foot(`Checked By : ${r.checkedBy || user}`, `Reviewed By : ${r.reviewedBy}`, 21, true);
 
   return { data, widths: WIDTHS };
 }
@@ -112,22 +112,22 @@ const DIM_CSS = `
 .dm{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10.5px}
 .dm td,.dm th{border:1px solid #14284b;padding:3px 3px;text-align:center;vertical-align:middle;line-height:1.25;word-break:break-word}
 .dm th{font-weight:400;background:#fff}
-.dm tr.top td{height:56px}
+.dm tr.top td{height:58px}
 .dm td.logo{text-align:left;padding:6px 10px}
 .dm td.logo img{height:92px;display:block}
 .dm td.form{font-weight:700;font-size:11px}
-.dm tr.title td{height:42px;font-weight:700;font-size:15px}
-.dm tr.info td{border-top:0;border-bottom:0;border-left:0;border-right:0;text-align:left;padding:5px 8px;height:24px}
+.dm tr.title td{height:36px;font-weight:700;font-size:15px}
+.dm tr.info td{border-top:0;border-bottom:0;border-left:0;border-right:0;text-align:left;padding:5px 8px;height:23px}
 .dm tr.info td:first-child{border-left:1px solid #14284b}
 .dm tr.info td:last-child{border-right:1px solid #14284b}
 .dm tr.head2 th{border-bottom:2px solid #14284b}
-.dm tr.ln td{height:30px}
+.dm tr.ln td{height:27px}
 .dm .ng{background:#fde8e8;color:#b00020;font-weight:700}
 .dm .res{font-weight:400}
 .dm tr.foot td{text-align:left;font-weight:700;padding:5px 8px}
 .dm tr.foot td:first-child{border-right:0}
 .dm tr.foot td:last-child{border-left:0}
-.dm tr.tall td{height:52px;vertical-align:top;padding:6px 8px}
+.dm tr.tall td{height:46px;vertical-align:top;padding:6px 8px}
 .dm tr.last td{border-bottom:2px solid #14284b}
 `;
 

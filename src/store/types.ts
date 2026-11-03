@@ -104,6 +104,8 @@ export interface Job {
   jobNo: string; // JOB-2026-0001 — same number travels through every stage
   productId: string;
   customer: string;
+  /** the sales order this job card is for */
+  salesOrderNo?: string;
   plannedQty: number;
   materialKey: string; // `${material}|${od}` — what Cutting will consume
   createdAt: string;

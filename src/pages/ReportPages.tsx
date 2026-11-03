@@ -1,7 +1,7 @@
 import * as api from '../db/api';
 import { Conf, Write, searchable, canSee, colOk, currentUserName, useAccess } from '../auth/access';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Eye, Package, Pencil, Plus, ScrollText, Waypoints, Trash2 } from 'lucide-react';
+import { ArrowRight, Eye, Package, PackageX, Pencil, Plus, ScrollText, Waypoints, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobDeleteReason, productDeleteReason } from '../store/deletable';
 import { fgAvailable, jobSummary, PROCESS_STAGES, STAGE_LABEL } from '../store/engine';
@@ -11,6 +11,7 @@ import { CustomerSelect } from '../masters/CustomerSelect';
 import type { HardnessScale, Product } from '../store/types';
 import { DEFAULT_FLOW, entryStage, saveProductFlow, useProductFlows } from '../products/flow';
 import { addSemiStock, rawKey, semiKey, setStockMin, useStock } from '../stock/service';
+import { PartsAdjustModal } from '../components/AdjustModals';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
 import { ListButtons } from '../export/docOutput';
@@ -401,6 +402,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
   const entry = entryStage(flow);
   const fromParts = entry !== 'cutting';
   const [addQty, setAddQty] = useState('');
+  const [adjustParts, setAdjustParts] = useState(false);
   const [minDraft, setMinDraft] = useState<string | null>(null);
   const rawRow = stock.rawOf(f.material, Number(f.od));
   const partsRow = id ? stock.semiOf(id, entry) : undefined;
@@ -560,7 +562,13 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           </span>
         )}
         {id && <span className="chip">Finished goods available: {fmtNum(fgOnHand)} PCS</span>}
+        {id && fromParts && (
+          <button type="button" className="btn btn-subtle btn-sm" onClick={() => setAdjustParts(true)}>
+            <PackageX size={14} /> Adjust parts stock
+          </button>
+        )}
       </div>
+      {adjustParts && id && <PartsAdjustModal productId={id} stage={entry} name={f.name} stageLabel={STAGE_LABEL[entry]} available={stock.semiOf(id, entry)?.available ?? 0} onClose={() => setAdjustParts(false)} />}
       <div className="form-grid three" style={{ marginTop: 12 }}>
         {fromParts && (
           <Field label="Add stock now" hint={`Pieces already cut / forged that go into ${STAGE_LABEL[entry]}. Saved as stock of this product.`} error={addQty !== '' && !(Number(addQty) > 0 && Number.isInteger(Number(addQty))) ? 'Whole number' : null}>

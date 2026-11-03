@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { ClipboardList, FileSpreadsheet } from 'lucide-react';
+import { ClipboardList, FileSpreadsheet, FileText } from 'lucide-react';
 import { Conf, canSee, currentUserName, searchable } from '../auth/access';
 import { Empty, FilterMenu, JobLink, Search } from '../components/ui';
 import { fmtDate, matches } from '../components/format';
-import { FORM_FORMATS, downloadFormSheet } from '../export/xlsxSheet';
+import { FORM_FORMATS, downloadFormSheet, type SheetSpec } from '../export/xlsxSheet';
+import { printSpec } from '../export/docOutput';
 import { STAGE_LABEL } from '../store/engine';
 import { useStore } from '../store/StoreContext';
 import type { ERPState, JobWork, ProcessStage, StageRecord } from '../store/types';
@@ -71,8 +72,7 @@ export function JobCardReport() {
     .filter((r) => doneF === 'all' || (doneF === 'done' ? r.pct === 100 : r.pct < 100))
     .filter((r) => matches(q, r.w.jobNo, r.w.challanNo, r.product?.name, r.w.itemDescription, searchable(r.job?.customer)));
 
-  const exportXlsx = () =>
-    downloadFormSheet({
+  const spec = (): SheetSpec => ({
       filename: 'Job-Card-Report',
       sheet: 'Job Card Report',
       form: FORM_FORMATS.report,
@@ -99,6 +99,7 @@ export function JobCardReport() {
       ],
       checkedBy: currentUserName(),
     });
+  const exportXlsx = () => downloadFormSheet(spec());
 
   if (rows.length === 0) return <div className="card"><Empty icon={ClipboardList} title="No job cards yet" text="Once parts are received, each batch's processes and their progress are reported here." /></div>;
 
@@ -116,6 +117,9 @@ export function JobCardReport() {
         />
         <button className="btn" onClick={() => void exportXlsx()}>
           <FileSpreadsheet size={15} /> Excel
+        </button>
+        <button className="btn" onClick={() => printSpec(spec())}>
+          <FileText size={15} /> PDF
         </button>
       </div>
       {shown.length === 0 ? (

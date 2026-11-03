@@ -2,6 +2,9 @@ import * as api from '../db/api';
 import { useMemo, useState } from 'react';
 import { Layers, PackagePlus, Scissors } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
+import { canSee } from '../auth/access';
+import { useOrders } from '../salesmod/hooks';
+import { useDies } from '../dies/DieContext';
 import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { fifoLots, materialKey, parseMaterialKey, STAGE_LABEL } from '../store/engine';
@@ -98,6 +101,16 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
   const [dieNo, setDieNo] = useState(p0.dieNo);
   const [machineNo, setMachineNo] = useState('');
   const [date, setDate] = useState(todayISO());
+  const { data: dieData } = useDies();
+  const [customer, setCustomer] = useState('');
+  const [soNo, setSoNo] = useState('');
+  const { orders } = useOrders();
+  const openOrders = orders.filter((o) => o.status === 'Confirmed' || o.status === 'In Production');
+  const pickOrder = (no: string) => {
+    setSoNo(no);
+    const o = openOrders.find((x) => x.soNo === no);
+    if (o?.customer) setCustomer(o.customer);
+  };
 
   const materials = useMemo(() => {
     const m = new Map<string, number>();
@@ -141,7 +154,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
     const ok = await withDocNo(doc.custom, () => run(
       async (now) => {
         created = await api.createJob(
-          { productId, plannedQty: plannedN, materialKey: matKey, cuttingLength: Number(cutLen), pieceWeightG: Number(weightShown) || undefined, dieNo, machineNo },
+          { productId, plannedQty: plannedN, customer: customer || undefined, salesOrderNo: soNo || undefined, materialKey: matKey, cuttingLength: Number(cutLen), pieceWeightG: Number(weightShown) || undefined, dieNo, machineNo },
           tsFor(date, now),
         );
       },
@@ -177,6 +190,26 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
         <Field label="Date">
           <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
+        {canSee('party_names') && (
+          <Field label="Customer" hint="Leave empty to use the product's customer">
+            <select value={customer} onChange={(e) => setCustomer(e.target.value)}>
+              <option value="">{product.defaultCustomer ? `${product.defaultCustomer} (product's customer)` : '— none —'}</option>
+              {[...new Set([...masters.customers, ...(customer ? [customer] : [])])].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {openOrders.length > 0 && (
+          <Field label="Sales Order" hint="Which order this job card is for">
+            <select value={soNo} onChange={(e) => pickOrder(e.target.value)}>
+              <option value="">— not for an order —</option>
+              {openOrders.map((o) => (
+                <option key={o.id} value={o.soNo}>{o.soNo}{canSee('party_names') && o.customer ? ` — ${o.customer}` : ''}</option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Item Name" required>
           <select value={productId} onChange={(e) => pickProduct(e.target.value)}>
             {state.products.map((p) => (
@@ -225,7 +258,12 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           <NumInput value={planned} onChange={setPlanned} bad={!!errPlanned} autoFocus />
         </Field>
         <Field label="Die No.">
-          <input className="input mono" value={dieNo} onChange={(e) => setDieNo(e.target.value)} placeholder="Optional" />
+          <input className="input mono" list="job-die-list" value={dieNo} onChange={(e) => setDieNo(e.target.value)} placeholder="Optional — pick a forging die" />
+          <datalist id="job-die-list">
+            {dieData.forgingDies.filter((d) => d.status === 'Available' || d.status === 'In Production').map((d) => (
+              <option key={d.code} value={d.code}>{d.status}</option>
+            ))}
+          </datalist>
         </Field>
         <Field label="Machine No.">
           <select value={machineNo} onChange={(e) => setMachineNo(e.target.value)}>

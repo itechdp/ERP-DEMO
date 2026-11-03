@@ -269,6 +269,7 @@ export async function loadERPState(): Promise<ERPState> {
         jobNo: r.job_no,
         productId: r.product_id,
         customer: str(r.customer),
+        salesOrderNo: r.sales_order_no ?? undefined,
         plannedQty: num0(r.planned_qty),
         materialKey: `${r.material}|${num0(r.od)}`,
         createdAt: r.created_at,

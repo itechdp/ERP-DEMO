@@ -167,7 +167,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
               <RefreshCw size={14} /> Refresh
             </button>
             <button className="btn btn-subtle" onClick={print} disabled={loading}>
-              <Printer size={14} /> Print
+              <Printer size={14} /> Print / PDF
             </button>
             <button className="btn btn-primary" onClick={exportExcel} disabled={loading}>
               <Download size={14} /> Export Excel

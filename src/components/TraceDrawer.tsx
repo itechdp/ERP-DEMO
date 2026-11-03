@@ -124,6 +124,7 @@ export function TraceDrawer() {
               <div className="prod">
                 {product.name}
                 <Conf g="party_names"> · {job.customer}</Conf>
+                {job.salesOrderNo && <> · for order {job.salesOrderNo}</>}
               </div>
             </div>
             <button className="icon-btn no-print" title="Print job card" onClick={() => void printPage()}>

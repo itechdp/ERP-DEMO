@@ -4,6 +4,8 @@ import { Empty, FilterMenu, PageHeader, Search, Tabs } from '../components/ui';
 import { fmtDate, fmtNum, matches } from '../components/format';
 import { useFollowups } from './useFollowups';
 import { DUE_LABEL, KIND_LABEL, KIND_ORDER, dueState, dueText, type DueState, type FollowupKind } from './types';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 const TONE: Record<DueState, string> = { overdue: 'b-red', today: 'b-amber', tomorrow: 'b-amber', soon: 'b-blue', later: 'b-neutral', none: 'b-neutral' };
 
@@ -29,7 +31,7 @@ export function FollowupsPage({ navigate }: { navigate: (r: string) => void }) {
 
   return (
     <>
-      <PageHeader eyebrow="Main Menu" title="Follow-ups" actions={<button className="btn btn-subtle" onClick={() => reload()} disabled={loading}><RefreshCw size={14} /> Refresh</button>} />
+      <PageHeader eyebrow="Main Menu" title="Follow-ups" actions={<><ListButtons doc={() => ({ filename: 'Follow-ups', title: 'Follow-ups', form: FORM_FORMATS.report, rows: shown.map((i) => ({ type: KIND_LABEL[i.kind], ref: i.ref, party: i.party, what: i.what, detail: i.detail, due: i.due, state: DUE_LABEL[dueState(i.due)], amount: i.amount })), cols: [{ label: 'Type', key: 'type' }, { label: 'Reference', key: 'ref' }, { label: 'Party', key: 'party', width: 24 }, { label: 'To Do', key: 'what', width: 28 }, { label: 'Detail', key: 'detail', width: 34 }, { label: 'Due', key: 'due', kind: 'date' }, { label: 'When', key: 'state' }, { label: 'Amount (₹)', key: 'amount', kind: 'money' }] })} /><button className="btn btn-subtle" onClick={() => reload()} disabled={loading}><RefreshCw size={14} /> Refresh</button></>} />
 
       <div className="card">
         <div className="card-head" style={{ flexWrap: 'wrap', gap: 12 }}>

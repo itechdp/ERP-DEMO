@@ -18,6 +18,8 @@ import type { JobWork } from '../store/types';
 import { useTabAccess } from '../auth/tabs';
 import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 type Proc = JobWork['processes'];
 const PROCESSES: { key: keyof Proc; label: string }[] = [
@@ -56,7 +58,7 @@ export function JobWorkPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <Write res="job_work">{add}</Write> : undefined} />
+      <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <><ListButtons doc={() => ({ filename: 'Job-Work-In', title: 'Job Work In', form: FORM_FORMATS.report, rows: rows.map((w) => ({ job: w.jobNo, challan: w.challanNo, date: w.challanDate, item: w.itemDescription, customer: canSee('party_names') ? jobOf(w)?.customer : '', qty: w.receivedQty, weight: w.receivedWeight, source: w.materialSource === 'customer' ? 'Customer material' : 'Our material', stage: jobOf(w)?.currentStage })), cols: [{ label: 'Job No.', key: 'job' }, { label: 'Challan No.', key: 'challan' }, { label: 'Challan Date', key: 'date', kind: 'date' }, { label: 'Item', key: 'item', width: 28 }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Received (PCS)', key: 'qty', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Material', key: 'source', width: 18 }, { label: 'Now at', key: 'stage' }], totals: ['qty', 'weight'] })} /><Write res="job_work">{add}</Write></> : undefined} />
       <div style={{ marginBottom: 16 }}>
         <Tabs value={tab} onChange={setTab} items={ta.only([{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'report', label: 'Job Card Report' }])} />
       </div>

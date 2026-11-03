@@ -88,6 +88,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0);
   const runningRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  // while an action is being saved the row icons are greyed out (styles.css), so a second push cannot happen
+  useEffect(() => {
+    document.body.toggleAttribute('data-busy', busy);
+    return () => document.body.removeAttribute('data-busy');
+  }, [busy]);
 
   const fetchAll = useCallback(async () => {
     const [state, masters] = await Promise.all([loadERPState(), loadMasters()]);

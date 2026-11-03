@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ClipboardCheck, Eye, Pencil, Plus, Printer, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import { Write, useAccess } from '../auth/access';
-import { Badge, Empty, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search } from '../components/ui';
+import { Badge, Empty, JobLink, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search } from '../components/ui';
 import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { useStore } from '../store/StoreContext';
-import { fgAvailable } from '../store/engine';
+import { fgAvailable, STAGE_LABEL } from '../store/engine';
 import { useOrderDetail, useOrders } from './hooks';
 import { Brief } from '../components/Brief';
 import { inr } from './calc';
@@ -256,7 +256,7 @@ function OrderForm({ editId, onClose, onSaved }: { editId: number | null; onClos
 function OrderDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id: number; onBack: () => void; onEdit: (id: number) => void; navigate: (r: string) => void; initialStep?: string | null }) {
   const { detail, loading, error, reload } = useOrderDetail(id);
   const { user, can } = useAccess();
-  const { toast } = useStore();
+  const { toast, state } = useStore();
   const [busy, setBusy] = useState(false);
   const [stepTo, setStepTo] = useState<string | null>(initialStep);
   const [note, setNote] = useState('');
@@ -266,6 +266,7 @@ function OrderDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id:
     return <div className="card"><div className="card-center-msg text-red">{error || 'Sales order not found.'}</div><div className="center mt-4"><button className="btn btn-subtle" onClick={onBack}><ArrowLeft size={15} /> Back</button></div></div>;
   }
   const { o, lines } = detail;
+  const linkedJobs = state.jobs.filter((j) => j.salesOrderNo === o.soNo);
   const next = ORDER_NEXT[o.status];
   const move = async (status: string, why = '') => {
     setBusy(true);
@@ -336,6 +337,28 @@ function OrderDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id:
         </div>
         {can('sales_rates') && <div className="strong mono" style={{ padding: '12px 20px', textAlign: 'right', borderTop: '1px solid var(--border)' }}>Total {inr(o.amount)}</div>}
       </div>
+
+      {linkedJobs.length > 0 && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-head"><h3>Job cards for this order ({linkedJobs.length})</h3></div>
+          <div className="table-wrap">
+            <table className="tbl">
+              <thead><tr><th>Job No.</th><th>Product</th><th className="right">Planned</th><th>Now at</th><th className="right">Dispatched</th></tr></thead>
+              <tbody>
+                {linkedJobs.map((j) => (
+                  <tr key={j.jobNo}>
+                    <td><JobLink jobNo={j.jobNo} /></td>
+                    <td className="strong">{state.products.find((p) => p.id === j.productId)?.name}</td>
+                    <td className="right mono">{fmtNum(j.plannedQty)} PCS</td>
+                    <td>{STAGE_LABEL[j.currentStage]}</td>
+                    <td className="right mono">{fmtNum(state.dispatches.filter((d) => d.jobNo === j.jobNo).reduce((t, d) => t + d.qty, 0))} PCS</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <Modal
         dialog

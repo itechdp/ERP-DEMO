@@ -5,7 +5,8 @@ import writeExcelFile from 'write-excel-file/browser';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { isNative, saveFile } from '../native/native';
 
-/** Form number and revision printed on top of each sheet — change them here, in one place. */
+/** Form number and revision printed on top of each sheet — change them here, in one place.
+ *  Confirmed from the company's sheet: qcFinalInspection (Dimension Report) = F QC 01, 00 / 01.10.25. The others are working numbers until the real ones are given. */
 export const FORM_FORMATS = {
   quotation: { formNo: 'F SL 01', revision: '00 / 01.10.25' },
   purchaseOrder: { formNo: 'F PU 01', revision: '00 / 01.10.25' },

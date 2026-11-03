@@ -5,6 +5,8 @@ import { ArrowLeftRight, Hammer, ImagePlus, MoreVertical, Printer, Scissors, Wre
 import { Field, Modal, NumInput } from '../components/ui';
 import { fmtDate, todayISO } from '../components/format';
 import { useDies, type DieInput } from './DieContext';
+import { useStore } from '../store/StoreContext';
+import { jobsOnDie } from './usage';
 import { printDieCard, fmtDims, fmtWt } from './print';
 import { DIE_STATUSES, KIND_LABEL, METALS, type Die, type DieKind, type DieStatus, type Dims, type HistoryEvent, type Metal } from './types';
 
@@ -577,9 +579,14 @@ export function IssueForm({ kind, code, onClose }: { kind: DieKind; code: string
 }
 
 export function ReturnForm({ kind, code, onClose }: { kind: DieKind; code: string; onClose: () => void }) {
-  const { returnDie } = useDies();
+  const { returnDie, data } = useDies();
+  const { state } = useStore();
   const [date, setDate] = useState(todayISO());
-  const [pieces, setPieces] = useState('');
+  // what production recorded on job cards that name this die since it was issued
+  const issue = data.issues.find((i) => i.dieCode === code && !i.returnedOn);
+  const used = kind === 'forging' ? jobsOnDie(state, code, issue?.issuedOn) : [];
+  const made = used.reduce((t, u) => t + u.pieces, 0);
+  const [pieces, setPieces] = useState(made ? String(made) : '');
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState<DieStatus>('Available');
   return (
@@ -588,7 +595,7 @@ export function ReturnForm({ kind, code, onClose }: { kind: DieKind; code: strin
         <Field label="Return Date" required>
           <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-        <Field label="Pieces Produced this run" hint="Added to the die's total">
+        <Field label="Pieces Produced this run" hint={made ? `Production recorded ${made.toLocaleString('en-IN')} PCS on ${used.map((u) => u.jobNo).join(', ')} — added to the die's total` : "Added to the die's total"}>
           <NumInput value={pieces} onChange={setPieces} autoFocus />
         </Field>
         <Field label="Die Condition on return">
@@ -631,6 +638,7 @@ export function HistoryList({ events, showCode = true }: { events: HistoryEvent[
 // ----------------------------------------------------------- Die viewer ---
 export function DieView({ kind, code, onClose }: { kind: DieKind; code: string; onClose: () => void }) {
   const { data, findDie, openUI } = useDies();
+  const { state } = useStore();
   const die = findDie(kind, code);
   if (!die) return null;
   const main = data.mainDies.find((m) => m.code === die.mainCode)!;
@@ -710,6 +718,19 @@ export function DieView({ kind, code, onClose }: { kind: DieKind; code: string; 
         {die.replacedByCode && <Row k="Replaced by" v={<span className="mono">{die.replacedByCode}</span>} />}
         <Row k="Remarks" v={die.remarks} />
       </div>
+      {kind === 'forging' && jobsOnDie(state, code).length > 0 && (
+        <>
+          <h4 style={{ margin: '16px 0 6px' }}>Used on job cards</h4>
+          <table className="tbl">
+            <thead><tr><th>Job No.</th><th>Product</th><th className="r">Forged (PCS)</th><th>Last</th></tr></thead>
+            <tbody>
+              {jobsOnDie(state, code).map((u) => (
+                <tr key={u.jobNo}><td className="mono">{u.jobNo}</td><td>{u.product}</td><td className="r">{u.pieces.toLocaleString('en-IN')}</td><td>{u.lastAt ? fmtDate(u.lastAt) : '—'}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
 
       {issues.length > 0 && (
         <>
