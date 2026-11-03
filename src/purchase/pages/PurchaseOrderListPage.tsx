@@ -57,6 +57,7 @@ import {
 } from '../services/poService';
 import { printPoWithAttachments } from '../printPo';
 import { fetchPOReceipts } from '../services/receiptService';
+import { useTabAccess } from '../../auth/tabs';
 import type {
   POBalance,
   POReceipt,
@@ -362,7 +363,9 @@ export function PurchaseOrderDetailPage({
   const [po, setPo] = useState<PODetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'items' | 'receipts' | 'approvals' | 'revisions'>('items');
+  const [activeTab0, setActiveTab] = useState<'items' | 'receipts' | 'approvals' | 'revisions'>('items');
+  const ta = useTabAccess('procurement_po', ['items', 'receipts', 'approvals', 'revisions'] as const);
+  const activeTab = ta.pick(activeTab0);
   const [receipts, setReceipts] = useState<POReceipt[]>([]);
   const [canSend, setCanSend] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -689,12 +692,12 @@ export function PurchaseOrderDetailPage({
         <Tabs
           value={activeTab}
           onChange={(t) => setActiveTab(t as typeof activeTab)}
-          items={[
+          items={ta.only([
             { value: 'items', label: 'Items & Receipt Progress', count: po.items.length },
             { value: 'receipts', label: 'Receipts', count: receipts.length },
             { value: 'approvals', label: 'Approval Trail', count: po.approvals.length },
             { value: 'revisions', label: 'Revision History', count: po.revisions.length },
-          ]}
+          ])}
         />
 
         <div style={{ marginTop: 14 }}>

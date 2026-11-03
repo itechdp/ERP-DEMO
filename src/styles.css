@@ -1437,3 +1437,7 @@ select.filter { padding-right: 36px; }
 .nav-sub-head .chev { margin-left: auto; transition: transform .15s var(--ease-out-quart); }
 .nav-sub-head.closed .chev { transform: rotate(-90deg); }
 .nav-sub-children { margin: 2px 0 4px 12px; padding-left: 10px; border-left: 1.5px solid var(--border); display: flex; flex-direction: column; gap: 2px; }
+
+/* Access Control: the tabs of a page, listed under it */
+.acc-row.acc-tab { margin-left: 26px; border-left: 2px solid var(--border); padding-left: 12px; }
+.acc-row.acc-tab .acc-name b { font-weight: 500; }

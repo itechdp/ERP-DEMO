@@ -85,8 +85,8 @@ export const SALES_KINDS: KindCfg[] = [
     label: 'Task Assignment',
     singular: 'Task',
     icon: ListChecks,
-    statuses: ['Open', 'In Progress', 'Done', 'Cancelled'],
-    openStatuses: ['Open', 'In Progress'],
+    statuses: ['Open', 'In Progress', 'On Hold', 'Done', 'Cancelled'],
+    openStatuses: ['Open', 'In Progress', 'On Hold'],
     printable: false,
     fields: [
       { key: 'title', label: 'Task', required: true, placeholder: 'What has to be done' },

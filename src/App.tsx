@@ -123,7 +123,8 @@ function Page({ route, query, navigate }: { route: string; query: URLSearchParam
   if (route === 'vmc') return <VmcPage />;
   if (route === 'customers') return <CustomersPage />;
   if (route === 'follow-ups') return <FollowupsPage navigate={navigate} />;
-  if (route === 'work-hub') return <WorkHubPage />;
+  if (route === 'work-hub') return <WorkHubPage key="hub" query={query} />;
+  if (route === 'task-assignment') return <WorkHubPage key="assign" query={query} initialTab="assignment" />;
   if (route === 'sales-dashboard') return <SalesDashboardPage navigate={navigate} />;
   if (route === 'sales-quotation') return <QuotationPage query={query} navigate={navigate} />;
   if (route === 'quotation-approvals') return <QuotationApprovalsPage query={query} navigate={navigate} />;

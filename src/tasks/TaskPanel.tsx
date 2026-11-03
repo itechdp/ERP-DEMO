@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Download, Eye, FileSpreadsheet, ListChecks, Pencil, Play, Plus, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, Download, Eye, FileSpreadsheet, ListChecks, Pause, Pencil, Play, Plus, RotateCcw, XCircle } from 'lucide-react';
 import { useAccess } from '../auth/access';
-import { Badge, Empty, Field, go, Modal, Search, Tabs } from '../components/ui';
+import { Badge, Empty, Field, go, Modal, Search } from '../components/ui';
 import { fmtDate, fmtDateTime } from '../components/format';
 import { useStore } from '../store/StoreContext';
 import { UrgencyBadge } from './UrgencyBadge';
@@ -9,18 +9,22 @@ import { TASK_REPORT_FIELDS, downloadTaskReport } from './taskReport';
 import { TASK_STATUSES, URGENCIES, fetchTasks, fmtDuration, setTaskStatus, taskOverdueDays, taskTimeTaken, type Task } from './service';
 
 const RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
-const isActive = (t: Task) => t.status === 'Open' || t.status === 'In Progress';
+const isActive = (t: Task) => t.status === 'Open' || t.status === 'In Progress' || t.status === 'On Hold';
 const dayStart = (iso: string) => new Date(iso.slice(0, 10) + 'T00:00:00').getTime();
 
-/** Task Assignment inside the Work Hub: everyone's tasks (or just mine), move them along, and download the report. */
-export function TaskPanel() {
+/**
+ * The tasks inside the Work Hub.
+ *  · mode "overview" (the Work Hub tab, for the administrators): everybody's tasks, the figures, the report and New Task
+ *  · mode "mine" (the My Tasks tab, for everybody): only the tasks given to me — Start, put On Hold, Resume, Complete
+ */
+export function TaskPanel({ mode = 'overview' }: { mode?: 'overview' | 'mine' }) {
   const { user, canWrite } = useAccess();
   const { toast } = useStore();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
-  const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  const scope = mode === 'mine' ? 'mine' : 'all';
   const [statusF, setStatusF] = useState('active');
   const [urgencyF, setUrgencyF] = useState('all');
   const [q, setQ] = useState('');
@@ -66,6 +70,7 @@ export function TaskPanel() {
   }, [tasks, scope, statusF, urgencyF, q]);
 
   const overdue = tasks.filter((t) => isActive(t) && taskOverdueDays(t) > 0).length;
+  const mine = tasks.filter((t) => t.mine);
   const tile = (label: string, value: number, tone?: string) => (
     <div className="card" style={{ padding: '12px 16px', minWidth: 130 }}>
       <div className="text-xs muted">{label}</div>
@@ -76,15 +81,27 @@ export function TaskPanel() {
   return (
     <>
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
-        {tile('My open tasks', mineCount)}
-        {tile('All open tasks', tasks.filter(isActive).length)}
-        {tile('Overdue', overdue, overdue ? 'text-red' : '')}
-        {tile('Completed', tasks.filter((t) => t.status === 'Done').length)}
+        {mode === 'mine' ? (
+          <>
+            {tile('To do', mine.filter((t) => t.status === 'Open').length)}
+            {tile('In progress', mine.filter((t) => t.status === 'In Progress').length)}
+            {tile('On hold', mine.filter((t) => t.status === 'On Hold').length)}
+            {tile('Overdue', mine.filter((t) => isActive(t) && taskOverdueDays(t) > 0).length, mine.some((t) => isActive(t) && taskOverdueDays(t) > 0) ? 'text-red' : '')}
+            {tile('Completed', mine.filter((t) => t.status === 'Done').length)}
+          </>
+        ) : (
+          <>
+            {tile('My open tasks', mineCount)}
+            {tile('All open tasks', tasks.filter(isActive).length)}
+            {tile('On hold', tasks.filter((t) => t.status === 'On Hold').length)}
+            {tile('Overdue', overdue, overdue ? 'text-red' : '')}
+            {tile('Completed', tasks.filter((t) => t.status === 'Done').length)}
+          </>
+        )}
       </div>
 
       <div className="card">
         <div className="card-head" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Tabs value={scope} onChange={setScope} items={[{ value: 'mine', label: 'My tasks' }, { value: 'all', label: 'All tasks' }]} />
           <Search value={q} onChange={setQ} placeholder="Search task, person, number…" />
           <select value={statusF} onChange={(e) => setStatusF(e.target.value)} aria-label="Status" className="input" style={{ width: 'auto', minWidth: 170 }}>
             <option value="active">Open &amp; in progress</option>
@@ -99,16 +116,18 @@ export function TaskPanel() {
               <option key={u}>{u}</option>
             ))}
           </select>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button className="btn btn-subtle" onClick={() => setReportOpen(true)} disabled={!tasks.length}>
-              <FileSpreadsheet size={15} /> Report
-            </button>
-            {canAdd && (
-              <button className="btn btn-primary" onClick={() => go('task-assignment?new=1')}>
-                <Plus size={15} /> New Task
+          {mode === 'overview' && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button className="btn btn-subtle" onClick={() => setReportOpen(true)} disabled={!tasks.length}>
+                <FileSpreadsheet size={15} /> Report
               </button>
-            )}
-          </div>
+              {canAdd && (
+                <button className="btn btn-primary" onClick={() => go('task-assignment?new=1')}>
+                  <Plus size={15} /> New Task
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -157,11 +176,18 @@ export function TaskPanel() {
                       <td className="nowrap">
                         {fmtDuration(taskTimeTaken(t))}
                         {t.status === 'In Progress' && <div className="text-xs muted">running</div>}
+                        {t.status === 'On Hold' && <div className="text-xs muted">paused</div>}
                       </td>
                       <td className="r nowrap">
                         <div className="icon-actions">
                           {can && t.status === 'Open' && (
                             <button className="btn btn-sm btn-subtle" disabled={busy === t.id} onClick={() => void move(t, 'In Progress', 'Task started')}><Play size={13} /> Start</button>
+                          )}
+                          {can && t.status === 'In Progress' && (
+                            <button className="btn btn-sm btn-subtle" disabled={busy === t.id} onClick={() => void move(t, 'On Hold', 'Task put on hold')}><Pause size={13} /> Hold</button>
+                          )}
+                          {can && t.status === 'On Hold' && (
+                            <button className="btn btn-sm btn-subtle" disabled={busy === t.id} onClick={() => void move(t, 'In Progress', 'Task resumed')}><Play size={13} /> Resume</button>
                           )}
                           {can && isActive(t) && (
                             <button className="btn btn-sm btn-primary" disabled={busy === t.id} onClick={() => void move(t, 'Done', 'Task completed')}><CheckCircle2 size={13} /> Complete</button>
@@ -169,7 +195,7 @@ export function TaskPanel() {
                           {can && (t.status === 'Done' || t.status === 'Cancelled') && (
                             <button className="btn btn-sm btn-subtle" disabled={busy === t.id} onClick={() => void move(t, 'Open', 'Task reopened')}><RotateCcw size={13} /> Reopen</button>
                           )}
-                          {can && isActive(t) && (
+                          {canAdd && isActive(t) && (
                             <button className="icon-btn danger" title="Cancel the task" aria-label={`Cancel ${t.docNo}`} disabled={busy === t.id} onClick={() => void move(t, 'Cancelled', 'Task cancelled')}><XCircle size={17} /></button>
                           )}
                           <button className="icon-btn" title="View" aria-label={`View ${t.docNo}`} onClick={() => go(`task-assignment?edit=${t.id}&view=1`)}><Eye size={17} /></button>

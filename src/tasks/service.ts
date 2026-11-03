@@ -7,7 +7,7 @@ const fail = (e: { message: string } | null) => {
 };
 
 export const URGENCIES = ['Low', 'Medium', 'High', 'Urgent'] as const;
-export const TASK_STATUSES = ['Open', 'In Progress', 'Done', 'Cancelled'] as const;
+export const TASK_STATUSES = ['Open', 'In Progress', 'On Hold', 'Done', 'Cancelled'] as const;
 
 export interface Task {
   id: number;
@@ -26,13 +26,16 @@ export interface Task {
   assignedAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
+  /** seconds the task has spent On Hold (finished holds), and when the current hold began */
+  heldSeconds: number;
+  holdStartedAt: string | null;
   mine: boolean;
 }
 
 const mapTask = (r: R): Task => ({
   id: Number(r.id), docNo: s(r.doc_no), docDate: s(r.doc_date), title: s(r.title), urgency: s(r.priority), status: s(r.status), assignee: s(r.assignee),
   assignedTo: r.assigned_to ?? null, assignedBy: s(r.assigned_by), refNo: s(r.ref_no), dueDate: r.due_date ?? null, remarks: s(r.remarks), createdAt: s(r.created_at),
-  assignedAt: r.assigned_at ?? null, startedAt: r.started_at ?? null, completedAt: r.completed_at ?? null, mine: !!r.mine,
+  assignedAt: r.assigned_at ?? null, startedAt: r.started_at ?? null, completedAt: r.completed_at ?? null, heldSeconds: Number(r.held_seconds ?? 0), holdStartedAt: r.hold_started_at ?? null, mine: !!r.mine,
 });
 
 export async function fetchTasks(): Promise<Task[]> {
@@ -73,9 +76,11 @@ const ms = (a: string | null, b: string | null) => (a && b ? new Date(b).getTime
 export function taskTimeTaken(t: Task, now = Date.now()): number | null {
   const from = t.startedAt ?? t.assignedAt;
   if (!from) return null;
-  if (t.completedAt) return ms(from, t.completedAt);
+  // the time spent On Hold does not count (finished holds, and the hold that is still going)
+  const held = t.heldSeconds * 1000 + (t.status === 'On Hold' && t.holdStartedAt ? Math.max(0, now - new Date(t.holdStartedAt).getTime()) : 0);
+  if (t.completedAt) return Math.max(0, (ms(from, t.completedAt) ?? 0) - held);
   if (t.status === 'Done' || t.status === 'Cancelled') return null;
-  return Math.max(0, now - new Date(from).getTime());
+  return Math.max(0, now - new Date(from).getTime() - held);
 }
 export const taskTimeToStart = (t: Task) => ms(t.assignedAt, t.startedAt);
 export const taskTurnaround = (t: Task) => ms(t.assignedAt, t.completedAt);

@@ -213,12 +213,13 @@ export function AccessPage() {
             <div className="acc-sec" key={sec}>
               <div className="acc-sec-h">{sec}</div>
               {matrix.resources
-                .filter((r) => r.section === sec)
+                .filter((r) => r.section === sec && !r.key.includes('__'))
+                .flatMap((r) => [r, ...matrix.resources.filter((t) => t.key.startsWith(`${r.key}__`))])
                 .map((r) => (
-                  <div className="acc-row" key={r.key}>
+                  <div className={`acc-row ${r.key.includes('__') ? 'acc-tab' : ''}`} key={r.key}>
                     <div className="acc-name">
-                      <b>{r.label}</b>
-                      {!r.writable && <span className="muted">view-only page</span>}
+                      <b>{r.key.includes('__') ? r.label.split(' › ').slice(1).join(' › ') : r.label}</b>
+                      {r.key.includes('__') ? <span className="muted">tab</span> : !r.writable && <span className="muted">view-only page</span>}
                     </div>
                     <Seg
                       label={`${r.label} access for ${roleLabel(role)}`}

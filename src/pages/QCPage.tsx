@@ -10,12 +10,15 @@ import { Badge, Empty, Field, InlineQty, JobLink, Modal, NumInput, PageHeader, Q
 import { tsFor } from '../components/NewJobModal';
 import { fmtNum, matches, todayISO } from '../components/format';
 import { useProductFlows } from '../products/flow';
+import { useTabAccess } from '../auth/tabs';
 
 type Filter = 'QC Pending' | 'inspected' | 'Rejections' | 'all';
 
 export function QCPage() {
   const { state, openTrace, openAction } = useStore();
-  const [view, setView] = useState<'register' | 'hardness' | 'dimension'>('register');
+  const [view0, setView] = useState<'register' | 'hardness' | 'dimension'>('register');
+  const ta = useTabAccess('qc', ['register', 'hardness', 'dimension'] as const);
+  const view = ta.pick(view0);
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [productF, setProductF] = useState('all');
@@ -60,11 +63,11 @@ export function QCPage() {
           <Tabs
             value={view}
             onChange={setView}
-            items={[
+            items={ta.only([
               { value: 'register', label: 'Inspection Register', count: recs.length, tone: 'blue' },
               { value: 'hardness', label: 'Hardness Reports', count: state.hardnessReports.length, tone: 'violet' },
               { value: 'dimension', label: 'Dimension Reports', tone: 'teal' },
-            ]}
+            ])}
           />
           {view === 'register' && total > 0 && (
             <div className="right">

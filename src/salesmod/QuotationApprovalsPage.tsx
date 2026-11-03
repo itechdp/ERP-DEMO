@@ -8,6 +8,7 @@ import { useQuotations } from './hooks';
 import { inr, pct } from './calc';
 import { MarginFlag, QuotationDetail, printFromList, type QStep } from './QuotationPage';
 import { fetchMinMargin, setMinMargin } from './service';
+import { useTabAccess } from '../auth/tabs';
 
 type Tab = 'pending' | 'decided';
 
@@ -15,7 +16,9 @@ export function QuotationApprovalsPage({ query, navigate }: { query?: URLSearchP
   const { quotations, loading, error, reload } = useQuotations();
   const { can, canWrite } = useAccess();
   const { toast } = useStore();
-  const [tab, setTab] = useState<Tab>('pending');
+  const [tab0, setTab] = useState<Tab>('pending');
+  const ta = useTabAccess('quotation_approvals', ['pending', 'decided'] as const);
+  const tab = ta.pick(tab0);
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<number | null>(Number(query?.get('id')) || null);
   const [step, setStep] = useState<QStep>(query?.get('step') === 'approve' ? 'approve' : null);
@@ -90,7 +93,7 @@ export function QuotationApprovalsPage({ query, navigate }: { query?: URLSearchP
       <div className="card">
         <div className="card-head">
           <div className="table-search-row">
-            <Tabs value={tab} onChange={setTab} items={[{ value: 'pending', label: 'Waiting for approval', count: pending.length, tone: 'amber' }, { value: 'decided', label: 'Decided', count: decided.length }]} />
+            <Tabs value={tab} onChange={setTab} items={ta.only([{ value: 'pending', label: 'Waiting for approval', count: pending.length, tone: 'amber' }, { value: 'decided', label: 'Decided', count: decided.length }])} />
             <Search value={q} onChange={setQ} placeholder="Search quotation, customer, salesperson…" />
           </div>
         </div>

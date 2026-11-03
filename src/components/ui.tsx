@@ -44,6 +44,7 @@ export const FLOW_STEPS: { key: string; label: string; short: string; icon: Icon
 // ---------------------------------------------------------------- Badge ---
 const TONE: Record<string, string> = {
   Pending: 'b-red',
+  'On Hold': 'b-amber',
   'In Progress': 'b-purple b-progress',
   Completed: 'b-green',
   'QC Pending': 'b-amber',

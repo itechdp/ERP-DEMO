@@ -14,6 +14,7 @@ import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, rowTone, Sea
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, matches, todayISO } from '../components/format';
 import { InwardPoSection } from '../purchase/components/InwardPoSection';
 import { LotQcModal } from './LotQcModal';
+import { useTabAccess } from '../auth/tabs';
 
 type View = 'stock' | 'inward' | 'issues';
 
@@ -25,7 +26,9 @@ export function RawInventoryPage() {
   const canQc = canWrite('raw_inventory') || canWrite('qc');
   // #/raw-inventory?lot=RM-2026-001 opens the inward register filtered to that lot
   const lotParam = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('lot') ?? '';
-  const [view, setView] = useState<View>(lotParam ? 'inward' : 'stock');
+  const [view0, setView] = useState<View>(lotParam ? 'inward' : 'stock');
+  const ta = useTabAccess('raw_inventory', ['stock', 'inward', 'issues'] as const);
+  const view = ta.pick(view0);
   const [q, setQ] = useState(lotParam);
   const [matF, setMatF] = useState('');
   const [statF, setStatF] = useState('');
@@ -157,11 +160,11 @@ export function RawInventoryPage() {
           <Tabs
             value={view}
             onChange={setView}
-            items={[
+            items={ta.only([
               { value: 'stock', label: 'Raw Material Stock', count: lots.length, tone: 'blue' },
               { value: 'inward', label: 'Inward Register', count: state.rawInwards.length, tone: 'violet' },
               { value: 'issues', label: 'Issues to Production', count: issues.length, tone: 'amber' },
-            ]}
+            ])}
           />
           <Search value={q} onChange={setQ} placeholder={canSee('party_names') ? 'Search material, supplier, lot, heat no…' : 'Search material, lot, heat no…'} />
           <FilterMenu

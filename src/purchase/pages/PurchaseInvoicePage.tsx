@@ -9,6 +9,7 @@ import { useStore } from '../../store/StoreContext';
 import { PaymentModal } from '../components/PaymentModal';
 import { cancelInvoice, fetchInvoiceDetail, fetchInvoiceablePOs, fetchInvoices, fetchPOInvoiceLines, postInvoice, saveInvoice } from '../services/invoiceService';
 import { INVOICE_RATE_TOLERANCE_PCT, type InvoiceDetail, type InvoiceablePO, type POInvoiceLine, type PurchaseInvoice } from '../types';
+import { useTabAccess } from '../../auth/tabs';
 
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -209,7 +210,9 @@ function InvoiceDetailView({ id, navigate, autoPay = false }: { id: number; navi
   const [inv, setInv] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'lines' | 'payments'>('lines');
+  const [tab0, setTab] = useState<'lines' | 'payments'>('lines');
+  const ta = useTabAccess('purchase_invoices', ['lines', 'payments'] as const);
+  const tab = ta.pick(tab0);
   const [payOpen, setPayOpen] = useState(autoPay);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -366,10 +369,10 @@ function InvoiceDetailView({ id, navigate, autoPay = false }: { id: number; navi
         <Tabs
           value={tab}
           onChange={(t) => setTab(t as typeof tab)}
-          items={[
+          items={ta.only([
             { value: 'lines', label: 'Lines & Three-way Match', count: inv.items.length },
             { value: 'payments', label: 'Payments', count: inv.payments.length },
-          ]}
+          ])}
         />
         <div style={{ marginTop: 14 }}>
           {tab === 'lines' && (

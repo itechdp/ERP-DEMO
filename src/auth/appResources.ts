@@ -36,7 +36,7 @@ export interface AppResourceDefinition {
   defaultLevels?: Partial<Record<Role, Level>>;
 }
 
-export const APP_RESOURCES: AppResourceDefinition[] = [
+const BASE_RESOURCES: AppResourceDefinition[] = [
   // --------------------------------------------------------- Main Menu ---
   {
     key: 'dashboard',
@@ -462,6 +462,35 @@ export const APP_RESOURCES: AppResourceDefinition[] = [
     defaultLevels: { accounts: 'write', qc: 'read', operator: 'read', viewer: 'read' },
   },
 ];
+
+/**
+ * The tabs of the pages that have them. Each is its own item in Settings → Access Control, listed under its page as "Page › Tab" and keyed
+ * `<page key>__<tab key>`; a role that is given a page can still be refused a tab. A tab that has no setting yet follows its page.
+ */
+export const PAGE_TABS: Record<string, { key: string; label: string }[]> = {
+  work_hub: [{ key: 'overview', label: 'Work Hub' }, { key: 'mytasks', label: 'My Tasks' }, { key: 'assignment', label: 'Task Assignment' }],
+  qc: [{ key: 'register', label: 'Inspection Register' }, { key: 'hardness', label: 'Hardness Reports' }, { key: 'dimension', label: 'Dimension Reports' }],
+  job_work: [{ key: 'batches', label: 'Job Work In' }, { key: 'report', label: 'Job Card Report' }],
+  raw_inventory: [{ key: 'stock', label: 'Raw Material Stock' }, { key: 'inward', label: 'Inward Register' }, { key: 'issues', label: 'Issues to Production' }],
+  die_details: [{ key: 'forging', label: 'Forging Dies' }, { key: 'trimming', label: 'Trimming Dies' }, { key: 'history', label: 'Die History' }, { key: 'images', label: 'Images & Drawings' }],
+  procurement_po: [{ key: 'items', label: 'Items & Receipt Progress' }, { key: 'receipts', label: 'Receipts' }, { key: 'approvals', label: 'Approval Trail' }, { key: 'revisions', label: 'Revision History' }],
+  purchase_invoices: [{ key: 'lines', label: 'Lines & Three-way Match' }, { key: 'payments', label: 'Payments' }],
+  quotation_approvals: [{ key: 'pending', label: 'Waiting for approval' }, { key: 'decided', label: 'Decided' }],
+};
+
+const TAB_RESOURCES: AppResourceDefinition[] = BASE_RESOURCES.flatMap((p) =>
+  (PAGE_TABS[p.key] ?? []).map((t) => ({
+    key: `${p.key}__${t.key}`,
+    route: `${p.route}#${t.key}`, // never opened as a page; only keeps the key / route lists one-to-one
+    label: `${p.label} › ${t.label}`,
+    section: p.section,
+    sort: p.sort,
+    writable: true,
+    ...(p.key === 'work_hub' && t.key === 'overview' ? { defaultLevels: { plant_head: 'write', accounts: 'hidden', qc: 'hidden', operator: 'hidden', viewer: 'hidden' } as AppResourceDefinition['defaultLevels'] } : {}),
+  })),
+);
+
+export const APP_RESOURCES: AppResourceDefinition[] = [...BASE_RESOURCES, ...TAB_RESOURCES];
 
 /** Route → Resource Key map (e.g. 'purchase-dashboard' → 'purchase_dashboard') */
 export const ROUTE_RESOURCE: Record<string, string> = {

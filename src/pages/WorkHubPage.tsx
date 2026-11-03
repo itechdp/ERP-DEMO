@@ -1,32 +1,41 @@
 import { useState } from 'react';
-import { ListChecks } from 'lucide-react';
 import { useAccess } from '../auth/access';
-import { PageHeader, Tabs, type Icon } from '../components/ui';
+import { useTabAccess } from '../auth/tabs';
+import { PageHeader, Tabs } from '../components/ui';
 import { TaskPanel } from '../tasks/TaskPanel';
 import { NoAccess } from './NoAccess';
+import { SalesListPage } from './SalesPages';
+
+type Tab = 'overview' | 'mytasks' | 'assignment';
+const TABS = ['overview', 'mytasks', 'assignment'] as const;
 
 /**
- * The Work Hub: one place to browse the works of several sections. Each section is one entry below — to add a section later,
- * add an entry (its page access key, a label, and what to show). A section only appears for people who may open its page.
+ * The Work Hub: three tabs on one page (each one is its own item in Settings → Access Control).
+ *  · Work Hub         — everybody's work at a glance, the report, New Task. For the administrators only, unless Access Control says otherwise.
+ *  · My Tasks         — the tasks given to me: Start, Hold, Resume, Complete. Everybody has it.
+ *  · Task Assignment  — the task list and the form to give a task to somebody (needs the Task Assignment page as well).
+ * The old Task Assignment address opens this page on its tab, so the forms and the notification links keep working.
  */
-const SECTIONS: { key: string; resource: string; label: string; icon: Icon; render: () => JSX.Element }[] = [
-  { key: 'tasks', resource: 'task_assignment', label: 'Task Assignment', icon: ListChecks, render: () => <TaskPanel /> },
-];
-
-export function WorkHubPage() {
+export function WorkHubPage({ query, initialTab }: { query: URLSearchParams; initialTab?: Tab }) {
   const { canRead } = useAccess();
-  // everybody who can open the hub sees their own tasks, even without the Task Assignment page
-  const visible = SECTIONS.filter((s) => s.key === 'tasks' || canRead(s.resource));
-  const [active, setActive] = useState(visible[0]?.key ?? '');
-  const cur = visible.find((s) => s.key === active) ?? visible[0];
-  if (!cur) return <NoAccess />;
+  const ta = useTabAccess('work_hub', TABS);
+  const fromUrl = TABS.find((t) => t === query.get('tab'));
+  const [tab0, setTab] = useState<Tab>(initialTab ?? fromUrl ?? 'overview');
+  // the assignment tab also needs the Task Assignment page itself
+  const allowed = ta.allowed.filter((k) => k !== 'assignment' || canRead('task_assignment'));
+  const tab: Tab | undefined = allowed.includes(tab0) ? tab0 : allowed[0];
+  if (!tab) return <NoAccess />;
+  const labels: Record<Tab, string> = { overview: 'Work Hub', mytasks: 'My Tasks', assignment: 'Task Assignment' };
+
   return (
     <>
-      <PageHeader eyebrow="Main Menu" title="Work Hub" subtitle="Browse and update the work of the different sections in one place." />
+      <PageHeader eyebrow="Main Menu" title="Work Hub" subtitle="Everybody's work, your own tasks and giving out tasks, in one place." />
       <div style={{ marginBottom: 14 }}>
-        <Tabs value={cur.key} onChange={setActive} items={visible.map((s) => ({ value: s.key, label: s.label }))} />
+        <Tabs value={tab} onChange={setTab} items={allowed.map((k) => ({ value: k, label: labels[k] }))} />
       </div>
-      {cur.render()}
+      {tab === 'overview' && <TaskPanel mode="overview" />}
+      {tab === 'mytasks' && <TaskPanel mode="mine" />}
+      {tab === 'assignment' && <SalesListPage route="task-assignment" query={query} />}
     </>
   );
 }

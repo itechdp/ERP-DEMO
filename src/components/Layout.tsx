@@ -68,7 +68,8 @@ export interface NavItem {
 const flowItem = (s: (typeof FLOW_STEPS)[number]): NavItem => ({ route: s.route, label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label, icon: s.icon });
 // the Instruction page sits just above Heat Treatment
 const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.flatMap((s) => (s.key === 'heatTreatment' ? [{ route: 'instruction', label: 'Instruction', icon: BookOpen }, flowItem(s)] : [flowItem(s)])).concat([{ route: 'production-planning', label: 'Heat Treatment Planning', icon: ListOrdered }, { route: 'furnaces', label: 'Furnace Management', icon: Flame }, { route: 'job-work', label: 'Job Work In', icon: Handshake }, { route: 'job-work-out', label: 'Job Work Out', icon: Send }]);
-const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
+// Task Assignment is a tab of the Work Hub now, so it is not listed here
+const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.filter((p) => p.route !== 'task-assignment').map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
 const PURCHASE_NAV: NavItem[] = [
   { route: 'purchase-dashboard', label: 'Purchase Dashboard', icon: LayoutGrid },
   { route: 'purchase-requisitions', label: 'Purchase Requisitions', icon: FileText },
@@ -97,18 +98,27 @@ const DIE_NAV: NavItem[] = [
 const MACHINERY_ITEMS: NavItem[] = [{ route: 'cnc', label: 'CNC', icon: Cpu }, { route: 'vmc', label: 'VMC', icon: Cog }, { route: 'qc', label: 'QC', icon: ShieldCheck }];
 export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, MACHINERY_ITEMS[0], MACHINERY_ITEMS[1], ...REPORT_NAV];
 
-// Machinery (CNC, VMC, QC) sits directly under Heat Treatment
-const withMachinery = (items: NavItem[]): NavItem[] => {
-  const at = items.findIndex((n) => n.route === 'heat-treatment');
-  const group: NavItem = { route: 'machinery', label: 'Machinery', icon: Wrench, children: MACHINERY_ITEMS };
-  return at < 0 ? [...items, group] : [...items.slice(0, at + 1), group, ...items.slice(at + 1)];
+// The Workflow list: the process steps, with Heat Treatment (its planning and furnaces), Machinery and Job Work as sub-menus
+const workflowItems = (): NavItem[] => {
+  const by = (r: string) => WORKFLOW_NAV.find((n) => n.route === r)!;
+  return [
+    by('cutting'),
+    by('forging'),
+    by('trimming'),
+    by('instruction'),
+    { route: 'heat-treatment-group', label: 'Heat Treatment', icon: Flame, children: [{ ...by('heat-treatment'), label: 'Process' }, by('production-planning'), by('furnaces')] },
+    { route: 'machinery', label: 'Machinery', icon: Wrench, children: MACHINERY_ITEMS },
+    by('finished-goods'),
+    by('dispatch'),
+    { route: 'job-work-group', label: 'Job Work', icon: Handshake, children: [by('job-work'), by('job-work-out')] },
+  ];
 };
 
 const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = [
   { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'work-hub', label: 'Work Hub', icon: ClipboardList }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
   { id: 'sales', title: 'Sales & Orders', icon: Briefcase, items: SALES_NAV },
   { id: 'purchase', title: 'Purchase & Procurement', icon: ShoppingBag, items: PURCHASE_NAV },
-  { id: 'flow', title: 'Workflow', icon: Workflow, items: withMachinery(WORKFLOW_NAV.filter((n) => n.route !== 'raw-inventory' && n.route !== 'qc')) },
+  { id: 'flow', title: 'Workflow', icon: Workflow, items: workflowItems() },
   { id: 'dies', title: 'Die Management', icon: Cog, items: DIE_NAV },
   { id: 'reports', title: 'Reports & Masters', icon: BarChart3, items: REPORT_NAV },
 ];

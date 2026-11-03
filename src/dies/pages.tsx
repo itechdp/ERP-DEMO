@@ -7,6 +7,7 @@ import { useDies } from './DieContext';
 import { DemoChip, DIE_ROW, DieBadge, HistoryList, KindChip, RowMenu, Thumb } from './components';
 import { exportDies, exportMainDies, fmtDims, fmtWt, printDieCard } from './print';
 import { DIE_STATUSES, KIND_LABEL, METALS, type Die, type DieKind } from './types';
+import { useTabAccess } from '../auth/tabs';
 
 export const go = (route: string) => {
   window.location.hash = `/${route}`;
@@ -325,7 +326,9 @@ export function DieDetailsPage({ query }: { query: URLSearchParams }) {
   const { data, openUI } = useDies();
   const id = query.get('id') ?? '';
   const main = data.mainDies.find((m) => m.code === id);
-  const [tab, setTab] = useState<Tab>((['forging', 'trimming', 'history', 'images'] as const).find((t) => t === query.get('tab')) ?? 'forging');
+  const [tab0, setTab] = useState<Tab>((['forging', 'trimming', 'history', 'images'] as const).find((t) => t === query.get('tab')) ?? 'forging');
+  const ta = useTabAccess('die_details', ['forging', 'trimming', 'history', 'images'] as const);
+  const tab = ta.pick(tab0);
   const [hq, setHq] = useState('');
 
   // ---- no component chosen: a picker
@@ -416,12 +419,12 @@ export function DieDetailsPage({ query }: { query: URLSearchParams }) {
           <Tabs
             value={tab}
             onChange={setTab}
-            items={[
+            items={ta.only([
               { value: 'forging', label: 'Forging Dies', count: f.length, tone: 'amber' },
               { value: 'trimming', label: 'Trimming Dies', count: t.length, tone: 'violet' },
               { value: 'history', label: 'Die History', count: events.length, tone: 'blue' },
               { value: 'images', label: 'Images & Drawings', tone: 'teal' },
-            ]}
+            ])}
           />
         </div>
 

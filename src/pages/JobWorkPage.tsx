@@ -15,6 +15,7 @@ import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { BASIS_LABEL, chargeText, printJobWorkReceipt, processText } from '../jobwork/print';
 import { inr } from '../sales/print';
 import type { JobWork } from '../store/types';
+import { useTabAccess } from '../auth/tabs';
 
 type Proc = JobWork['processes'];
 const PROCESSES: { key: keyof Proc; label: string }[] = [
@@ -33,7 +34,9 @@ export function JobWorkPage() {
   const [srcF, setSrcF] = useState('all');
   const [deleting, setDeleting] = useState<JobWork | null>(null);
   const [editing, setEditing] = useState<JobWork | null>(null);
-  const [tab, setTab] = useState<'batches' | 'report'>('batches');
+  const [tab0, setTab] = useState<'batches' | 'report'>('batches');
+  const ta = useTabAccess('job_work', ['batches', 'report'] as const);
+  const tab = ta.pick(tab0);
 
   const jobOf = (w: JobWork) => state.jobs.find((j) => j.jobNo === w.jobNo);
   const list = useMemo(() => [...state.jobWork].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.jobNo.localeCompare(a.jobNo)), [state.jobWork]);
@@ -53,7 +56,7 @@ export function JobWorkPage() {
     <>
       <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <Write res="job_work">{add}</Write> : undefined} />
       <div style={{ marginBottom: 16 }}>
-        <Tabs value={tab} onChange={setTab} items={[{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'report', label: 'Job Card Report' }]} />
+        <Tabs value={tab} onChange={setTab} items={ta.only([{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'report', label: 'Job Card Report' }])} />
       </div>
       {tab === 'report' ? (
         <JobCardReport />
