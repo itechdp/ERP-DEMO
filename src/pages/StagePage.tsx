@@ -10,6 +10,13 @@ import { Badge, Empty, Field, FLOW_STEPS, InlineQty, JobLink, Modal, NumInput, P
 import { FifoPreview, tsFor } from '../components/NewJobModal';
 import { nextStep } from '../components/workflow';
 import { fmtNum, heatTempText, matches, todayISO } from '../components/format';
+import { usePlan } from '../planning/usePlan';
+import { useFurnaces } from '../furnaces/service';
+import { useProductFlows } from '../products/flow';
+
+/** why a waiting Heat Treatment batch cannot start: not approved yet, or no furnace assigned (when the plant has furnaces) */
+export type Block = 'approval' | 'furnace' | null;
+const BLOCK_TEXT: Record<Exclude<Block, null>, string> = { approval: 'Waiting for approval', furnace: 'Waiting for a furnace' };
 
 const CFG: Record<ProcessStage, { title: string; from: string; to: string }> = {
   cutting: {
@@ -44,6 +51,10 @@ const batchSkips = (forging: { jobNo: string; params: Record<string, string | nu
 
 export function StagePage({ stage }: { stage: ProcessStage }) {
   const { state, openAction, run } = useStore();
+  const plan = usePlan();
+  const fu = useFurnaces();
+  const pflow = useProductFlows();
+  const blockOf = (jobNo: string, st: ProcessStage): Block => (plan.blocked(jobNo, st) ? 'approval' : st === 'heatTreatment' && fu.hasFurnaces && !fu.loadOfJob(jobNo) ? 'furnace' : null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const cfg = CFG[stage];
   const step = FLOW_STEPS.find((s) => s.key === stage)!;
@@ -69,14 +80,16 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
         const p = getProduct(state, job.productId);
         return (productF === 'all' || p.id === productF) && matches(q, r.jobNo, p.name, searchable(job.customer), searchableCol(r.machine, 'stage.machine'), searchableCol(r.operator, 'stage.operator'));
       })
-      .sort((a, b) => order[a.status] - order[b.status] || (b.completedAt ?? b.receivedAt).localeCompare(a.completedAt ?? a.receivedAt));
-  }, [recs, filter, q, productF, state]);
+      .sort((a, b) => order[a.status] - order[b.status] || (plan.find(a.jobNo, stage)?.rank ?? 1e9) - (plan.find(b.jobNo, stage)?.rank ?? 1e9) || (b.completedAt ?? b.receivedAt).localeCompare(a.completedAt ?? a.receivedAt));
+  }, [recs, filter, q, productF, state, plan, stage]);
 
   // Jobs still upstream — they will arrive here later (demonstrates parallel stages)
   const idx = PROCESS_STAGES.indexOf(stage);
   const upstream = state.jobs
     .filter((j) => PROCESS_STAGES.indexOf(j.currentStage as ProcessStage) > -1 && PROCESS_STAGES.indexOf(j.currentStage as ProcessStage) < idx)
-    .filter((j) => !batchSkips(state.forging, j.jobNo, stage));
+    .filter((j) => !batchSkips(state.forging, j.jobNo, stage))
+    // a product that does not tick this process never reaches it (Product Master → Work to be done)
+    .filter((j) => !((stage === 'trimming' && !pflow.of(j.productId).trimming) || (stage === 'heatTreatment' && !pflow.of(j.productId).heatTreatment)));
 
   return (
     <>
@@ -158,7 +171,7 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <Row key={r.id} r={r} onProcess={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo })} deleteReason={jobDeleteReason(state, r.jobNo)} onDelete={() => setDeleting(r.jobNo)} />
+                  <Row key={r.id} r={r} approval={plan.find(r.jobNo, stage)} block={r.status === 'Pending' ? blockOf(r.jobNo, stage) : null} onProcess={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo })} deleteReason={jobDeleteReason(state, r.jobNo)} onDelete={() => setDeleting(r.jobNo)} />
                 ))}
               </tbody>
             </table>
@@ -181,13 +194,17 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
   );
 }
 
-function Row({ r, onProcess, deleteReason, onDelete }: { r: StageRecord; onProcess: () => void; deleteReason: string | null; onDelete: () => void }) {
-  const { state, openTrace } = useStore();
+function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: StageRecord; approval?: { rank: number }; block: Block; onProcess: () => void; deleteReason: string | null; onDelete: () => void }) {
+  const { state, openTrace, toast } = useStore();
   const job = getJob(state, r.jobNo);
   const p = getProduct(state, job.productId);
   const mat = parseMaterialKey(job.materialKey);
   const canAct = r.status !== 'Completed';
-  const act = () => canAct && onProcess();
+  const act = () => {
+    if (!canAct) return;
+    if (block) return toast({ kind: 'info', title: block === 'approval' ? 'Not approved to start yet' : 'No furnace yet', message: block === 'approval' ? `${r.jobNo} must be approved in Heat Treatment Planning (with its rank) before ${STAGE_LABEL[r.stage]} can start.` : `${r.jobNo} needs a furnace: assign one in Heat Treatment Planning (on hold until one is free).` });
+    onProcess();
+  };
   return (
     <tr
       className={`${rowTone(r.status === 'Completed' ? 'Completed' : 'Pending')} ${canAct ? 'row-click' : ''}`}
@@ -230,6 +247,8 @@ function Row({ r, onProcess, deleteReason, onDelete }: { r: StageRecord; onProce
       </Conf>
       <td>
         <Badge status={r.status === 'Completed' ? 'Completed' : 'Pending'} />
+        {r.status !== 'Completed' && approval && <div className="sub"><span className="chip chip-up">Approved #{approval.rank}</span></div>}
+        {block && <div className="sub"><span className="chip chip-wait">{BLOCK_TEXT[block]}</span></div>}
       </td>
       <td className="r nowrap">
         <div className="icon-actions">
@@ -268,6 +287,8 @@ function Row({ r, onProcess, deleteReason, onDelete }: { r: StageRecord; onProce
 /** One row of the route card: Inward Date, Received Qty, Rejection Qty, OK Qty, Checked By. */
 export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; jobNo: string; onClose: () => void }) {
   const { state, run, masters } = useStore();
+  const plan = usePlan();
+  const fu = useFurnaces();
   const rec = stageRecords(state, stage).find((r) => r.jobNo === jobNo && r.status !== 'Completed');
   const job = getJob(state, jobNo);
   const p = getProduct(state, job.productId);
@@ -288,18 +309,23 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   // Cutting: the received qty is the cut qty, issued from raw stock (editable until issued)
   const editableInput = stage === 'cutting' && rec.status === 'Pending';
   const inN = editableInput ? Number(received) : rec.input;
-  const rejN = Number(rejection);
+  // Heat Treatment: nothing is mandatory — an empty rejection simply means none rejected
+  const optional = stage === 'heatTreatment';
+  const rejN = optional && rejection.trim() === '' ? 0 : Number(rejection);
   const ok = inN - rejN;
   // job work on the customer's material never touches our raw inventory
   const ownStock = (state.jobWork.find((w) => w.jobNo === jobNo)?.materialSource ?? 'own') === 'own';
   const rawAvail = state.rawMaterials.filter((l) => `${l.material}|${l.od}` === job.materialKey).reduce((t, l) => t + l.availableQty, 0);
 
   const errIn = editableInput ? (!(inN > 0) || !Number.isInteger(inN) ? 'Enter a whole quantity' : ownStock && inN > rawAvail ? `Only ${rawAvail} PCS in raw stock` : null) : null;
-  const errRej = rejection === '' || rejN < 0 || !Number.isInteger(rejN) ? 'Whole number' : rejN > inN ? `Cannot exceed ${inN}` : null;
+  const errRej = (!optional && rejection === '') || rejN < 0 || !Number.isInteger(rejN) ? 'Whole number' : rejN > inN ? `Cannot exceed ${inN}` : null;
   // T1–T4 are optional: leave one empty and it is simply not recorded; a value that is typed must be a positive number
   const tempErr = (v: string) => (stage === 'heatTreatment' && v.trim() !== '' && !(Number(v) > 0) ? 'Enter a positive temperature' : null);
   const errTemp = temps.some((v) => tempErr(v));
-  const invalid = !!errIn || !!errRej || errTemp;
+  // a process that is still waiting cannot start until Heat Treatment Planning has approved it
+  const unapproved = rec.status === 'Pending' && plan.blocked(jobNo, stage);
+  const noFurnace = rec.status === 'Pending' && !unapproved && stage === 'heatTreatment' && fu.hasFurnaces && !fu.loadOfJob(jobNo);
+  const invalid = !!errIn || !!errRej || errTemp || unapproved || noFurnace;
   // where the batch goes next (Forging can skip Trimming and / or Heat Treatment)
   const to = stage === 'forging' ? (skipTrim ? (skipHT ? 'QC' : 'Heat Treatment') : 'Trimming') : cfg.to;
 
@@ -345,6 +371,20 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
         </>
       }
     >
+      {noFurnace && (
+        <div className="callout warn" style={{ marginBottom: 16 }}>
+          <div>
+            <b>No furnace yet.</b> {jobNo} is on hold until a furnace is assigned in Heat Treatment Planning.
+          </div>
+        </div>
+      )}
+      {unapproved && (
+        <div className="callout warn" style={{ marginBottom: 16 }}>
+          <div>
+            <b>Not approved to start yet.</b> Heat Treatment Planning must approve {jobNo} for {STAGE_LABEL[stage]} (with its rank) before it can be saved.
+          </div>
+        </div>
+      )}
       {stage === 'forging' && (
         <div className="check-row" style={{ marginBottom: 16 }}>
           <label className={`check ${skipTrim ? 'on' : ''}`}>
@@ -361,10 +401,10 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
         <Field label="Inward Date">
           <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-        <Field label="Received Qty" required error={errIn} hint={editableInput ? (ownStock ? `Cut qty · ${fmtNum(rawAvail)} PCS in raw stock` : "Customer's material · not taken from our stock") : `OK qty from ${cfg.from}`}>
+        <Field label="Received Qty" required={!optional} error={errIn} hint={editableInput ? (ownStock ? `Cut qty · ${fmtNum(rawAvail)} PCS in raw stock` : "Customer's material · not taken from our stock") : `OK qty from ${cfg.from}`}>
           <NumInput value={editableInput ? received : rec.input} onChange={setReceived} readOnly={!editableInput} bad={!!errIn} />
         </Field>
-        <Field label="Rejection Qty" required error={errRej}>
+        <Field label="Rejection Qty" required={!optional} error={errRej}>
           <NumInput value={rejection} onChange={setRejection} bad={!!errRej} autoFocus={!editableInput} />
         </Field>
         <Field label="OK Qty" hint="Received − Rejection">

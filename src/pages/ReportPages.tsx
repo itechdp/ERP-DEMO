@@ -1,6 +1,6 @@
 import * as api from '../db/api';
 import { Conf, Write, searchable, canSee, useAccess } from '../auth/access';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, Package, Pencil, Plus, ScrollText, Waypoints, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobDeleteReason, productDeleteReason } from '../store/deletable';
@@ -8,7 +8,8 @@ import { jobSummary, PROCESS_STAGES, STAGE_LABEL } from '../store/engine';
 import { MATERIAL_FAMILIES, MATERIAL_MASTER, findMaterial } from '../store/materials';
 import { ADD_NEW, useAddMaterial } from '../masters/AddItem';
 import { CustomerSelect } from '../masters/CustomerSelect';
-import type { Product } from '../store/types';
+import type { HardnessScale, Product } from '../store/types';
+import { DEFAULT_FLOW, saveProductFlow, useProductFlows } from '../products/flow';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
 
@@ -361,10 +362,25 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
     defaultCustomer: cur?.defaultCustomer ?? '',
     salesRate: cur?.salesRate ? String(cur.salesRate) : '',
   });
+  // work to be done and hardness (Product Master): saved beside the product, read again when it opens
+  const pf = useProductFlows();
+  const [flow, setFlow] = useState(DEFAULT_FLOW);
+  const [hMin, setHMin] = useState('');
+  const [hMax, setHMax] = useState('');
+  const flowLoaded = useRef(false);
+  useEffect(() => {
+    const saved = id ? pf.flows[id] : undefined;
+    if (!saved || flowLoaded.current) return;
+    flowLoaded.current = true;
+    setFlow(saved);
+    setHMin(saved.hardnessMin ? String(saved.hardnessMin) : '');
+    setHMax(saved.hardnessMax ? String(saved.hardnessMax) : '');
+  }, [pf.flows, id]);
+  const hardnessOk = !flow.hardnessRequired || (Number(hMin) > 0 && Number(hMax) >= Number(hMin));
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const pickMaterial = (m: string) => setF((x) => ({ ...x, material: m, od: x.od || String(findMaterial(m)?.defaultOd ?? '') }));
   const addMaterial = useAddMaterial((n) => pickMaterial(n));
-  const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0;
+  const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0 && hardnessOk;
   const submit = async () => {
     const input: Omit<Product, 'id'> = {
       code: f.code,
@@ -381,7 +397,8 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       defaultCustomer: f.defaultCustomer,
       salesRate: Number(f.salesRate) > 0 ? Number(f.salesRate) : undefined,
     };
-    if (await run(() => api.saveProduct(input, state.products, id), { title: id ? 'Product updated' : 'Product added', message: `${f.code.trim()} · ${f.name.trim()}` })) onClose();
+    const flowToSave = { ...flow, hardnessMin: flow.hardnessRequired ? Number(hMin) : undefined, hardnessMax: flow.hardnessRequired ? Number(hMax) : undefined };
+    if (await run(async () => { const pid = await api.saveProduct(input, state.products, id); await saveProductFlow(pid || id || '', flowToSave); return pid; }, { title: id ? 'Product updated' : 'Product added', message: `${f.code.trim()} · ${f.name.trim()}` })) onClose();
   };
   return (
     <Modal
@@ -457,6 +474,42 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           <input className="input" value={f.htQuench} onChange={(e) => set('htQuench', e.target.value)} placeholder="e.g. Still air" />
         </Field>
       </div>
+      <div className="section-label">Work to be done</div>
+      <div className="check-row">
+        <label className="check on" title="Every job starts with cutting">
+          <input type="checkbox" checked disabled readOnly />
+          Cutting
+        </label>
+        {([['forging', 'Forging'], ['trimming', 'Trimming'], ['heatTreatment', 'Heat Treatment']] as const).map(([k, label]) => (
+          <label key={k} className={`check ${flow[k] ? 'on' : ''}`}>
+            <input type="checkbox" checked={flow[k]} onChange={(e) => setFlow((x) => ({ ...x, [k]: e.target.checked }))} />
+            {label}
+          </label>
+        ))}
+      </div>
+      <div className="text-xs muted" style={{ marginTop: 6 }}>A job of this product passes straight over any process left unticked. For example Cutting + Trimming only does Cutting, then Trimming.</div>
+      <div className="section-label">Hardness</div>
+      <label className={`check ${flow.hardnessRequired ? 'on' : ''}`}>
+        <input type="checkbox" checked={flow.hardnessRequired} onChange={(e) => setFlow((x) => ({ ...x, hardnessRequired: e.target.checked }))} />
+        This product needs a hardness check
+      </label>
+      {flow.hardnessRequired && (
+        <div className="form-grid three" style={{ marginTop: 12 }}>
+          <Field label="Required hardness — from" required>
+            <NumInput value={hMin} onChange={setHMin} step="any" />
+          </Field>
+          <Field label="to" required>
+            <NumInput value={hMax} onChange={setHMax} step="any" />
+          </Field>
+          <Field label="Scale">
+            <select value={flow.hardnessScale} onChange={(e) => setFlow((x) => ({ ...x, hardnessScale: e.target.value as HardnessScale }))}>
+              {(['HRB', 'HRC', 'HV', 'HB'] as const).map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
       {(can('party_names') || can('sales_rates')) && (
         <>
           <div className="section-label">Commercial (confidential)</div>

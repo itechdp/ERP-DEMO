@@ -8,7 +8,8 @@ import { CustomerSelect } from '../masters/CustomerSelect';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { STAGE_LABEL } from '../store/engine';
 import { jobWorkDeleteReason } from '../store/deletable';
-import { Confirm, Empty, Field, FilterMenu, JobLink, Modal, NumInput, PageHeader, Search } from '../components/ui';
+import { Confirm, Empty, Field, FilterMenu, JobLink, Modal, NumInput, PageHeader, Search, Tabs } from '../components/ui';
+import { JobCardReport } from '../jobwork/JobCardReport';
 import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { BASIS_LABEL, chargeText, printJobWorkReceipt, processText } from '../jobwork/print';
 import { inr } from '../sales/print';
@@ -31,6 +32,7 @@ export function JobWorkPage() {
   const [srcF, setSrcF] = useState('all');
   const [deleting, setDeleting] = useState<JobWork | null>(null);
   const [editing, setEditing] = useState<JobWork | null>(null);
+  const [tab, setTab] = useState<'batches' | 'report'>('batches');
 
   const jobOf = (w: JobWork) => state.jobs.find((j) => j.jobNo === w.jobNo);
   const list = useMemo(() => [...state.jobWork].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.jobNo.localeCompare(a.jobNo)), [state.jobWork]);
@@ -49,6 +51,12 @@ export function JobWorkPage() {
   return (
     <>
       <PageHeader eyebrow="Workflow" title="Job Work" actions={list.length > 0 ? <Write res="job_work">{add}</Write> : undefined} />
+      <div style={{ marginBottom: 16 }}>
+        <Tabs value={tab} onChange={setTab} items={[{ value: 'batches', label: 'Job Work', count: list.length }, { value: 'report', label: 'Job Card Report' }]} />
+      </div>
+      {tab === 'report' ? (
+        <JobCardReport />
+      ) : (
       <div className="card">
         {list.length === 0 ? (
           <Empty icon={Handshake} title="No job work yet" text="Customers' parts received for only some of the processes appear here." action={<Write res="job_work">{add}</Write>} />
@@ -157,6 +165,7 @@ export function JobWorkPage() {
           </>
         )}
       </div>
+      )}
       {editing && <JobWorkEdit w={editing} onClose={() => setEditing(null)} />}
       <Confirm
         open={!!deleting}

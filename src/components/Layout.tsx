@@ -40,6 +40,7 @@ import {
   Eye,
   Users,
   ListOrdered,
+  Flame,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -61,7 +62,7 @@ const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.map((s) => ({
   route: s.route,
   label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label,
   icon: s.icon,
-})).concat([{ route: 'job-work', label: 'Job Work', icon: Handshake }]);
+})).concat([{ route: 'production-planning', label: 'Heat Treatment Planning', icon: ListOrdered }, { route: 'furnaces', label: 'Furnace Management', icon: Flame }, { route: 'job-work', label: 'Job Work', icon: Handshake }]);
 const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
 const PURCHASE_NAV: NavItem[] = [
   { route: 'purchase-dashboard', label: 'Purchase Dashboard', icon: LayoutGrid },

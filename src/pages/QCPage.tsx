@@ -8,6 +8,7 @@ import { getJob, getProduct } from '../store/engine';
 import { Badge, Empty, Field, InlineQty, JobLink, Modal, NumInput, PageHeader, QtyFlow, rowTone, Search, SummaryLine, Tabs, FilterMenu } from '../components/ui';
 import { tsFor } from '../components/NewJobModal';
 import { fmtNum, matches, todayISO } from '../components/format';
+import { useProductFlows } from '../products/flow';
 
 type Filter = 'QC Pending' | 'inspected' | 'Rejections' | 'all';
 
@@ -181,6 +182,7 @@ export function QCPage() {
 /** QC row of the route card: Inward Date, Received Qty, Rejection Qty, OK Qty, Checked By. */
 export function InspectModal({ jobNo, onClose }: { jobNo: string; onClose: () => void }) {
   const { state, run, masters } = useStore();
+  const pf = useProductFlows();
   const rec = state.qc.find((r) => r.jobNo === jobNo && r.status === 'QC Pending');
   const job = getJob(state, jobNo);
   const p = getProduct(state, job.productId);
@@ -223,6 +225,22 @@ export function InspectModal({ jobNo, onClose }: { jobNo: string; onClose: () =>
         </>
       }
     >
+      {pf.of(job.productId).hardnessRequired && (
+        <div className={`callout ${state.hardnessReports.some((h) => h.jobNo === jobNo) ? 'info' : 'warn'}`} style={{ marginBottom: 16 }}>
+          <ShieldCheck size={16} />
+          <div>
+            {state.hardnessReports.some((h) => h.jobNo === jobNo) ? (
+              <>
+                <b>Hardness report done</b> for this job ({state.hardnessReports.filter((h) => h.jobNo === jobNo).map((h) => h.id).join(', ')}).
+              </>
+            ) : (
+              <>
+                <b>This product needs a hardness check</b> ({pf.of(job.productId).hardnessMin}–{pf.of(job.productId).hardnessMax} {pf.of(job.productId).hardnessScale}) and no hardness report has been entered for {jobNo} yet. Add it from the Hardness tab.
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div className="form-grid three">
         <Field label="Inward Date">
           <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />

@@ -20,6 +20,8 @@ import { LoginPage } from './auth/LoginPage';
 import { AccessPage } from './pages/AccessPage';
 import { UnitsPage } from './pages/UnitsPage';
 import { JobWorkPage } from './pages/JobWorkPage';
+import { PlanningPage } from './pages/PlanningPage';
+import { FurnacePage } from './pages/FurnacePage';
 import { NoAccess } from './pages/NoAccess';
 import { Empty, go } from './components/ui';
 import { useCallback, useEffect, useState } from 'react';
@@ -109,6 +111,8 @@ function Page({ route, query, navigate }: { route: string; query: URLSearchParam
   const resource = (route === 'quotation-comparison' ? 'supplier_quotations' : ROUTE_RESOURCE[route]) ?? 'dashboard';
   if (!canRead(resource)) return <NoAccess />;
   if (route === 'job-work') return <JobWorkPage />;
+  if (route === 'production-planning') return <PlanningPage />;
+  if (route === 'furnaces') return <FurnacePage />;
   if (route === 'customers') return <CustomersPage />;
   if (route === 'follow-ups') return <FollowupsPage navigate={navigate} />;
   if (route === 'work-hub') return <WorkHubPage />;

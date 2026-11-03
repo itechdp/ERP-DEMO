@@ -14,6 +14,7 @@ import {
   getProduct,
   type HardnessVerdict,
 } from '../store/engine';
+import { useProductFlows } from '../products/flow';
 import { HARDNESS_MATERIALS, hardnessGrades, hardnessSpecForRawMaterial, isHardnessMaterial } from '../store/hardnessSpecs';
 import type { HardnessReport, HardnessScale } from '../store/types';
 import { Badge, Empty, Field, Modal, NumInput, rowTone, Search, FilterMenu, Confirm } from '../components/ui';
@@ -172,6 +173,7 @@ export function HardnessRegister() {
 // ============================================================ the form ===
 export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jobNo?: string; viewOnly?: boolean; onClose: () => void }) {
   const { state, run, masters } = useStore();
+  const pf = useProductFlows();
   const cur = id ? state.hardnessReports.find((r) => r.id === id) : undefined;
   const [f, setF] = useState(() => ({
     jobNo: cur?.jobNo ?? jobNo ?? '',
@@ -221,11 +223,15 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
     const lot = state.rawMaterials.find((l) => l.id === job.issues[0]?.lotId);
     const qc = state.qc.find((r) => r.jobNo === no);
     const hs = hardnessSpecForRawMaterial(p.material);
+    // a product with its own required range (Product Master) uses that range instead of the material's
+    const own = pf.of(job.productId);
+    const range = own.hardnessRequired && own.hardnessMin && own.hardnessMax ? { min: String(own.hardnessMin), max: String(own.hardnessMax), scale: own.hardnessScale } : {};
     setF((x) => ({
       ...x,
       jobNo: no,
       component: p.name,
       ...(hs ? { material: hs.family, grade: hs.grade, min: String(hs.min), max: String(hs.max), scale: hs.scale } : {}),
+      ...range,
       supplier: canSee('party_names') ? lot?.supplier ?? x.supplier : '',
       inwardQty: qc ? String(qc.input) : x.inwardQty,
     }));
@@ -258,7 +264,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
     } else go();
   };
   // only Aluminium / Brass / Copper jobs are reported on this form
-  const jobs = state.jobs.filter((j) => j.currentStage !== 'scrapped' && hardnessSpecForRawMaterial(getProduct(state, j.productId).material));
+  const jobs = state.jobs.filter((j) => j.currentStage !== 'scrapped' && (hardnessSpecForRawMaterial(getProduct(state, j.productId).material) || pf.of(j.productId).hardnessRequired));
 
   return (
     <Modal
