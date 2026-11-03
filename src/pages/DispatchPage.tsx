@@ -1,5 +1,5 @@
 import * as api from '../db/api';
-import { Conf, Write, canSee, searchable, useAccess, searchableCol } from '../auth/access';
+import { Conf, Write, canSee, searchable, useAccess, searchableCol, colOk } from '../auth/access';
 import { useState } from 'react';
 import { ClipboardList, Eye, FileSpreadsheet, FileText, Handshake, PackageOpen, Plus, Printer, Truck, X, Trash2 } from 'lucide-react';
 import { printJobWorkReturn } from '../jobwork/print';
@@ -15,6 +15,10 @@ import { printRouteCard } from '../components/routeCard';
 import { fmtDate, fmtKg, fmtNum, matches, todayISO } from '../components/format';
 import { exportPackingListXlsx, printPackingList } from '../dispatch/packingList';
 import { currentUserName } from '../auth/access';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 type Filter = 'all' | 'Ready for Dispatch' | 'Dispatched' | 'today';
 
@@ -48,9 +52,12 @@ export function DispatchPage() {
         title="Dispatch"
         flow="dispatched"
         actions={
-          <button className="btn btn-primary" onClick={() => newDispatch()}>
-            <Plus size={16} /> New Dispatch
-          </button>
+          <>
+            <ListButtons doc={() => ({ filename: 'Dispatch-Register', title: 'Dispatch Register', form: FORM_FORMATS.report, rows: rows.map((x) => ({ no: x.dispatchNo, date: x.date, job: x.jobNo, customer: canSee('party_names') ? x.customer : '', qty: x.qty, bags: x.bags.length, weight: x.weight, vehicle: colOk('dispatch.vehicle') ? x.vehicleNo : '', invoice: canSee('invoices') ? x.invoiceNo : '', status: x.status })), cols: [{ label: 'Dispatch No.', key: 'no' }, { label: 'Date', key: 'date', kind: 'date' }, { label: 'Job No.', key: 'job' }, { label: 'Customer', key: 'customer', width: 26 }, { label: 'Qty (PCS)', key: 'qty', kind: 'num' }, { label: 'Bags', key: 'bags', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Vehicle', key: 'vehicle' }, { label: 'Invoice', key: 'invoice' }, { label: 'Status', key: 'status' }], totals: ['qty', 'weight'] })} />
+            <button className="btn btn-primary" onClick={() => newDispatch()}>
+              <Plus size={16} /> New Dispatch
+            </button>
+          </>
         }
       />
       <div className="card">
@@ -155,9 +162,12 @@ export function DispatchPage() {
                         {(() => {
                           const jw = state.jobWork.find((w) => w.jobNo === d.jobNo);
                           return jw ? (
+                            <>
+                            <DocButtons compact only="excel" build={(u) => docs.jobWorkReturnSpec(state, d, jw, u)} />
                             <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle' }} title="Print return challan (job work)" onClick={() => printJobWorkReturn(state, d, jw)}>
                               <Handshake size={16} />
                             </button>
+                            </>
                           ) : null;
                         })()}
                         <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle' }} title="Packing list" onClick={() => setViewing(d)}>
@@ -198,7 +208,7 @@ export function DispatchPage() {
 
 /** Packing / dispatch as on the route card: Vehicle No. and one row per bag (qty + weight). */
 export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onClose: () => void }) {
-  const { state, run } = useStore();
+  const { state, run, busy } = useStore();
   const lots = state.finishedGoods.filter((f) => fgAvailable(f) > 0);
   const [fgId, setFgId] = useState(lots.find((f) => f.id === initial)?.id ?? lots[0]?.id ?? '');
   const fg = lots.find((f) => f.id === fgId);
@@ -243,7 +253,7 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-success" disabled={invalid} onClick={submit}>
+          <button className="btn btn-success" disabled={invalid || busy} onClick={submit}>
             <Truck size={15} /> Dispatch {totalQty > 0 ? `${fmtNum(totalQty)} PCS` : ''}
           </button>
         </>
@@ -368,6 +378,7 @@ function PackingList({ d, onClose }: { d: Dispatch; onClose: () => void }) {
       subtitle={canSee('party_names') ? `${d.customer} · ${fmtDate(d.date)}` : fmtDate(d.date)}
       footer={
         <>
+          <DocButtons only="excel" build={(u) => docs.routeCardSpec(state, d.jobNo, u)} />
           <button className="btn" onClick={() => printRouteCard(state, d.jobNo)}>
             <ClipboardList size={15} /> Print Route Card
           </button>

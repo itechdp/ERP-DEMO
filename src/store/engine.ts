@@ -584,7 +584,9 @@ export interface JobSummary {
   qc?: QCRecord;
   fg: FinishedGood[];
   dispatches: Dispatch[];
+  /** everything that came into the job: raw bar issued + parts taken from our stock + the customer's parts (job work on their material) */
   issuedQty: number;
+  issuedFrom: { raw: number; parts: number; customer: number };
   issuedWeight: number;
   processLoss: number; // cutting → heat treatment
   qcRejected: number;
@@ -608,7 +610,12 @@ export function jobSummary(s: ERPState, jobNo: string): JobSummary {
   const qc = s.qc.find((x) => x.jobNo === jobNo);
   const fg = s.finishedGoods.filter((f) => f.jobNo === jobNo);
   const dispatches = s.dispatches.filter((d) => d.jobNo === jobNo);
-  const issuedQty = job.issues.reduce((t, i) => t + i.qty, 0);
+  const rawQty = job.issues.reduce((t, i) => t + i.qty, 0);
+  // parts taken from our stock, and parts the customer brought (counted only when the material is THEIRS — on our material the bar is issued instead)
+  const fromLedger = (from: string) => s.movements.filter((m) => m.jobNo === jobNo && m.from === from && m.kind !== 'reversal').reduce((t, m) => t + m.qty, 0);
+  const partsQty = fromLedger('Parts stock');
+  const customerQty = s.jobWork.find((w) => w.jobNo === jobNo)?.materialSource === 'customer' ? fromLedger('Customer') : 0;
+  const issuedQty = rawQty + partsQty + customerQty;
   const issuedWeight = round3(job.issues.reduce((t, i) => t + i.weight, 0));
   const processLoss = PROCESS_STAGES.reduce((t, st) => t + (records[st]?.status === 'Completed' ? records[st]!.loss : 0), 0);
   const qcRejected = qc && qc.status !== 'QC Pending' ? qc.rejected : 0;
@@ -646,6 +653,7 @@ export function jobSummary(s: ERPState, jobNo: string): JobSummary {
     fg,
     dispatches,
     issuedQty,
+    issuedFrom: { raw: rawQty, parts: partsQty, customer: customerQty },
     issuedWeight,
     processLoss,
     qcRejected,

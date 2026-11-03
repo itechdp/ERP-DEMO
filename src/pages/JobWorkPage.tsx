@@ -16,6 +16,8 @@ import { BASIS_LABEL, chargeText, printJobWorkReceipt, processText } from '../jo
 import { inr } from '../sales/print';
 import type { JobWork } from '../store/types';
 import { useTabAccess } from '../auth/tabs';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
 
 type Proc = JobWork['processes'];
 const PROCESSES: { key: keyof Proc; label: string }[] = [
@@ -146,6 +148,7 @@ export function JobWorkPage() {
                               <button className="icon-btn" title="View" aria-label={`View ${w.jobNo}`} onClick={() => openTrace(w.jobNo)}>
                                 <Eye size={16} />
                               </button>
+                              <DocButtons compact only="excel" build={(u) => docs.jobWorkReceiptSpec(state, w, u)} />
                               <button className="icon-btn" title="Print receipt challan" aria-label={`Print ${w.jobNo}`} onClick={() => printJobWorkReceipt(state, w)}>
                                 <Printer size={16} />
                               </button>
@@ -187,7 +190,7 @@ export function JobWorkPage() {
 // ============================================================== edit a received batch ===
 /** Correct the challan, description, weight, customer, due date and charges. Quantity, processes and material stay as received (they drive stock). */
 function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
-  const { state, run } = useStore();
+  const { state, run, busy } = useStore();
   const { can } = useAccess();
   const job = state.jobs.find((j) => j.jobNo === w.jobNo);
   const [f, setF] = useState({ customer: job?.customer ?? '', challanNo: w.challanNo, challanDate: w.challanDate ?? '', itemDescription: w.itemDescription, weight: w.receivedWeight ? String(w.receivedWeight) : '', dueDate: job?.dueDate ?? '' });
@@ -227,7 +230,7 @@ function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!valid} onClick={submit}>
+          <button className="btn btn-primary" disabled={!valid || busy} onClick={submit}>
             Save changes
           </button>
         </>
@@ -292,7 +295,7 @@ function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
 // ============================================================== the form ===
 /** Receive a customer's parts: what came in, which processes to do, whose material, QC, and how it is charged. */
 export function JobWorkForm({ onClose }: { onClose: () => void }) {
-  const { state, run } = useStore();
+  const { state, run, busy } = useStore();
   const { can } = useAccess();
   const [f, setF] = useState({ customer: '', challanNo: '', challanDate: todayISO(), productId: '', itemDescription: '', qty: '', weight: '', dueDate: '' });
   const [proc, setProc] = useState<Proc>({ cutting: false, forging: false, trimming: false, heatTreatment: true });
@@ -350,7 +353,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!valid} onClick={submit}>
+          <button className="btn btn-primary" disabled={!valid || busy} onClick={submit}>
             <Handshake size={15} /> Receive Parts
           </button>
         </>

@@ -9,6 +9,8 @@ import { getProduct } from '../store/engine';
 import { deleteDimensionReport, fetchDimensionReports, saveDimensionReport, type DimInput } from './service';
 import { exportDimensionXlsx, printDimensionReport } from './output';
 import { CONCLUSIONS, INSTRUMENTS, SAMPLES, blankLine, lineResult, sampleOk, type DimLine, type DimReport, type LineKind } from './types';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 const overall = (r: DimReport) => {
   const res = r.lines.map(lineResult);
@@ -62,6 +64,7 @@ export function DimensionTab() {
     <>
       <div className="toolbar">
         <Search value={q} onChange={setQ} placeholder={canSee('party_names') ? 'Search report, item, customer, die…' : 'Search report, item, die…'} />
+        {rows.length > 0 && <ListButtons doc={() => ({ filename: 'Dimension-Reports', title: 'Dimension Reports', form: FORM_FORMATS.qcFinalInspection, rows: rows.map((r) => ({ no: r.reportNo, date: r.reportDate, item: r.itemName, itemNo: r.itemNo, customer: r.customer, die: r.dieNo, lines: r.lines.length, result: overall(r), conclusion: r.conclusion })), cols: [{ label: 'Report No.', key: 'no' }, { label: 'Date', key: 'date', kind: 'date' }, { label: 'Item', key: 'item', width: 28 }, { label: 'Item No.', key: 'itemNo' }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Die No.', key: 'die' }, { label: 'Lines', key: 'lines', kind: 'num' }, { label: 'Result', key: 'result' }, { label: 'Conclusion', key: 'conclusion', width: 24 }] })} />}
         {add}
       </div>
       {!loaded ? (
@@ -136,6 +139,7 @@ export function DimensionTab() {
         onConfirm={() => {
           const d = deleting;
           if (!d) return;
+          setDeleting(null);
           void deleteDimensionReport(d.id)
             .then(async () => {
               toast({ kind: 'success', title: 'Report deleted', message: d.reportNo });

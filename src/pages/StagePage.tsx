@@ -291,7 +291,7 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
 // ---------------------------------------------------------------------------
 /** One row of the route card: Inward Date, Received Qty, Rejection Qty, OK Qty, Checked By. */
 export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; jobNo: string; onClose: () => void }) {
-  const { state, run, masters } = useStore();
+  const { state, run, masters, busy } = useStore();
   const plan = usePlan();
   const fu = useFurnaces();
   const rec = stageRecords(state, stage).find((r) => r.jobNo === jobNo && r.status !== 'Completed');
@@ -370,7 +370,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-success" disabled={invalid} onClick={save}>
+          <button className="btn btn-success" disabled={invalid || busy} onClick={save}>
             <CheckCircle2 size={15} /> Save &amp; send {ok > 0 ? `${fmtNum(ok)} PCS ` : ''}to {to}
           </button>
         </>

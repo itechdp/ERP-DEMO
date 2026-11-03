@@ -58,6 +58,8 @@ interface StoreValue {
    * on failure the database's own message is shown. Resolves to true on success.
    */
   run: (fn: (nowIso: string) => Promise<unknown>, success?: { title: string; message?: string }) => Promise<boolean>;
+  /** true while an action is being saved: the buttons that start one are disabled, and a second push is ignored */
+  busy: boolean;
   toast: (t: Omit<Toast, 'id'>) => void;
   toasts: Toast[];
   dismiss: (id: number) => void;
@@ -84,6 +86,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [hash]);
   const action = overlay ?? hashAction;
   const seq = useRef(0);
+  const runningRef = useRef(false);
+  const [busy, setBusy] = useState(false);
 
   const fetchAll = useCallback(async () => {
     const [state, masters] = await Promise.all([loadERPState(), loadMasters()]);
@@ -119,21 +123,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const run = useCallback<StoreValue['run']>(
     async (fn, success) => {
+      // an action is already being saved (a double click, or a second button): the second push is ignored, so nothing is saved twice
+      if (runningRef.current) return false;
+      runningRef.current = true;
+      setBusy(true);
       try {
-        await fn(new Date().toISOString());
-      } catch (e) {
-        toast({ kind: 'error', title: 'Action not allowed', message: dbMessage(e) });
-        return false;
-      }
-      try {
-        await fetchAll();
-      } catch (e) {
-        toast({ kind: 'error', title: 'Saved, but the screen could not refresh', message: dbMessage(e) });
+        try {
+          await fn(new Date().toISOString());
+        } catch (e) {
+          toast({ kind: 'error', title: 'Action not allowed', message: dbMessage(e) });
+          return false;
+        }
+        try {
+          await fetchAll();
+        } catch (e) {
+          toast({ kind: 'error', title: 'Saved, but the screen could not refresh', message: dbMessage(e) });
+          return true;
+        }
+        void reloadAccess();
+        if (success) toast({ kind: 'success', ...success });
         return true;
+      } finally {
+        runningRef.current = false;
+        setBusy(false);
       }
-      void reloadAccess();
-      if (success) toast({ kind: 'success', ...success });
-      return true;
     },
     [fetchAll, toast, reloadAccess],
   );
@@ -168,6 +181,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         masters: data.masters,
         refresh,
         run,
+        busy,
         toast,
         toasts,
         dismiss,
@@ -176,7 +190,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         action,
         openAction: guardedOpen,
       },
-    [data, refresh, run, toast, toasts, dismiss, traceJob, action, guardedOpen],
+    [data, refresh, run, busy, toast, toasts, dismiss, traceJob, action, guardedOpen],
   );
 
   if (!value) {

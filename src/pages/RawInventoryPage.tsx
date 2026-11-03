@@ -1,7 +1,7 @@
 import * as api from '../db/api';
 import { Conf, searchable, useAccess, canSee, Write, searchableCol } from '../auth/access';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownToLine, Boxes, Eye, Layers, PackagePlus, Pencil, Send, ShieldCheck, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, Boxes, Eye, Layers, PackagePlus, PackageX, Pencil, Send, ShieldCheck, Trash2 } from 'lucide-react';
 import type { RawMaterialLot } from '../store/types';
 import { lotDeleteReason } from '../store/deletable';
 import { useStore } from '../store/StoreContext';
@@ -14,7 +14,12 @@ import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, rowTone, Sea
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, matches, todayISO } from '../components/format';
 import { InwardPoSection } from '../purchase/components/InwardPoSection';
 import { LotQcModal } from './LotQcModal';
+import { RawAdjustModal } from '../components/AdjustModals';
 import { useTabAccess } from '../auth/tabs';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 type View = 'stock' | 'inward' | 'issues';
 
@@ -22,6 +27,7 @@ export function RawInventoryPage() {
   const { state, openAction, run } = useStore();
   const [deleting, setDeleting] = useState<RawMaterialLot | null>(null);
   const [qcLot, setQcLot] = useState<RawMaterialLot | null>(null);
+  const [adjusting, setAdjusting] = useState<RawMaterialLot | null>(null);
   const { canWrite } = useAccess();
   const canQc = canWrite('raw_inventory') || canWrite('qc');
   // #/raw-inventory?lot=RM-2026-001 opens the inward register filtered to that lot
@@ -87,9 +93,12 @@ export function RawInventoryPage() {
         title="Raw Inventory"
         flow="raw"
         actions={
-          <Write res="raw_inventory"><button className="btn btn-primary" onClick={() => openAction({ kind: 'inward' })}>
-            <PackagePlus size={16} /> Add Raw Material Inward
-          </button></Write>
+          <>
+            <ListButtons doc={() => ({ filename: 'Raw-Material-Stock', title: 'Raw Material Stock', form: FORM_FORMATS.report, rows: state.rawMaterials.map((l) => ({ id: l.id, date: l.inwardDate, material: l.material, grade: l.materialType, od: l.od, supplier: canSee('party_names') ? l.supplier : '', heat: l.heatNo, inward: l.inwardQty, available: l.availableQty, weight: l.inwardWeight, po: l.poNo ?? '' })), cols: [{ label: 'Lot', key: 'id' }, { label: 'Inward Date', key: 'date', kind: 'date' }, { label: 'Material', key: 'material', width: 28 }, { label: 'Grade', key: 'grade', width: 22 }, { label: 'OD (mm)', key: 'od', kind: 'num' }, { label: 'Supplier', key: 'supplier', width: 24 }, { label: 'Heat No.', key: 'heat' }, { label: 'Inward (PCS)', key: 'inward', kind: 'num' }, { label: 'Available (PCS)', key: 'available', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'PO', key: 'po' }], totals: ['inward', 'available', 'weight'] })} />
+            <Write res="raw_inventory"><button className="btn btn-primary" onClick={() => openAction({ kind: 'inward' })}>
+              <PackagePlus size={16} /> Add Raw Material Inward
+            </button></Write>
+          </>
         }
       />
       <div className="card mb">
@@ -256,12 +265,16 @@ export function RawInventoryPage() {
                           <button className="icon-btn" title="View" aria-label={`View ${l.id}`} onClick={() => openAction({ kind: 'inward', id: l.id, view: true })}>
                             <Eye size={16} />
                           </button>
+                          <DocButtons compact build={(u) => docs.goodsReceiptSpec(l, u)} />
                           {canQc && l.qcStatus !== undefined && (
                             <button className="icon-btn" title="Record incoming QC" aria-label={`Incoming QC ${l.id}`} onClick={() => setQcLot(l)}>
                               <ShieldCheck size={16} />
                             </button>
                           )}
                           <Write res="raw_inventory">
+                            <button className="icon-btn" title="Adjust stock: count difference, scrap, return to supplier" aria-label={`Adjust ${l.id}`} disabled={l.availableQty <= 0} onClick={() => setAdjusting(l)}>
+                              <PackageX size={16} />
+                            </button>
                             <button className="icon-btn" title="Edit" aria-label={`Edit ${l.id}`} onClick={() => openAction({ kind: 'inward', id: l.id })}>
                               <Pencil size={16} />
                             </button>
@@ -393,6 +406,7 @@ export function RawInventoryPage() {
           ))}
       </div>
       {qcLot && <LotQcModal lot={qcLot} onClose={() => setQcLot(null)} />}
+      {adjusting && <RawAdjustModal lot={adjusting} onClose={() => setAdjusting(null)} />}
       <Confirm
         open={!!deleting}
         title="Delete raw material inward"
@@ -407,7 +421,7 @@ export function RawInventoryPage() {
 }
 
 export function InwardModal({ preset, onClose }: { preset?: { material?: string; od?: number; id?: string; view?: boolean }; onClose: () => void }) {
-  const { state, run, masters } = useStore();
+  const { state, run, masters, busy } = useStore();
   // editing an existing inward: every field can be corrected; what is already issued to production limits quantity, material and size
   const lot = preset?.id ? state.rawMaterials.find((l) => l.id === preset.id) : undefined;
   const issued = lot ? lotIssuedQty(lot) : 0;
@@ -492,7 +506,7 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!valid} onClick={submit}>
+          <button className="btn btn-primary" disabled={!valid || busy} onClick={submit}>
             <ArrowDownToLine size={15} /> {lot ? 'Save Changes' : 'Save Inward'}
           </button>
         </>

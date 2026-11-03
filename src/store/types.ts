@@ -215,6 +215,7 @@ export interface Dispatch {
 /** Quantity movement ledger — every transfer between stages is written here. */
 export interface Movement {
   id: string;
+  /** the date the movement happened on (as typed on the form) */
   ts: string;
   jobNo: string;
   from: string;
@@ -222,6 +223,10 @@ export interface Movement {
   qty: number;
   loss: number;
   note: string;
+  /** who entered the line and when it was entered; a correction or a reversal is a NEW line, the original is never changed */
+  enteredBy?: string;
+  enteredAt?: string;
+  kind?: 'move' | 'correction' | 'reversal';
 }
 
 export interface Activity {

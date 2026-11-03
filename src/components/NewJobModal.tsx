@@ -85,7 +85,7 @@ export function NewJobModal({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () => void; openAction: ReturnType<typeof useStore>['openAction'] }) {
-  const { state, masters, run, openTrace } = useStore();
+  const { state, masters, run, openTrace, busy } = useStore();
   const pf = useProductFlows();
   const st = useStock();
   const p0 = state.products[0];
@@ -166,7 +166,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={invalid} onClick={submit}>
+          <button className="btn btn-primary" disabled={invalid || busy} onClick={submit}>
             Create Job Card
           </button>
         </>

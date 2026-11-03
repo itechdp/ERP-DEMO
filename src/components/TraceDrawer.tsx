@@ -8,6 +8,7 @@ import { Badge, FLOW_STEPS, go, OverlayHost, QtyFlow } from './ui';
 import { nextStep } from './workflow';
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, heatTempText } from './format';
 import { printPage } from '../native/native';
+import { TraceExtras } from './TraceExtras';
 
 type NodeState = 'done' | 'current' | 'upcoming' | 'final';
 
@@ -134,7 +135,7 @@ export function TraceDrawer() {
           </div>
           <div className="trace-sum">
             <div>
-              <div className="l">Raw Issued</div>
+              <div className="l">{j.issuedFrom.raw || !j.issuedQty ? 'Raw Issued' : 'Received'}</div>
               <div className="v">{fmtNum(j.issuedQty || 0)}</div>
             </div>
             <div>
@@ -230,16 +231,23 @@ export function TraceDrawer() {
             <Node
               step={0}
               state={j.issuedQty ? 'done' : 'current'}
-              title="Raw Material"
-              badge={j.issuedQty ? <span className="badge b-green">Issued · FIFO</span> : <Badge status="Pending" />}
+              title={j.issuedFrom.raw || !j.issuedQty ? 'Raw Material' : 'Material in'}
+              badge={j.issuedFrom.raw ? <span className="badge b-green">Issued · FIFO</span> : j.issuedFrom.parts ? <span className="badge b-teal">From our parts stock</span> : j.issuedFrom.customer ? <span className="badge b-violet">Customer's parts</span> : <Badge status="Pending" />}
               when={j.records.cutting?.startedAt ? fmtDateTime(j.records.cutting.startedAt) : undefined}
             >
               <Meta
-                items={[
-                  ['Material', `${mat.material}`],
-                  ['OD', `${mat.od} mm`],
-                  [j.issuedQty ? 'Issued' : 'Planned', `${fmtNum(j.issuedQty || job.plannedQty)} PCS${j.issuedQty ? ` · ${fmtKg(j.issuedWeight)}` : ''}`],
-                ]}
+                items={
+                  j.issuedFrom.raw || !j.issuedQty
+                    ? [
+                        ['Material', `${mat.material}`],
+                        ['OD', `${mat.od} mm`],
+                        [j.issuedQty ? 'Issued' : 'Planned', `${fmtNum(j.issuedQty || job.plannedQty)} PCS${j.issuedQty ? ` · ${fmtKg(j.issuedWeight)}` : ''}`],
+                      ]
+                    : [
+                        ['Source', j.issuedFrom.parts ? `Our stock of ${j.product.name} parts` : "Customer's parts (job work)"],
+                        ['Received', `${fmtNum(j.issuedQty)} PCS`],
+                      ]
+                }
               />
               {job.issues.length > 0 ? (
                 <table className="mini-tbl">
@@ -444,6 +452,8 @@ export function TraceDrawer() {
             </div>
           )}
 
+          <TraceExtras jobNo={job.jobNo} />
+
           {ledger.length > 0 && (
             <div className="card" style={{ marginTop: 16 }}>
               <div className="card-head">
@@ -459,6 +469,7 @@ export function TraceDrawer() {
                       <th className="r">Qty Moved</th>
                       <th className="r">Loss</th>
                       <th>Note</th>
+                      <th>Entered by</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -471,7 +482,12 @@ export function TraceDrawer() {
                         <td className="r qty-cell">{fmtNum(m.qty)}</td>
                         <td className="r">{m.loss ? <span className="loss">−{m.loss}</span> : <span className="muted">0</span>}</td>
                         <td className="muted" style={{ fontSize: 12 }}>
+                          {m.kind && m.kind !== 'move' && <b>{m.kind === 'reversal' ? 'Reversal · ' : 'Correction · '}</b>}
                           {m.note}
+                        </td>
+                        <td className="nowrap" style={{ fontSize: 12 }}>
+                          {m.enteredBy || <span className="muted">—</span>}
+                          {m.enteredAt && <div className="sub">{fmtDateTime(m.enteredAt)}</div>}
                         </td>
                       </tr>
                     ))}

@@ -1,5 +1,5 @@
 import * as api from '../db/api';
-import { Conf, Write, searchable, canSee, currentUserName, useAccess } from '../auth/access';
+import { Conf, Write, searchable, canSee, colOk, currentUserName, useAccess } from '../auth/access';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Eye, Package, Pencil, Plus, ScrollText, Waypoints, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
@@ -13,6 +13,8 @@ import { DEFAULT_FLOW, entryStage, saveProductFlow, useProductFlows } from '../p
 import { addSemiStock, rawKey, semiKey, setStockMin, useStock } from '../stock/service';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 // ------------------------------------------------------- Job Traceability ---
 export function TraceabilityPage() {
@@ -40,6 +42,7 @@ export function TraceabilityPage() {
       <div className="card">
         <div className="toolbar">
           <Search value={q} onChange={setQ} placeholder={canSee('party_names') ? 'Search job, product, customer, stage…' : 'Search job, product, stage…'} />
+          <ListButtons doc={() => ({ filename: 'Job-Traceability', title: 'Job Traceability', form: FORM_FORMATS.report, rows: rows.map((s) => ({ jobNo: s.job.jobNo, product: s.product.name, customer: canSee('party_names') ? s.job.customer : '', issued: s.issuedQty, loss: s.totalLoss, accepted: s.qc && s.qc.status !== 'QC Pending' ? s.qc.accepted : '', rejected: s.qc && s.qc.status !== 'QC Pending' ? s.qc.rejected : '', dispatched: s.dispatchedQty, stage: STAGE_LABEL[s.job.currentStage], status: s.status })), cols: [{ label: 'Job No.', key: 'jobNo' }, { label: 'Product', key: 'product', width: 26 }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Issued / Received', key: 'issued', kind: 'num' }, { label: 'Total Loss', key: 'loss', kind: 'num' }, { label: 'QC Accepted', key: 'accepted', kind: 'num' }, { label: 'QC Rejected', key: 'rejected', kind: 'num' }, { label: 'Dispatched', key: 'dispatched', kind: 'num' }, { label: 'Now at', key: 'stage' }, { label: 'Status', key: 'status' }] })} />
           <FilterMenu
             groups={[
               {
@@ -66,7 +69,7 @@ export function TraceabilityPage() {
                 <tr>
                   <th>Job No.</th>
                   <th>Product / Customer</th>
-                  <th className="r">Raw Issued</th>
+                  <th className="r" title="Raw bar issued, parts taken from our stock, or the customer's parts received">Issued / Received</th>
                   {PROCESS_STAGES.map((s) => (
                     <th key={s} className="r">
                       {STAGE_LABEL[s]}
@@ -168,11 +171,14 @@ export function LedgerPage() {
   const [fromF, setFromF] = useState('all');
   const [toF, setToF] = useState('all');
   const [lossF, setLossF] = useState('all');
+  const [kindF, setKindF] = useState('all');
+  const jobExists = (no: string) => state.jobs.some((j) => j.jobNo === no);
   const rows = state.movements
+    .filter((m) => kindF === 'all' || (kindF === 'fixes' ? m.kind === 'correction' || m.kind === 'reversal' : (m.kind ?? 'move') === 'move'))
     .filter((m) => fromF === 'all' || m.from === fromF)
     .filter((m) => toF === 'all' || m.to === toF)
     .filter((m) => lossF === 'all' || (lossF === 'loss' ? m.loss > 0 : m.loss === 0))
-    .filter((m) => matches(q, m.jobNo, m.from, m.to, m.note));
+    .filter((m) => matches(q, m.jobNo, m.from, m.to, m.note, m.enteredBy));
   const distinct = (pick: (m: (typeof state.movements)[number]) => string) => [...new Set(state.movements.map(pick))].sort().map((v) => ({ value: v, label: v }));
   return (
     <>
@@ -188,11 +194,18 @@ export function LedgerPage() {
               { label: 'From', value: fromF, onChange: setFromF, options: [{ value: 'all', label: 'Any' }, ...distinct((m) => m.from)] },
               { label: 'To', value: toF, onChange: setToF, options: [{ value: 'all', label: 'Any' }, ...distinct((m) => m.to)] },
               { label: 'Loss', value: lossF, onChange: setLossF, options: [{ value: 'all', label: 'All movements' }, { value: 'loss', label: 'With loss' }, { value: 'none', label: 'No loss' }] },
+              { label: 'Lines', value: kindF, onChange: setKindF, options: [{ value: 'all', label: 'All lines' }, { value: 'move', label: 'Movements' }, { value: 'fixes', label: 'Corrections & reversals' }] },
             ]}
           />
           <span className="muted" style={{ marginLeft: 'auto', fontSize: 12.5 }}>
             {plural(rows.length, 'movement')}
+            {state.movements.length >= 5000 ? ' · latest 5,000 shown' : ''}
           </span>
+          <ListButtons doc={() => ({ filename: 'Quantity-Ledger', title: 'Quantity Movement Ledger', form: FORM_FORMATS.report, rows: rows.map((m) => ({ ...m, type: m.kind === 'reversal' ? 'Reversal' : m.kind === 'correction' ? 'Correction' : 'Movement' })), cols: [{ label: 'Date', key: 'ts', kind: 'date' }, { label: 'Job No.', key: 'jobNo' }, { label: 'From', key: 'from' }, { label: 'To', key: 'to' }, { label: 'Qty Moved', key: 'qty', kind: 'num' }, { label: 'Loss', key: 'loss', kind: 'num' }, { label: 'Type', key: 'type' }, { label: 'Reference', key: 'note', width: 40 }, { label: 'Entered By', key: 'enteredBy' }, { label: 'Entered On', key: 'enteredAt', kind: 'date' }], totals: ['qty', 'loss'] })} />
+        </div>
+        <div className="callout info" style={{ margin: '0 20px 12px' }}>
+          <ScrollText size={16} />
+          <div>The ledger is never edited or deleted. A fixed quantity or a deleted entry adds a <b>correction</b> or <b>reversal</b> line, and every line shows who entered it and when.</div>
         </div>
         {rows.length === 0 && <Empty icon={ScrollText} title="No quantity movements yet" text="Every inward, stage transfer, QC result and dispatch is recorded here." />}
         <div className="table-wrap" hidden={rows.length === 0}>
@@ -207,13 +220,14 @@ export function LedgerPage() {
                 <th className="r">Qty Moved</th>
                 <th className="r">Loss</th>
                 <th>Reference</th>
+                <th>Entered by</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((m) => (
                 <tr key={m.id}>
                   <td className="nowrap">{fmtDateTime(m.ts)}</td>
-                  <td>{m.jobNo !== '—' ? <JobLink jobNo={m.jobNo} /> : <span className="muted">—</span>}</td>
+                  <td>{m.jobNo === '—' ? <span className="muted">—</span> : jobExists(m.jobNo) ? <JobLink jobNo={m.jobNo} /> : <span className="mono" title="This job card was deleted; its ledger lines stay">{m.jobNo} <span className="muted">(deleted)</span></span>}</td>
                   <td>{m.from}</td>
                   <td>
                     <ArrowRight size={14} className="muted" />
@@ -222,7 +236,12 @@ export function LedgerPage() {
                   <td className="r qty-cell">{fmtNum(m.qty)}</td>
                   <td className="r">{m.loss ? <span className="loss">−{m.loss}</span> : <span className="muted">0</span>}</td>
                   <td className="muted" style={{ fontSize: 12.5 }}>
+                    {m.kind && m.kind !== 'move' && <span className={`chip ${m.kind === 'reversal' ? 'chip-hot' : 'chip-wait'}`} style={{ marginRight: 6 }}>{m.kind === 'reversal' ? 'Reversal' : 'Correction'}</span>}
                     {m.note}
+                  </td>
+                  <td className="nowrap" style={{ fontSize: 12.5 }}>
+                    {m.enteredBy || <span className="muted">—</span>}
+                    {m.enteredAt && <div className="sub">{fmtDateTime(m.enteredAt)}</div>}
                   </td>
                 </tr>
               ))}
@@ -247,7 +266,7 @@ export function ProductsPage() {
   );
   return (
     <>
-      <PageHeader eyebrow="Masters" title="Product Master" actions={mgmt && state.products.length > 0 ? add : undefined} />
+      <PageHeader eyebrow="Masters" title="Product Master" actions={<>{state.products.length > 0 && <ListButtons doc={() => ({ filename: 'Product-Master', title: 'Product Master', form: FORM_FORMATS.report, rows: state.products.map((p) => ({ code: p.code, name: p.name, material: p.material, od: p.od, cut: p.cuttingLength, wt: p.finishedWeight, die: colOk('product.die_no') ? p.dieNo : '', temp: p.htTemperature, process: p.htProcess })), cols: [{ label: 'Code', key: 'code' }, { label: 'Product', key: 'name', width: 26 }, { label: 'Raw Material', key: 'material', width: 28 }, { label: 'Bar OD (mm)', key: 'od', kind: 'num' }, { label: 'Cut Length (mm)', key: 'cut', kind: 'num' }, { label: 'Finished Wt. (kg)', key: 'wt', kind: 'num' }, { label: 'Forging Die', key: 'die' }, { label: 'HT Temp. (°C)', key: 'temp', kind: 'num' }, { label: 'HT Process', key: 'process' }] })} />}{mgmt && state.products.length > 0 ? add : null}</>} />
       <div className="card">
         {state.products.length === 0 ? (
           <Empty
@@ -345,7 +364,7 @@ export function ProductsPage() {
 }
 
 export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?: boolean; onClose: () => void }) {
-  const { state, run } = useStore();
+  const { state, run, busy } = useStore();
   const { can } = useAccess();
   const cur = id ? state.products.find((p) => p.id === id) : undefined;
   const [f, setF] = useState({
@@ -432,7 +451,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!valid} onClick={submit}>
+          <button className="btn btn-primary" disabled={!valid || busy} onClick={submit}>
             {id ? 'Save Changes' : 'Add Product'}
           </button>
         </>

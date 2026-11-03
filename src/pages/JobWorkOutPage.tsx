@@ -6,6 +6,10 @@ import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
 import { dueLabel, daysLeft, deleteJobWorkOut, saveJobWorkOut, setJobWorkOutStatus, useJobWorkOut, type JobWorkOut, type OutInput, type OutStatus } from '../jobworkout/service';
 import { getProduct } from '../store/engine';
 import { useStore } from '../store/StoreContext';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 const PROCESSES = ['Cutting', 'Forging', 'Trimming', 'Heat Treatment', 'CNC', 'VMC', 'Machining', 'Plating', 'Grinding', 'Other'];
 const UOMS = ['PCS', 'KG', 'SET'];
@@ -64,7 +68,7 @@ export function JobWorkOutPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Job Work Out" actions={jw.items.length > 0 ? add : undefined} />
+      <PageHeader eyebrow="Workflow" title="Job Work Out" actions={jw.items.length > 0 ? <><ListButtons doc={() => ({ filename: 'Job-Work-Out', title: 'Job Work Out', form: FORM_FORMATS.jobWorkOut, rows: rows.map((j) => ({ no: j.outNo, date: j.outDate, vendor: j.vendor, item: j.item, process: j.process, qty: j.qty, uom: j.uom, challan: j.challanNo, due: j.dueDate, status: j.status === 'Sent' ? 'With others' : j.status === 'Received' ? 'Received back' : j.status, back: j.receivedOn })), cols: [{ label: 'Entry', key: 'no' }, { label: 'Date', key: 'date', kind: 'date' }, { label: 'Given To', key: 'vendor', width: 24 }, { label: 'Item', key: 'item', width: 24 }, { label: 'Work', key: 'process' }, { label: 'Qty', key: 'qty', kind: 'num' }, { label: 'UOM', key: 'uom' }, { label: 'Challan', key: 'challan' }, { label: 'Due', key: 'due', kind: 'date' }, { label: 'Status', key: 'status' }, { label: 'Received On', key: 'back', kind: 'date' }] })} />{add}</> : undefined} />
       {jw.error && <div className="callout warn" style={{ marginBottom: 16 }}>{jw.error}</div>}
       <div className="fstats">
         <div className="fstat fstat-run">
@@ -165,6 +169,7 @@ export function JobWorkOutPage() {
                         <td className="r nowrap">
                           <Write res="job_work_out">
                             <div className="icon-actions">
+                              <DocButtons compact build={(u) => docs.jobWorkOutSpec(j, u)} />
                               {j.status === 'Sent' ? (
                                 <button className="btn btn-subtle btn-sm" onClick={() => setReceiving(j)}>
                                   <CheckCircle2 size={14} /> Received
@@ -203,6 +208,7 @@ export function JobWorkOutPage() {
         onConfirm={() => {
           const d = deleting;
           if (!d) return;
+          setDeleting(null);
           void deleteJobWorkOut(d.id)
             .then(async () => {
               toast({ kind: 'success', title: 'Entry deleted', message: d.outNo });

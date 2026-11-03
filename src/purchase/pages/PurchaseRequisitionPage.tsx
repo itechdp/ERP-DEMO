@@ -32,6 +32,8 @@ import { ADD_NEW, useAddOption } from '../../masters/AddItem';
 import { useOptions } from '../../masters/useOptions';
 import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { usePRDetail, usePurchaseRequisitions } from '../hooks/usePurchase';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 import {
   cancelPR,
   decidePR,
@@ -508,6 +510,8 @@ function PRDetailView({
             <button className="btn btn-subtle" onClick={() => reload()} disabled={acting}>
               <RefreshCw size={14} /> Refresh
             </button>
+
+            <DocButtons build={(u) => docs.purchaseRequisitionSpec(pr, u)} />
 
             {/* Lifecycle Actions */}
             {pr.status === 'Draft' && (

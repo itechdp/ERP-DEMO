@@ -27,6 +27,8 @@ import { useStore } from '../../store/StoreContext';
 import { usePRDetail, usePurchaseRequisitions, useRFQDetail, useRFQs, useSuppliers } from '../hooks/usePurchase';
 import { markRFQSent, saveRFQ } from '../services/rfqService';
 import type { PurchaseRequisition } from '../types';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 
 /** one line that says what a requisition is for: number, department, the item(s) and the quantity */
 const prLabel = (p: PurchaseRequisition) => {
@@ -349,6 +351,7 @@ function RFQDetailView({
             <button className="btn btn-subtle" onClick={onBack}>
               <ArrowLeft size={14} /> Back
             </button>
+            <DocButtons build={(u) => docs.procurementRequestSpec(rfq, u)} />
             <button className="btn btn-subtle" onClick={() => reload()} disabled={acting}>
               <RefreshCw size={14} /> Refresh
             </button>

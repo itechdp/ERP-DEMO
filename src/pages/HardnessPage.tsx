@@ -21,6 +21,8 @@ import { Badge, Empty, Field, Modal, NumInput, rowTone, Search, FilterMenu, Conf
 import { tsFor } from '../components/NewJobModal';
 import { printHtml } from '../components/printHtml';
 import { fmtDate, matches, todayISO } from '../components/format';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
 
 const DEFAULT_READINGS = 1; // a new report starts with one row; "Add row" adds more (the paper sheet has 10)
 const MAX_READINGS = 50;
@@ -135,6 +137,7 @@ export function HardnessRegister() {
                         >
                           <Eye size={16} />
                         </button>
+                        <DocButtons compact only="excel" build={(u) => docs.hardnessReportSpec(r, u)} />
                         <Write res="qc">
                           <button
                             className="icon-btn danger"
@@ -172,7 +175,7 @@ export function HardnessRegister() {
 
 // ============================================================ the form ===
 export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jobNo?: string; viewOnly?: boolean; onClose: () => void }) {
-  const { state, run, masters } = useStore();
+  const { state, run, masters, busy } = useStore();
   const pf = useProductFlows();
   const cur = id ? state.hardnessReports.find((r) => r.id === id) : undefined;
   const [f, setF] = useState(() => ({
@@ -275,7 +278,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
       viewActions={
         cur && (
           <button className="btn btn-primary" onClick={() => printHtml(`Hardness Report ${cur.id}`, sheetHtml(cur), HIR_CSS)}>
-            <Printer size={15} /> Print
+            <Printer size={15} /> Print / PDF
           </button>
         )
       }
@@ -287,7 +290,7 @@ export function HardnessForm({ id, jobNo, viewOnly, onClose }: { id?: string; jo
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={submit}>
+          <button className="btn btn-primary" disabled={busy} onClick={submit}>
             {cur ? 'Save changes' : 'Save report'}
           </button>
         </>

@@ -1,10 +1,14 @@
-import { Conf, searchable, searchableCol } from '../auth/access';
+import { Conf, Write, searchable, searchableCol } from '../auth/access';
+import { ReturnGoodsModal } from '../components/AdjustModals';
 import { useMemo, useState } from 'react';
-import { Eye, PackageCheck, Truck } from 'lucide-react';
+import { Eye, PackageCheck, Truck, Undo2 } from 'lucide-react';
+import type { FinishedGood } from '../store/types';
 import { useStore } from '../store/StoreContext';
 import { fgAvailable, fgStatus, fgWeight, getJob, getProduct } from '../store/engine';
 import { Badge, Empty, JobLink, PageHeader, rowTone, Search, SummaryLine, FilterMenu } from '../components/ui';
 import { fmtDate, fmtKg, fmtNum, matches } from '../components/format';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 type Filter = 'stock' | 'dispatched' | 'all';
 
@@ -13,6 +17,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [productF, setProductF] = useState('all');
+  const [returning, setReturning] = useState<FinishedGood | null>(null);
   const allFgs = state.finishedGoods; // the table lists customers' job-work parts too (tagged)
   // the totals and 'stock by product' are OUR finished goods only
   const fgs = allFgs.filter((f) => !state.jobWork.some((w) => w.jobNo === f.jobNo));
@@ -52,9 +57,12 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
         title="Finished Goods"
         flow="finishedGoods"
         actions={
-          <button className="btn btn-primary" onClick={() => openAction({ kind: 'dispatch', fgId: '' })}>
-            <Truck size={16} /> New Dispatch
-          </button>
+          <>
+            <ListButtons doc={() => ({ filename: 'Finished-Goods', title: 'Finished Goods', form: FORM_FORMATS.report, rows: allFgs.map((f) => ({ id: f.id, job: f.jobNo, product: getProduct(state, f.productId).name, received: f.receivedAt, qty: f.qty, packed: f.reservedQty, dispatched: f.dispatchedQty, available: fgAvailable(f), status: fgStatus(f) })), cols: [{ label: 'FG No.', key: 'id' }, { label: 'Job No.', key: 'job' }, { label: 'Product', key: 'product', width: 26 }, { label: 'Received', key: 'received', kind: 'date' }, { label: 'Qty (PCS)', key: 'qty', kind: 'num' }, { label: 'Packed', key: 'packed', kind: 'num' }, { label: 'Dispatched', key: 'dispatched', kind: 'num' }, { label: 'Available', key: 'available', kind: 'num' }, { label: 'Status', key: 'status' }], totals: ['qty', 'packed', 'dispatched', 'available'] })} />
+            <button className="btn btn-primary" onClick={() => openAction({ kind: 'dispatch', fgId: '' })}>
+              <Truck size={16} /> New Dispatch
+            </button>
+          </>
         }
       />
       <div className="card mb">
@@ -184,6 +192,13 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
                             <Truck size={13} /> Dispatch
                           </button>
                         )}
+                        {f.dispatchedQty > 0 && (
+                          <Write res="dispatch">
+                            <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle', marginLeft: 4 }} title="Customer return: goods that came back" aria-label={`Return ${f.id}`} onClick={() => setReturning(f)}>
+                              <Undo2 size={16} />
+                            </button>
+                          </Write>
+                        )}
                         <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle', marginLeft: 4 }} title="View traceability" onClick={() => openTrace(f.jobNo)}>
                           <Eye size={16} />
                         </button>
@@ -196,6 +211,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
           </div>
         )}
       </div>
+      {returning && <ReturnGoodsModal fg={returning} onClose={() => setReturning(null)} />}
     </>
   );
 }

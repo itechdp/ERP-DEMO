@@ -1,11 +1,12 @@
 import { Conf, canSee, searchable, Write } from '../auth/access';
 import { useMemo, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowLeftRight, ChevronRight, Download, FileText, Hammer, History, Layers, Pencil, Plus, Printer, Scissors, Undo2, Upload, Wrench, CheckCircle2, Eye } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, ChevronRight, FileText, Hammer, History, Layers, Pencil, Plus, Printer, Scissors, Undo2, Upload, Wrench, CheckCircle2, Eye } from 'lucide-react';
 import { Empty, Kpi, PageHeader, Search, Tabs, FilterMenu } from '../components/ui';
 import { fmtDate, matches } from '../components/format';
 import { useDies } from './DieContext';
 import { DemoChip, DIE_ROW, DieBadge, HistoryList, KindChip, RowMenu, Thumb } from './components';
-import { exportDies, exportMainDies, fmtDims, fmtWt, printDieCard } from './print';
+import { diesDoc, fmtDims, fmtWt, mainDiesDoc, printDieCard } from './print';
+import { ListButtons } from '../export/docOutput';
 import { DIE_STATUSES, KIND_LABEL, METALS, type Die, type DieKind } from './types';
 import { useTabAccess } from '../auth/tabs';
 
@@ -100,9 +101,7 @@ export function DieMasterPage() {
         title="Die Master"
         actions={
           <>
-            <button className="btn" onClick={() => exportMainDies(rows.map((r) => r.m), data)}>
-              <Download size={16} /> Export to Excel
-            </button>
+            <ListButtons doc={() => mainDiesDoc(rows.map((r) => r.m), data)} />
             <Write res="die_master"><button className="btn btn-primary" onClick={() => openUI({ kind: 'main-form' })}>
               <Plus size={16} /> Add New Die
             </button></Write>
@@ -217,9 +216,7 @@ export function DieRegisterPage({ kind }: { kind: DieKind }) {
         title={`${label} Die Master`}
         actions={
           <>
-            <button className="btn" onClick={() => exportDies(kind, rows, data)}>
-              <Download size={16} /> Export to Excel
-            </button>
+            <ListButtons doc={() => diesDoc(kind, rows, data)} />
             <Write res={kind === 'forging' ? 'forging_dies' : 'trimming_dies'}><button className="btn btn-primary" onClick={() => openUI({ kind: 'die-form', dieKind: kind })} disabled={!data.mainDies.length}>
               <Plus size={16} /> Add {label} Die
             </button></Write>

@@ -15,6 +15,8 @@ import { MaterialPick, SizePick } from '../masters/MaterialPick';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { fetchOrder, saveOrder, setOrderStatus, type OrderHeaderInput } from './service';
 import { ORDER_NEXT, UOMS, type OrderLine, type OrderRow } from './types';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
 
 const blank = (): OrderLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
@@ -287,7 +289,8 @@ function OrderDetail({ id, onBack, onEdit, navigate, initialStep = null }: { id:
         actions={
           <>
             <button className="btn btn-subtle" onClick={onBack}><ArrowLeft size={14} /> Back</button>
-            {o.status !== 'Cancelled' && <button className="btn btn-subtle" onClick={() => printSalesOrder(o, lines)}><Printer size={14} /> Print</button>}
+            {o.status !== 'Cancelled' && <button className="btn btn-subtle" onClick={() => printSalesOrder(o, lines)}><Printer size={14} /> Print / PDF</button>}
+            {o.status !== 'Cancelled' && <DocButtons only="excel" build={(u) => docs.salesOrderSpec(o, lines, u)} />}
             {o.quotationId && <button className="btn btn-subtle" onClick={() => navigate(`sales-quotation?id=${o.quotationId}`)}>Quotation {o.quotationNo}</button>}
             <Write res="sales_orders">
               {['Draft', 'Confirmed'].includes(o.status) && <button className="btn btn-subtle" onClick={() => onEdit(o.id)}><Pencil size={14} /> Edit</button>}

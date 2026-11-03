@@ -6,6 +6,8 @@ import { fmtDate, matches } from '../../components/format';
 import { PaymentModal } from '../components/PaymentModal';
 import { fetchInvoices, fetchPayments } from '../services/invoiceService';
 import type { PurchaseInvoice, PurchasePayment } from '../types';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
@@ -131,6 +133,7 @@ export function PurchasePaymentsPage({ navigate }: { navigate: (r: string) => vo
                     </Conf>
                     <td className="act">
                       <div className="icon-actions">
+                        <DocButtons compact build={(u) => docs.paymentVoucherSpec(r, u)} />
                         <button className="icon-btn" title="View invoice" aria-label={`View invoice ${r.pinvNo}`} onClick={() => navigate(`purchase-invoices?id=${r.invoiceId}`)}>
                           <Eye size={16} />
                         </button>

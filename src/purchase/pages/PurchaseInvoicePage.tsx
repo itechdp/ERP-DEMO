@@ -10,6 +10,8 @@ import { PaymentModal } from '../components/PaymentModal';
 import { cancelInvoice, fetchInvoiceDetail, fetchInvoiceablePOs, fetchInvoices, fetchPOInvoiceLines, postInvoice, saveInvoice } from '../services/invoiceService';
 import { INVOICE_RATE_TOLERANCE_PCT, type InvoiceDetail, type InvoiceablePO, type POInvoiceLine, type PurchaseInvoice } from '../types';
 import { useTabAccess } from '../../auth/tabs';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -274,6 +276,7 @@ function InvoiceDetailView({ id, navigate, autoPay = false }: { id: number; navi
             <button className="btn btn-subtle" onClick={() => navigate('purchase-invoices')}>
               <ArrowLeft size={15} /> Back
             </button>
+            <DocButtons build={(u) => docs.purchaseInvoiceSpec(inv, u)} />
             {inv.status === 'Draft' && canInvoice && (
               <>
                 <button className="btn btn-subtle" onClick={() => navigate(`purchase-invoices?edit=${inv.invoiceId}`)}>

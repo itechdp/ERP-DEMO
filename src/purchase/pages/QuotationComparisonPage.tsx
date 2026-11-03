@@ -21,6 +21,8 @@ import { useComparison, usePurchaseRequisitions, useRFQs } from '../hooks/usePur
 import { setQuotationStatus } from '../services/quotationService';
 import type { SQStatus } from '../types';
 import { printPage } from '../../native/native';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 
 const inr = (v: number) => `₹ ${v.toLocaleString('en-IN')}`;
 
@@ -96,8 +98,9 @@ export function QuotationComparisonPage({
               onClick={() => void printPage()}
               disabled={suppliers.length === 0}
             >
-              <Printer size={14} /> Print Comparison
+              <Printer size={14} /> Print / PDF
             </button>
+            {matrix && suppliers.length > 0 && <DocButtons only="excel" build={(u) => docs.comparisonSpec(matrix, u)} />}
           </>
         }
       />

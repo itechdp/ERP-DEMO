@@ -11,6 +11,8 @@ import { tsFor } from '../components/NewJobModal';
 import { fmtNum, matches, todayISO } from '../components/format';
 import { useProductFlows } from '../products/flow';
 import { useTabAccess } from '../auth/tabs';
+import { DocButtons } from '../export/docOutput';
+import * as docs from '../export/documents';
 
 type Filter = 'QC Pending' | 'inspected' | 'Rejections' | 'all';
 
@@ -160,6 +162,7 @@ export function QCPage() {
                         <Badge status={r.status} />
                       </td>
                       <td className="r nowrap">
+                        {r.status !== 'QC Pending' && <DocButtons compact build={(u) => docs.qcRecordSpec(state, r, u)} />}
                         <button
                           className="icon-btn"
                           style={{ display: 'inline-grid', verticalAlign: 'middle' }}
@@ -187,7 +190,7 @@ export function QCPage() {
 
 /** QC row of the route card: Inward Date, Received Qty, Rejection Qty, OK Qty, Checked By. */
 export function InspectModal({ jobNo, onClose }: { jobNo: string; onClose: () => void }) {
-  const { state, run, masters } = useStore();
+  const { state, run, masters, busy } = useStore();
   const pf = useProductFlows();
   const rec = state.qc.find((r) => r.jobNo === jobNo && r.status === 'QC Pending');
   const job = getJob(state, jobNo);
@@ -225,7 +228,7 @@ export function InspectModal({ jobNo, onClose }: { jobNo: string; onClose: () =>
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-success" disabled={bad} onClick={submit}>
+          <button className="btn btn-success" disabled={bad || busy} onClick={submit}>
             <PackageCheck size={15} /> Save &amp; send {!bad && a > 0 ? `${fmtNum(a)} PCS ` : ''}to Finished Goods
           </button>
         </>

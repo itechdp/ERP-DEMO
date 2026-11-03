@@ -5,6 +5,8 @@ import { Empty, PageHeader, Search } from '../../components/ui';
 import { fmtNum, matches } from '../../components/format';
 import { fetchSupplierPayables } from '../services/invoiceService';
 import type { SupplierPayable } from '../types';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 
 const inr = (v: number) => (v ? '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—');
 
@@ -45,6 +47,7 @@ export function SupplierPayablesPage({ navigate }: { navigate: (r: string) => vo
             <button className="btn btn-subtle" onClick={load} disabled={loading}>
               <RefreshCw size={14} /> Refresh
             </button>
+            <DocButtons build={(u) => docs.payablesSpec(shown, u)} />
             <button className="btn btn-subtle" onClick={() => navigate('purchase-reports?r=payables-ageing')}>
               Open as report
             </button>

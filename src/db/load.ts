@@ -242,7 +242,7 @@ export async function loadERPState(): Promise<ERPState> {
     read('v_finished_goods', [['received_at', true], ['id', true]]),
     read('v_dispatches', [['created_at', false], ['dispatch_no', false]]),
     read('dispatch_bags', [['bag_no', true]]),
-    read('movements', [['ts', false], ['id', false]], 1000),
+    read('movements', [['ts', false], ['id', false]], 5000),
     read('activity', [['ts', false], ['id', false]], 300),
     readJobWork(),
   ]);
@@ -320,7 +320,7 @@ export async function loadERPState(): Promise<ERPState> {
       }),
     ),
     movements: mov.map(
-      (r): Movement => ({ id: String(r.id), ts: r.ts, jobNo: r.job_no ?? '—', from: r.from_loc, to: r.to_loc, qty: num0(r.qty), loss: num0(r.loss), note: str(r.note) }),
+      (r): Movement => ({ id: String(r.id), ts: r.ts, jobNo: r.job_no ?? '—', from: r.from_loc, to: r.to_loc, qty: num0(r.qty), loss: num0(r.loss), note: str(r.note), enteredBy: str(r.entered_by), enteredAt: r.entered_at ?? undefined, kind: (r.kind as Movement['kind']) ?? 'move' }),
     ),
     activity: act.map((r): Activity => ({ id: String(r.id), ts: r.ts, jobNo: r.job_no ?? undefined, kind: r.kind, text: r.text })),
     jobWork: jobWork.map(

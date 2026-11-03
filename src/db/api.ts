@@ -358,4 +358,9 @@ export const editJobWork = (jobNo: string, i: { customer: string; challanNo: str
     },
     p_ts: ts,
   });
+/** Raw lot adjustment: a stock-count difference, scrap, or a return to the supplier (supabase/migrations/61). */
+export type RawAdjustKind = 'count_up' | 'count_down' | 'scrap' | 'supplier_return';
+export const adjustRawStock = (lotId: string, kind: RawAdjustKind, qty: number, reason: string) => call<null>('adjust_raw_stock', { p_lot_id: lotId, p_kind: kind, p_qty: qty, p_reason: reason });
+/** Goods a customer sent back come into Finished Goods again. */
+export const returnFinishedGoods = (fgId: string, qty: number, reason: string) => call<null>('return_finished_goods', { p_fg_id: fgId, p_qty: qty, p_reason: reason });
 export const deleteJobWork =(jobNo: string, ts?: string) => call<null>('delete_job_work', { p_job_no: jobNo, p_ts: ts });

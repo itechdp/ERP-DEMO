@@ -76,3 +76,28 @@ export function exportDies(kind: 'forging' | 'trimming', dies: Die[], data: DieD
     ]),
   );
 }
+
+import type { ListDoc } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
+
+/** the Die Master list as a document (Excel and PDF in the company layout) */
+export function mainDiesDoc(mains: MainDie[], data: DieData): ListDoc {
+  return {
+    filename: 'Die-Master',
+    title: 'Die Master',
+    form: FORM_FORMATS.report,
+    rows: mains.map((m) => ({ code: m.code, name: m.name, part: m.partCode, customer: canSee('party_names') ? m.customer : '', metal: m.metal, forging: data.forgingDies.filter((d) => d.mainCode === m.code).length, trimming: data.trimmingDies.filter((d) => d.mainCode === m.code).length, status: m.status, created: m.createdOn })),
+    cols: [{ label: 'Main Die Code', key: 'code' }, { label: 'Die Name', key: 'name', width: 26 }, { label: 'Part Code', key: 'part' }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Metal', key: 'metal' }, { label: 'Forging Dies', key: 'forging', kind: 'num' }, { label: 'Trimming Dies', key: 'trimming', kind: 'num' }, { label: 'Status', key: 'status' }, { label: 'Created On', key: 'created', kind: 'date' }],
+  };
+}
+
+/** the forging or trimming die list as a document */
+export function diesDoc(kind: 'forging' | 'trimming', dies: Die[], data: DieData): ListDoc {
+  return {
+    filename: `${KIND_LABEL[kind]}-Die-Master`,
+    title: `${KIND_LABEL[kind]} Die Master`,
+    form: FORM_FORMATS.report,
+    rows: dies.map((d) => ({ code: d.code, main: d.mainCode, component: data.mainDies.find((m) => m.code === d.mainCode)?.name ?? '', material: d.material, made: d.makingDate, maker: canSee('party_names') ? d.maker : '', revision: d.revision, status: d.status, location: colOk('die.location') ? d.location : '', pieces: colOk('die.pieces') ? d.pieces : '', cost: canSee('die_cost') ? d.cost : '' })),
+    cols: [{ label: 'Die Code', key: 'code' }, { label: 'Main Die', key: 'main' }, { label: 'Component', key: 'component', width: 24 }, { label: 'Material', key: 'material', width: 18 }, { label: 'Making Date', key: 'made', kind: 'date' }, { label: 'Maker', key: 'maker', width: 20 }, { label: 'Revision', key: 'revision' }, { label: 'Status', key: 'status' }, { label: 'Location', key: 'location' }, { label: 'Pieces Produced', key: 'pieces', kind: 'num' }, { label: 'Cost (₹)', key: 'cost', kind: 'money' }],
+  };
+}

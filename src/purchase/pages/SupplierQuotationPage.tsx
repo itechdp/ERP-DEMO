@@ -45,6 +45,8 @@ import {
 } from '../services/quotationService';
 import { fetchPRDetail } from '../services/prService';
 import { fetchRFQDetail } from '../services/rfqService';
+import { DocButtons } from '../../export/docOutput';
+import * as docs from '../../export/documents';
 import type {
   SQStatus,
   SaveSQHeaderInput,
@@ -396,6 +398,7 @@ function SQDetailView({
             <button className="btn btn-subtle" onClick={onBack}>
               <ArrowLeft size={14} /> Back
             </button>
+            <DocButtons build={(u) => docs.supplierQuotationSpec(quotation, u)} />
             <button className="btn btn-subtle" onClick={() => reload()} disabled={acting}>
               <RefreshCw size={14} /> Refresh
             </button>

@@ -18,7 +18,7 @@ const CHOICES: { value: Status; label: string; hint: string }[] = [
 
 /** Incoming QC of one inward lot. The database moves rejected bars out of usable stock, so production can never be issued rejected material. */
 export function LotQcModal({ lot, onClose }: { lot: RawMaterialLot; onClose: () => void }) {
-  const { run } = useStore();
+  const { run, busy } = useStore();
   const { user } = useAccess();
   const [status, setStatus] = useState<Status>(lot.qcStatus && lot.qcStatus !== 'Pending' ? lot.qcStatus : 'Accepted');
   const [acc, setAcc] = useState(lot.qcStatus === 'Partial' && lot.acceptedWeight != null ? String(lot.acceptedWeight) : '');
@@ -50,7 +50,7 @@ export function LotQcModal({ lot, onClose }: { lot: RawMaterialLot; onClose: () 
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" disabled={!!errPartial} onClick={submit}>
+          <button className="btn btn-primary" disabled={!!errPartial || busy} onClick={submit}>
             <ShieldCheck size={15} /> Save QC result
           </button>
         </>

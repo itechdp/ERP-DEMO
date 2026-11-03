@@ -6,6 +6,8 @@ import { saveCustomer } from '../masters/service';
 import type { Customer } from '../masters/types';
 import { useStore } from '../store/StoreContext';
 import { matches } from '../components/format';
+import { ListButtons } from '../export/docOutput';
+import { FORM_FORMATS } from '../export/xlsxSheet';
 
 const BLANK: Customer = { id: 0, name: '', code: '', contact: '', phone: '', email: '', address: '', city: '', state: '', gstin: '', paymentTerms: '', notes: '', active: true };
 
@@ -31,7 +33,7 @@ export function CustomersPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Sales & Orders" title="Customers" subtitle="Everyone you sell to. Pick a customer in the forms instead of typing the name." actions={add} />
+      <PageHeader eyebrow="Sales & Orders" title="Customers" subtitle="Everyone you sell to. Pick a customer in the forms instead of typing the name." actions={<>{list.length > 0 && <ListButtons doc={() => ({ filename: 'Customers', title: 'Customers', form: FORM_FORMATS.report, rows: list.map((c) => ({ ...c, active: c.active ? 'Active' : 'Inactive' })), cols: [{ label: 'Customer', key: 'name', width: 30 }, { label: 'Code', key: 'code' }, { label: 'Contact', key: 'contact' }, { label: 'Phone', key: 'phone' }, { label: 'E-mail', key: 'email', width: 26 }, { label: 'City', key: 'city' }, { label: 'State', key: 'state' }, { label: 'GSTIN', key: 'gstin', width: 18 }, { label: 'Payment Terms', key: 'paymentTerms', width: 22 }, { label: 'Status', key: 'active' }] })} />}{add}</>} />
       <div className="card">
         {list.length === 0 ? (
           <Empty icon={Users} title="No customers yet" text="Add your first customer, or add one straight from a quotation or order form." action={add} />

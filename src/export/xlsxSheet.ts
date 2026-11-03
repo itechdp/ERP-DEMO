@@ -13,6 +13,20 @@ export const FORM_FORMATS = {
   report: { formNo: 'F RP 01', revision: '00 / 01.10.25' },
   packingList: { formNo: 'F DS 01', revision: '00 / 01.10.25' },
   qcFinalInspection: { formNo: 'F QC 01', revision: '00 / 01.10.25' },
+  salesOrder: { formNo: 'F SL 02', revision: '00 / 01.10.25' },
+  purchaseRequisition: { formNo: 'F PU 02', revision: '00 / 01.10.25' },
+  procurementRequest: { formNo: 'F PU 03', revision: '00 / 01.10.25' },
+  supplierQuotation: { formNo: 'F PU 04', revision: '00 / 01.10.25' },
+  quotationComparison: { formNo: 'F PU 05', revision: '00 / 01.10.25' },
+  goodsReceipt: { formNo: 'F ST 01', revision: '00 / 01.10.25' },
+  purchaseInvoice: { formNo: 'F AC 01', revision: '00 / 01.10.25' },
+  paymentVoucher: { formNo: 'F AC 02', revision: '00 / 01.10.25' },
+  payables: { formNo: 'F AC 03', revision: '00 / 01.10.25' },
+  routeCard: { formNo: 'F PD 03', revision: '00 / 01.10.25' },
+  jobWorkIn: { formNo: 'F JW 01', revision: '00 / 01.10.25' },
+  jobWorkOut: { formNo: 'F JW 02', revision: '00 / 01.10.25' },
+  hardnessReport: { formNo: 'F QC 03', revision: '00 / 01.10.25' },
+  qcRecord: { formNo: 'F QC 02', revision: '00 / 01.10.25' },
 } as const;
 export type FormFormat = { formNo: string; revision: string };
 

@@ -7,6 +7,8 @@ import { useStore } from '../../store/StoreContext';
 import { useSuppliers } from '../hooks/usePurchase';
 import { saveSupplier } from '../services/supplierService';
 import type { Supplier } from '../types';
+import { ListButtons } from '../../export/docOutput';
+import { FORM_FORMATS } from '../../export/xlsxSheet';
 
 export function SupplierMasterPage() {
   const { suppliers, loading, error, reload } = useSuppliers();
@@ -100,11 +102,14 @@ export function SupplierMasterPage() {
         eyebrow="Purchase & Procurement"
         title="Supplier Master"
         actions={
-          <Write res="suppliers">
-            <button className="btn btn-primary" onClick={openNew}>
-              <Plus size={15} /> Add Supplier
-            </button>
-          </Write>
+          <>
+            {shown.length > 0 && <ListButtons doc={() => ({ filename: 'Supplier-Master', title: 'Supplier Master', form: FORM_FORMATS.report, rows: shown.map((s) => ({ ...s, msme: s.isMsme ? 'Yes' : 'No', status: s.active ? 'Active' : 'Inactive' })), cols: [{ label: 'Code', key: 'code' }, { label: 'Supplier', key: 'name', width: 30 }, { label: 'GSTIN', key: 'gstin', width: 18 }, { label: 'PAN', key: 'pan' }, { label: 'State', key: 'state' }, { label: 'Contact', key: 'contactPerson' }, { label: 'Phone', key: 'phone' }, { label: 'E-mail', key: 'email', width: 26 }, { label: 'Payment Terms', key: 'defaultPaymentTerms', width: 22 }, { label: 'MSME', key: 'msme' }, { label: 'Status', key: 'status' }] })} />}
+            <Write res="suppliers">
+              <button className="btn btn-primary" onClick={openNew}>
+                <Plus size={15} /> Add Supplier
+              </button>
+            </Write>
+          </>
         }
       />
 
