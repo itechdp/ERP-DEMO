@@ -296,7 +296,8 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
 
   const errIn = editableInput ? (!(inN > 0) || !Number.isInteger(inN) ? 'Enter a whole quantity' : ownStock && inN > rawAvail ? `Only ${rawAvail} PCS in raw stock` : null) : null;
   const errRej = rejection === '' || rejN < 0 || !Number.isInteger(rejN) ? 'Whole number' : rejN > inN ? `Cannot exceed ${inN}` : null;
-  const tempErr = (v: string) => (stage === 'heatTreatment' && !(Number(v) > 0) ? 'Enter temperature' : null);
+  // T1–T4 are optional: leave one empty and it is simply not recorded; a value that is typed must be a positive number
+  const tempErr = (v: string) => (stage === 'heatTreatment' && v.trim() !== '' && !(Number(v) > 0) ? 'Enter a positive temperature' : null);
   const errTemp = temps.some((v) => tempErr(v));
   const invalid = !!errIn || !!errRej || errTemp;
   // where the batch goes next (Forging can skip Trimming and / or Heat Treatment)
@@ -313,7 +314,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
             inputQty: editableInput ? inN : undefined,
             loss: rejN,
             operator: checkedBy,
-            params: stage === 'forging' ? (skipTrim || skipHT ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : undefined) : stage === 'heatTreatment' ? { temperature: Number(temps[0]), t1: Number(temps[0]), t2: Number(temps[1]), t3: Number(temps[2]), t4: Number(temps[3]) } : undefined,
+            params: stage === 'forging' ? (skipTrim || skipHT ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : undefined) : stage === 'heatTreatment' ? htParams(temps) : undefined,
           },
           tsFor(date, now),
         ),
@@ -379,7 +380,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
         </Field>
         {stage === 'heatTreatment' &&
           temps.map((t, i) => (
-            <Field key={i} label={`T${i + 1}`} required error={tempErr(t)} hint={i === 0 ? `${p.name} standard: ${p.htTemperature}°C` : undefined}>
+            <Field key={i} label={`T${i + 1} (optional)`} error={tempErr(t)} hint={i === 0 ? `${p.name} standard: ${p.htTemperature}°C` : undefined}>
               <NumInput value={t} onChange={(v) => setTemp(i, v)} suffix="°C" />
             </Field>
           ))}
@@ -394,6 +395,16 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
 }
 
 /** Jobs still at an earlier stage — shows why they are not here yet and lets the user finish that step. */
+/** Heat-treatment temperatures that were entered: T1–T4, empty ones left out (the first one entered is also the single "temperature"). */
+function htParams(temps: string[]) {
+  const out: Record<string, number> = {};
+  temps.forEach((v, i) => {
+    if (v.trim() !== '' && Number(v) > 0) out[`t${i + 1}`] = Number(v);
+  });
+  const first = Object.values(out)[0];
+  return first === undefined ? {} : { temperature: first, ...out };
+}
+
 function UpstreamJobs({ jobNos }: { jobNos: string[] }) {
   const { state, openAction, openTrace } = useStore();
   return (

@@ -31,7 +31,7 @@ function pairs(s: ERPState, d: Dispatch): Pair[] {
 export function packingListHtml(s: ERPState, d: Dispatch) {
   const p = getProduct(s, d.productId);
   const rows = d.bags.map((b) => `<tr><td class="n">${b.no}</td><td>${esc(bagNo(d, b.no))}</td><td>${esc(p.name)}</td><td>${b.qty}</td><td>${kg(b.weight)}</td></tr>`).join('');
-  return `<div class="rc sd">
+  return `<div class="rc sd pl">
   <table class="hd">
     <tr><td style="width:34%"><div class="brand"><img class="logo-img" src="/everest-logo.png" alt="Everest Auto Forge"/></div></td>
         <td class="ttl">PACKING LIST</td>
@@ -51,7 +51,10 @@ export function packingListHtml(s: ERPState, d: Dispatch) {
 </div>`;
 }
 
-export const printPackingList = (s: ERPState, d: Dispatch) => printHtml(`Packing List ${d.dispatchNo}`, packingListHtml(s, d), ROUTE_CARD_CSS + SALES_CSS);
+// equal signature boxes, and a compact remarks / signature area so the whole list stays on one page
+const PACKING_CSS = `.pl .sign{table-layout:fixed;width:100%}.pl .sign td{width:33.33%!important;height:62px!important}.pl .rem td{height:56px!important}`;
+
+export const printPackingList = (s: ERPState, d: Dispatch) => printHtml(`Packing List ${d.dispatchNo}`, packingListHtml(s, d), ROUTE_CARD_CSS + SALES_CSS + PACKING_CSS);
 
 export async function exportPackingListXlsx(s: ERPState, d: Dispatch, user: string) {
   const p = getProduct(s, d.productId);
