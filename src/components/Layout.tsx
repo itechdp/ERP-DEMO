@@ -45,6 +45,8 @@ import {
   Cpu,
   Wrench,
   ShieldCheck,
+  Activity,
+  ListChecks,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -68,7 +70,7 @@ export interface NavItem {
 const flowItem = (s: (typeof FLOW_STEPS)[number]): NavItem => ({ route: s.route, label: s.key === 'forging' ? 'Forging / Manufacturing' : s.label, icon: s.icon });
 // the Instruction page sits just above Heat Treatment
 const WORKFLOW_NAV: NavItem[] = FLOW_STEPS.flatMap((s) => (s.key === 'heatTreatment' ? [{ route: 'instruction', label: 'Instruction', icon: BookOpen }, flowItem(s)] : [flowItem(s)])).concat([{ route: 'production-planning', label: 'Heat Treatment Planning', icon: ListOrdered }, { route: 'furnaces', label: 'Furnace Management', icon: Flame }, { route: 'job-work', label: 'Job Work In', icon: Handshake }, { route: 'job-work-out', label: 'Job Work Out', icon: Send }]);
-// Task Assignment is a tab of the Work Hub now, so it is not listed here
+// Task Assignment sits under the Work Hub in the Main Menu, so it is not listed here
 const SALES_NAV: NavItem[] = [{ route: 'customers', label: 'Customers', icon: Users }, ...SALES_PAGES.filter((p) => p.route !== 'task-assignment').map((p) => ({ route: p.route, label: p.label, icon: p.icon }))];
 const PURCHASE_NAV: NavItem[] = [
   { route: 'purchase-dashboard', label: 'Purchase Dashboard', icon: LayoutGrid },
@@ -115,7 +117,7 @@ const workflowItems = (): NavItem[] => {
 };
 
 const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = [
-  { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'work-hub', label: 'Work Hub', icon: ClipboardList }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
+  { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'workflow-overview', label: 'Workflow Overview', icon: Activity }, { route: 'work-hub-group', label: 'Work Hub', icon: ClipboardList, children: [{ route: 'work-hub', label: 'Overview & My Tasks', icon: ClipboardList }, { route: 'task-assignment', label: 'Task Assignment', icon: ListChecks }] }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
   { id: 'sales', title: 'Sales & Orders', icon: Briefcase, items: SALES_NAV },
   { id: 'purchase', title: 'Purchase & Procurement', icon: ShoppingBag, items: PURCHASE_NAV },
   { id: 'flow', title: 'Workflow', icon: Workflow, items: workflowItems() },

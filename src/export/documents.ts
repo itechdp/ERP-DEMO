@@ -8,6 +8,7 @@ import type { Dispatch, ERPState, HardnessReport, JobWork, QCRecord, RawMaterial
 import type { InvoiceDetail, PRDetail, PurchasePayment, RFQDetail, SQDetail, ComparisonMatrix, SupplierPayable } from '../purchase/types';
 import type { OrderLine, OrderRow } from '../salesmod/types';
 import type { JobWorkOut } from '../jobworkout/service';
+import { stepLines, type Instruction } from '../instructions/service';
 import { FORM_FORMATS, type SheetSpec, type SheetValue } from './xlsxSheet';
 
 const d = (iso?: string | null) => (iso ? dmy(iso) : '');
@@ -402,6 +403,33 @@ export function jobWorkReturnSpec(s: ERPState, dsp: Dispatch, w: JobWork, user: 
     blocks: [
       { headers: ['Bag', 'Item', 'Qty (PCS)', 'Weight (KG)'], align: ['center', 'left', 'right', 'right'], rows: [...dsp.bags.map((b) => ({ cells: [b.no, p.name, b.qty, b.weight] as SheetValue[] })), { cells: ['', 'Total', dsp.qty, dsp.weight] as SheetValue[], bold: true }] },
     ],
+    checkedBy: user,
+  };
+}
+
+// ---------------------------------------------------------------- work instruction
+export function workInstructionSpec(w: Instruction, user: string): SheetSpec {
+  const steps = stepLines(w.steps);
+  const params = w.parameters.filter((p) => p.name.trim());
+  const checks = stepLines(w.checks);
+  const blocks: SheetSpec['blocks'] = [];
+  if (steps.length) blocks.push({ heading: 'Steps', headers: ['Step', 'Instruction'], spans: [1, 2], align: ['center', 'left'], rows: steps.map((t, i) => ({ cells: [i + 1, t] as SheetValue[] })) });
+  if (params.length) blocks.push({ heading: 'Settings / parameters', headers: ['Parameter', 'Value'], spans: [2, 1], align: ['left', 'left'], rows: params.map((p) => ({ cells: [p.name, p.value] as SheetValue[] })) });
+  if (checks.length) blocks.push({ heading: 'What to check', headers: ['Sr. No.', 'Check'], spans: [1, 2], align: ['center', 'left'], rows: checks.map((t, i) => ({ cells: [i + 1, t] as SheetValue[] })) });
+  if (!blocks.length) blocks.push({ headers: ['Instruction'], spans: [3], rows: [{ cells: [w.title] as SheetValue[] }] });
+  return {
+    filename: safe(w.docNo),
+    sheet: safe(w.docNo).slice(0, 31),
+    form: FORM_FORMATS.workInstruction,
+    title: 'Work Instruction',
+    info: [
+      [`Instruction No :- ${w.docNo}`, `Revision :- ${w.revNo}`, `Effective From :- ${d(w.effectiveDate)}`],
+      [`Title :- ${w.title}`, `Process :- ${w.process}`, `Status :- ${w.status}`],
+      ...(w.productName ? [[`Product :- ${w.productName}`]] : []),
+    ],
+    widths: [8, 44, 44],
+    blocks,
+    notes: [...(w.tools ? [`Tools / equipment : ${w.tools}`] : []), ...(w.safety ? [`Safety : ${w.safety}`] : []), ...(w.remarks ? [`Remarks : ${w.remarks}`] : [])],
     checkedBy: user,
   };
 }

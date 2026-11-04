@@ -8,6 +8,7 @@ import { fetchReportRows } from '../services/receiptService';
 import { REPORT_BY_ID, REPORT_GROUPS, REPORTS, type ReportCol, type ReportDef } from '../reports/config';
 import { downloadXlsx } from '../../export/xlsx';
 import { printReport } from '../reports/print';
+import { usePaged } from '../../components/Pager';
 
 type Row = Record<string, unknown>;
 
@@ -110,6 +111,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
     if (q.trim()) r = r.filter((x) => matches(q, ...cols.map((c) => show(c, x[c.key]))));
     return r;
   }, [scope, def, from, to, supplier, material, grade, status, urgency, q, cols]);
+  const pg = usePaged(result, result.length);
 
   const totals = useMemo(() => {
     if (!cols.some((c) => c.total) || result.length === 0) return null;
@@ -239,7 +241,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
                 </tr>
               </thead>
               <tbody>
-                {result.map((r, i) => (
+                {pg.rows.map((r, i) => (
                   <tr key={i}>
                     {cols.map((c) => (
                       <td key={c.key} className={c.kind === 'num' || c.kind === 'money' || c.kind === 'pct' ? 'r num nowrap' : c.kind === 'date' ? 'nowrap' : undefined}>
@@ -259,6 +261,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
                 )}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

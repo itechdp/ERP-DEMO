@@ -12,6 +12,7 @@ import { INVOICE_RATE_TOLERANCE_PCT, type InvoiceDetail, type InvoiceablePO, typ
 import { useTabAccess } from '../../auth/tabs';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 const round2 = (v: number) => Math.round(v * 100) / 100;
@@ -69,6 +70,7 @@ function InvoiceList({ navigate, supplierParam, openOnly }: { navigate: (r: stri
         .filter((r) => matches(q, r.pinvNo, canSee('invoices') ? r.supplierInvNo : '', canSee('party_names') ? r.supplierName : '', r.poNo, r.status, r.payStatus)),
     [rows, status, pay, overdue, supplier, from, to, q],
   );
+  const pg = usePaged(shown, shown.length);
 
   const groups = [
     { label: 'Status', value: status, onChange: setStatus, options: [{ value: '', label: 'All statuses' }, ...['Draft', 'Posted', 'Cancelled'].map((v) => ({ value: v, label: v }))] },
@@ -145,7 +147,7 @@ function InvoiceList({ navigate, supplierParam, openOnly }: { navigate: (r: stri
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pg.rows.map((r) => (
                   <tr key={r.invoiceId}>
                     <td className="strong nowrap">{r.pinvNo}</td>
                     <Conf g="invoices">
@@ -196,6 +198,7 @@ function InvoiceList({ navigate, supplierParam, openOnly }: { navigate: (r: stri
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

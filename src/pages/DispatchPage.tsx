@@ -19,6 +19,7 @@ import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 type Filter = 'all' | 'Ready for Dispatch' | 'Dispatched' | 'today';
 
@@ -45,6 +46,7 @@ export function DispatchPage() {
     .filter((d) => (filter === 'all' ? true : filter === 'today' ? today.includes(d) : d.status === filter))
     .filter((d) => custF === 'all' || d.customer === custF)
     .filter((d) => matches(q, d.dispatchNo, d.jobNo, searchable(d.customer), searchableCol(d.vehicleNo, 'dispatch.vehicle'), getProduct(state, d.productId).name, searchable(d.invoiceNo, 'invoices')));
+  const pg = usePaged(rows, rows.length);
 
   return (
     <>
@@ -119,7 +121,7 @@ export function DispatchPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((d) => {
+                {pg.rows.map((d) => {
                   const p = getProduct(state, d.productId);
                   return (
                     <tr key={d.dispatchNo} className={rowTone(d.status)}>
@@ -189,6 +191,7 @@ export function DispatchPage() {
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

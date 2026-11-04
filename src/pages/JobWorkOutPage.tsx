@@ -10,6 +10,7 @@ import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 const PROCESSES = ['Cutting', 'Forging', 'Trimming', 'Heat Treatment', 'CNC', 'VMC', 'Machining', 'Plating', 'Grinding', 'Other'];
 const UOMS = ['PCS', 'KG', 'SET'];
@@ -53,6 +54,7 @@ export function JobWorkOutPage() {
         .sort((a, b) => (a.status === 'Sent' ? 0 : 1) - (b.status === 'Sent' ? 0 : 1) || (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || b.id - a.id),
     [jw.items, statusF, q],
   );
+  const pg = usePaged(rows, rows.length);
 
   const fail = (title: string) => (e: unknown) => toast({ kind: 'error', title, message: e instanceof Error ? e.message : String(e) });
 
@@ -135,7 +137,7 @@ export function JobWorkOutPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((j) => (
+                    {pg.rows.map((j) => (
                       <tr key={j.id}>
                         <td className="nowrap">
                           <div className="mono strong">{j.outNo}</div>
@@ -192,6 +194,7 @@ export function JobWorkOutPage() {
                     ))}
                   </tbody>
                 </table>
+                {pg.pager}
               </div>
             )}
           </>

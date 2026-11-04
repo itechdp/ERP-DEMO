@@ -9,6 +9,7 @@ import { saveSupplier } from '../services/supplierService';
 import type { Supplier } from '../types';
 import { ListButtons } from '../../export/docOutput';
 import { FORM_FORMATS } from '../../export/xlsxSheet';
+import { usePaged } from '../../components/Pager';
 
 export function SupplierMasterPage() {
   const { suppliers, loading, error, reload } = useSuppliers();
@@ -81,6 +82,7 @@ export function SupplierMasterPage() {
       return true;
     })
     .filter((s) => matches(q, s.code, s.name, s.gstin, s.pan, s.contactPerson, s.phone, s.email, s.state));
+  const pg = usePaged(shown, shown.length);
 
   const filterGroups = [
     {
@@ -157,7 +159,7 @@ export function SupplierMasterPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {shown.map((s) => (
+                    {pg.rows.map((s) => (
                       <tr key={s.id}>
                         <td className="strong">{s.code}</td>
                         <td className="strong">{s.name}</td>
@@ -199,6 +201,7 @@ export function SupplierMasterPage() {
                     ))}
                   </tbody>
                 </table>
+                {pg.pager}
               </div>
             )}
           </>

@@ -15,6 +15,7 @@ import { useProductFlows } from '../products/flow';
 import { useTabAccess } from '../auth/tabs';
 import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
+import { usePaged } from '../components/Pager';
 
 type Filter = 'QC Pending' | 'inspected' | 'Rejections' | 'all';
 
@@ -50,6 +51,7 @@ export function QCPage() {
         .sort((a, b) => (a.status === 'QC Pending' ? -1 : 1) - (b.status === 'QC Pending' ? -1 : 1) || (b.inspectedAt ?? b.receivedAt).localeCompare(a.inspectedAt ?? a.receivedAt)),
     [recs, filter, q, productF, state],
   );
+  const pg = usePaged(rows, rows.length);
 
   return (
     <>
@@ -127,7 +129,7 @@ export function QCPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {pg.rows.map((r) => {
                   const job = getJob(state, r.jobNo);
                   const p = getProduct(state, job.productId);
                   const done = r.status !== 'QC Pending';
@@ -191,6 +193,7 @@ export function QCPage() {
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
         </>)}

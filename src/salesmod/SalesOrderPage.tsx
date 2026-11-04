@@ -17,6 +17,7 @@ import { fetchOrder, saveOrder, setOrderStatus, type OrderHeaderInput } from './
 import { ORDER_NEXT, UOMS, type OrderLine, type OrderRow } from './types';
 import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
+import { usePaged } from '../components/Pager';
 
 const blank = (): OrderLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
@@ -52,6 +53,7 @@ export function SalesOrderPage({ query, navigate }: { query?: URLSearchParams; n
   }, [query]);
 
   const shown = useMemo(() => orders.filter((o) => status === 'all' || o.status === status).filter((o) => matches(q, o.soNo, o.customer, o.products, o.extRef, o.quotationNo ?? '', o.status)), [orders, status, q]);
+  const pg = usePaged(shown, shown.length);
 
   if (formOpen) {
     return (
@@ -104,7 +106,7 @@ export function SalesOrderPage({ query, navigate }: { query?: URLSearchParams; n
                 </tr>
               </thead>
               <tbody>
-                {shown.map((o) => (
+                {pg.rows.map((o) => (
                   <tr key={o.id}>
                     <td className="strong"><button className="link-btn" style={{ fontWeight: 600 }} onClick={() => setSelected(o.id)}>{o.soNo}</button></td>
                     <td className="muted nowrap">{fmtDate(o.soDate)}</td>
@@ -134,6 +136,7 @@ export function SalesOrderPage({ query, navigate }: { query?: URLSearchParams; n
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

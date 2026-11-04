@@ -14,6 +14,7 @@ import {
   PackageCheck,
   Play,
   Plus,
+  RefreshCw,
   Scissors,
   ShieldCheck,
   Truck,
@@ -27,7 +28,7 @@ import { nextStep, pendingSteps } from '../components/workflow';
 import { useFollowups } from '../followups/useFollowups';
 import { BellRing } from 'lucide-react';
 import { AnimatedNum } from '../components/motion';
-import { fmtKg, fmtNum, plural, timeAgo } from '../components/format';
+import { fmtKg, fmtNum, plural, timeAgo, todayISO } from '../components/format';
 
 const FEED_ICON: Record<Activity['kind'], typeof Play> = {
   inward: ArrowDownToLine,
@@ -41,7 +42,7 @@ const FEED_ICON: Record<Activity['kind'], typeof Play> = {
 };
 
 export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
-  const { state, openTrace, openAction } = useStore();
+  const { state, openTrace, openAction, refresh, loadedAt } = useStore();
   const [showAll, setShowAll] = useState(false);
   const waiting = pendingSteps(state).length;
   const { due: followDue, loading: followLoading } = useFollowups();
@@ -142,9 +143,12 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
         title="Dashboard"
         actions={
           <>
-            <span className="live">
-              <ActivityIcon size={15} /> Live data synced
+            <span className="live" title="The screen is read again when you return to it after a couple of minutes, and after anything you save">
+              <ActivityIcon size={15} /> Updated {loadedAt ? new Date(loadedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
             </span>
+            <button className="btn btn-subtle" onClick={() => void refresh()}>
+              <RefreshCw size={14} /> Refresh
+            </button>
             <Write res="cutting"><button className="btn btn-primary" onClick={() => openAction({ kind: 'newJob' })}>
               <Plus size={16} /> New Job Card
             </button></Write>
@@ -156,14 +160,14 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
         <Kpi label="Raw Material Stock" value={d.rawQty} unit="PCS" hint={fmtKg(Math.round(d.rawKg * 10) / 10)} icon={Boxes} tone="blue" onClick={() => navigate('raw-inventory')} />
         <Kpi label="Active Production Jobs" value={d.active.length} unit="jobs" hint={`${fmtNum(d.active.reduce((t, j) => t + jobSummary(state, j.jobNo).currentQty, 0))} PCS in process · ${plural(state.jobs.length, 'job')} total`} icon={Factory} tone="violet" trend={waiting ? <span className="chip chip-high">{waiting} need action</span> : undefined} onClick={() => navigate('traceability')} />
         <Kpi label="Finished Goods" value={d.fgAvail} unit="PCS" hint={`${fmtNum(d.fgReserved)} more packed for dispatch`} icon={PackageCheck} tone="green" onClick={() => navigate('finished-goods')} />
-        <Kpi label="Follow-ups Due" value={followLoading ? 0 : followDue.length} icon={BellRing} tone={followDue.some((f) => f.due && f.due < new Date().toISOString().slice(0, 10)) ? 'red' : 'violet'} hint="tomorrow, today or overdue" onClick={() => navigate('follow-ups')} />
+        <Kpi label="Follow-ups Due" value={followLoading ? 0 : followDue.length} icon={BellRing} tone={followDue.some((f) => f.due && f.due < todayISO()) ? 'red' : 'violet'} hint="tomorrow, today or overdue" onClick={() => navigate('follow-ups')} />
         <Kpi label="Today's Dispatch" value={d.todayQty} unit="PCS" hint={`${d.todayCount} dispatch${d.todayCount === 1 ? '' : 'es'} today`} icon={Truck} tone="teal" onClick={() => navigate('dispatch')} />
       </div>
       <div className="kpis k5">
-        <Kpi label="Cutting Pending" value={d.stage.cutting.jobs} unit="jobs" hint={`${fmtNum(d.stage.cutting.wip)} PCS`} icon={Scissors} tone="amber" onClick={() => navigate('cutting')} />
-        <Kpi label="Forging Pending" value={d.stage.forging.jobs} unit="jobs" hint={`${fmtNum(d.stage.forging.wip)} PCS`} icon={Hammer} tone="amber" onClick={() => navigate('forging')} />
-        <Kpi label="Trimming Pending" value={d.stage.trimming.jobs} unit="jobs" hint={`${fmtNum(d.stage.trimming.wip)} PCS`} icon={Crop} tone="amber" onClick={() => navigate('trimming')} />
-        <Kpi label="Heat Treatment Pending" value={d.stage.heatTreatment.jobs} unit="jobs" hint={`${fmtNum(d.stage.heatTreatment.wip)} PCS`} icon={Flame} tone="amber" onClick={() => navigate('heat-treatment')} />
+        <Kpi label="At Cutting" value={d.stage.cutting.jobs} unit="jobs" hint={`${fmtNum(d.stage.cutting.wip)} PCS`} icon={Scissors} tone="amber" onClick={() => navigate('cutting')} />
+        <Kpi label="At Forging" value={d.stage.forging.jobs} unit="jobs" hint={`${fmtNum(d.stage.forging.wip)} PCS`} icon={Hammer} tone="amber" onClick={() => navigate('forging')} />
+        <Kpi label="At Trimming" value={d.stage.trimming.jobs} unit="jobs" hint={`${fmtNum(d.stage.trimming.wip)} PCS`} icon={Crop} tone="amber" onClick={() => navigate('trimming')} />
+        <Kpi label="At Heat Treatment" value={d.stage.heatTreatment.jobs} unit="jobs" hint={`${fmtNum(d.stage.heatTreatment.wip)} PCS`} icon={Flame} tone="amber" onClick={() => navigate('heat-treatment')} />
         <Kpi label="QC Pending" value={d.qc.jobs} unit="jobs" hint={`${fmtNum(d.qc.wip)} PCS to inspect`} icon={ShieldCheck} tone="amber" onClick={() => navigate('qc')} />
       </div>
 
@@ -393,7 +397,7 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
                   {fmtNum(g.qty)} <span className="muted" style={{ fontWeight: 500 }}>/ {fmtNum(g.inward)} PCS</span>
                 </div>
                 <div className="meter">
-                  <i style={{ width: `${(g.qty / g.inward) * 100}%` }} />
+                  <i style={{ width: `${g.inward > 0 ? Math.min(100, (g.qty / g.inward) * 100) : 0}%` }} />
                 </div>
               </div>
             ))}

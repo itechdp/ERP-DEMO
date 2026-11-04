@@ -64,6 +64,15 @@ const BASE_RESOURCES: AppResourceDefinition[] = [
     writable: false,
     defaultLevels: { qc: 'hidden', operator: 'hidden' },
   },
+  {
+    key: 'workflow_overview',
+    route: 'workflow-overview',
+    label: 'Workflow Overview',
+    section: 'Main Menu',
+    sort: 13,
+    writable: false,
+    defaultLevels: { accounts: 'hidden', qc: 'hidden', operator: 'hidden', viewer: 'hidden' },
+  },
 
   // ---------------------------------------------------- Sales & Orders ---
   {
@@ -468,7 +477,7 @@ const BASE_RESOURCES: AppResourceDefinition[] = [
  * `<page key>__<tab key>`; a role that is given a page can still be refused a tab. A tab that has no setting yet follows its page.
  */
 export const PAGE_TABS: Record<string, { key: string; label: string }[]> = {
-  work_hub: [{ key: 'overview', label: 'Work Hub' }, { key: 'mytasks', label: 'My Tasks' }, { key: 'assignment', label: 'Task Assignment' }],
+  work_hub: [{ key: 'overview', label: 'Work Hub' }, { key: 'mytasks', label: 'My Tasks' }],
   qc: [{ key: 'register', label: 'Inspection Register' }, { key: 'hardness', label: 'Hardness Reports' }, { key: 'dimension', label: 'Dimension Reports' }],
   job_work: [{ key: 'batches', label: 'Job Work In' }, { key: 'report', label: 'Job Card Report' }],
   raw_inventory: [{ key: 'stock', label: 'Raw Material Stock' }, { key: 'inward', label: 'Inward Register' }, { key: 'issues', label: 'Issues to Production' }],

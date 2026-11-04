@@ -6,6 +6,7 @@ import { fmtDate, fmtNum, matches } from '../../components/format';
 import { fetchSupplierPerformance, fetchSupplierPOs } from '../services/receiptService';
 import type { SupplierPerformance } from '../types';
 import { BAND_BADGE, SCORE_TIP, SCORE_WEIGHTS, band, partScores, shortagePct, supplierScore, THRESHOLDS } from '../reports/scoring';
+import { usePaged } from '../../components/Pager';
 
 type Row = Record<string, unknown>;
 type SortKey = 'name' | 'poCount' | 'totalPurchaseValue' | 'onTimePct' | 'qualityPct' | 'rejectionPct' | 'priceIndex' | 'shortage' | 'avgResponseHrs' | 'score';
@@ -59,6 +60,7 @@ export function SupplierPerformancePage({ navigate }: { navigate: (r: string) =>
         return sort.asc ? c : -c;
       });
   }, [scored, q, sort, showParty]);
+  const pg = usePaged(shown, shown.length);
 
   const th = (key: SortKey, label: string, right = true, tip?: string) => (
     <th className={right ? 'r' : undefined} title={tip}>
@@ -121,7 +123,7 @@ export function SupplierPerformancePage({ navigate }: { navigate: (r: string) =>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => {
+                {pg.rows.map((r) => {
                   const sh = shortagePct(r);
                   return (
                     <tr key={r.supplierId}>
@@ -166,6 +168,7 @@ export function SupplierPerformancePage({ navigate }: { navigate: (r: string) =>
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

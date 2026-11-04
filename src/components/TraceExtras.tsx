@@ -1,19 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { Conf } from '../auth/access';
 import { dbMessage, supabase } from '../db/client';
 import { priorityName, clampPriority } from '../planning/priority';
 import { hardnessVerdict } from '../store/engine';
 import { useStore } from '../store/StoreContext';
 import { lineResult, type DimLine } from '../dimension/types';
 import { Badge, go } from './ui';
-import { fmtDate, fmtDateTime, fmtNum } from './format';
+import { fmtDate, fmtDateTime } from './format';
 
 interface Extras {
   furnace: { id: number; name: string; shift: string; cycleNo: string; startedAt: string; endsAt: string; releasedAt: string | null; loadedBy: string }[];
   plan: { stage: string; rank: number; approvedBy: string; approvedAt: string; doneAt: string | null }[];
   dims: { id: number; reportNo: string; reportDate: string; conclusion: string; result: string }[];
-  out: { id: number; outNo: string; vendor: string; item: string; process: string; qty: number; uom: string; dueDate: string; status: string; receivedOn: string }[];
 }
 
 type R = Record<string, any>;
@@ -26,14 +24,13 @@ const quiet = async <T,>(q: PromiseLike<{ data: unknown; error: { message: strin
   }
 };
 
-/** the records of other pages that belong to this job: the furnace run, the planning approval, dimension reports and work given out */
+/** the records of other pages that belong to this job: the furnace run, the planning approval and dimension reports */
 async function fetchExtras(jobNo: string): Promise<Extras> {
-  const [loads, furnaces, plan, dims, out] = await Promise.all([
+  const [loads, furnaces, plan, dims] = await Promise.all([
     quiet<R>(supabase.from('v_furnace_loads').select('*').eq('job_no', jobNo).order('started_at')),
     quiet<R>(supabase.from('v_furnaces').select('id, name')),
     quiet<R>(supabase.from('v_production_plan_history').select('*').eq('job_no', jobNo).order('approved_at')),
     quiet<R>(supabase.from('v_dimension_reports').select('id, report_no, report_date, conclusion, lines').eq('job_no', jobNo).order('report_date')),
-    quiet<R>(supabase.from('v_job_work_out').select('*').eq('job_no', jobNo).order('out_date')),
   ]);
   const name = new Map(furnaces.map((f) => [Number(f.id), String(f.name)]));
   return {
@@ -43,11 +40,10 @@ async function fetchExtras(jobNo: string): Promise<Extras> {
       const res = ((d.lines ?? []) as DimLine[]).map((l) => lineResult({ ...l, samples: l.samples ?? [] }));
       return { id: Number(d.id), reportNo: d.report_no, reportDate: d.report_date ?? '', conclusion: d.conclusion ?? '', result: res.includes('NOT OK') ? 'NOT OK' : res.length && res.every((x) => x === 'OK') ? 'OK' : 'Incomplete' };
     }),
-    out: out.map((o) => ({ id: Number(o.id), outNo: o.out_no, vendor: o.vendor ?? '', item: o.item ?? '', process: o.process ?? '', qty: Number(o.qty), uom: o.uom ?? 'PCS', dueDate: o.due_date ?? '', status: o.status, receivedOn: o.received_on ?? '' })),
   };
 }
 
-/** Job Traceability → the records that live on other pages: hardness and dimension reports, the furnace run, the Heat Treatment approval, work given out. */
+/** Job Traceability → the records that live on other pages: hardness and dimension reports, the furnace run, the Heat Treatment approval. */
 export function TraceExtras({ jobNo }: { jobNo: string }) {
   const { state } = useStore();
   const [x, setX] = useState<Extras | null>(null);
@@ -64,7 +60,7 @@ export function TraceExtras({ jobNo }: { jobNo: string }) {
   }, [jobNo, state]);
 
   const hardness = state.hardnessReports.filter((h) => h.jobNo === jobNo);
-  const none = !x || (!x.furnace.length && !x.plan.length && !x.dims.length && !x.out.length);
+  const none = !x || (!x.furnace.length && !x.plan.length && !x.dims.length);
   if (err || (none && !hardness.length)) return null;
 
   const card = (title: string, sub: string, body: JSX.Element) => (
@@ -141,24 +137,6 @@ export function TraceExtras({ jobNo }: { jobNo: string }) {
                   <td>{d.conclusion || '—'}</td>
                   <td><span className={d.result === 'OK' ? 'chip chip-up' : d.result === 'NOT OK' ? 'chip chip-hot' : 'chip chip-wait'}>{d.result}</span></td>
                   <td className="r"><button className="btn-link" onClick={() => go('qc')}>Open QC <ArrowRight size={12} /></button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ))}
-      {x && x.out.length > 0 &&
-        card('Work given out (Job Work Out)', 'Entries linked to this job card', (
-          <table className="tbl">
-            <thead><tr><th>Entry</th><Conf g="party_names"><th>Given to</th></Conf><th>Work</th><th className="r">Qty</th><th>Due</th><th>Status</th></tr></thead>
-            <tbody>
-              {x.out.map((o) => (
-                <tr key={o.id}>
-                  <td className="mono strong">{o.outNo}</td>
-                  <Conf g="party_names"><td>{o.vendor || '—'}</td></Conf>
-                  <td>{[o.item, o.process].filter(Boolean).join(' · ')}</td>
-                  <td className="r num">{fmtNum(o.qty)} {o.uom}</td>
-                  <td className="nowrap">{o.dueDate ? fmtDate(o.dueDate) : '—'}</td>
-                  <td>{o.status === 'Sent' ? 'With others' : o.status === 'Received' ? `Back ${o.receivedOn ? fmtDate(o.receivedOn) : ''}` : o.status}</td>
                 </tr>
               ))}
             </tbody>

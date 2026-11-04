@@ -58,6 +58,7 @@ import {
 import { printPoWithAttachments } from '../printPo';
 import { fetchPOReceipts } from '../services/receiptService';
 import { useTabAccess } from '../../auth/tabs';
+import { usePaged } from '../../components/Pager';
 import type {
   POBalance,
   POReceipt,
@@ -132,6 +133,7 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
         o.deliveryTerms
       )
     );
+  const pg = usePaged(shown, shown.length);
 
   const suppliersList = useMemo(() => {
     const map = new Map<number, string>();
@@ -250,7 +252,7 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
                     </tr>
                   </thead>
                   <tbody>
-                    {shown.map((o) => (
+                    {pg.rows.map((o) => (
                       <tr key={o.id}>
                         <td>
                           <div className="mono strong flex-center gap-1">
@@ -337,6 +339,7 @@ export function PurchaseOrderListPage({ navigate }: { navigate: (r: string) => v
                     ))}
                   </tbody>
                 </table>
+                {pg.pager}
               </div>
             )}
           </>

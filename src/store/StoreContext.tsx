@@ -53,6 +53,8 @@ interface StoreValue {
   masters: Masters;
   /** re-reads everything from the database */
   refresh: () => Promise<void>;
+  /** when the data on screen was last read from the database (ms) */
+  loadedAt: number;
   /**
    * Runs one database action (a single transaction on the server). On success the data is re-read and a toast shown;
    * on failure the database's own message is shown. Resolves to true on success.
@@ -94,10 +96,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => document.body.removeAttribute('data-busy');
   }, [busy]);
 
+  const [loadedAt, setLoadedAt] = useState(0);
+  const loadedRef = useRef(0);
   const fetchAll = useCallback(async () => {
     const [state, masters] = await Promise.all([loadERPState(), loadMasters()]);
     setData({ state, masters });
+    loadedRef.current = Date.now();
+    setLoadedAt(loadedRef.current);
   }, []);
+
+  // other people work in the system too: when this tab is looked at again after 2 minutes, what is on screen is read again
+  useEffect(() => {
+    const back = () => {
+      if (document.visibilityState === 'visible' && !runningRef.current && loadedRef.current && Date.now() - loadedRef.current > 120_000) void fetchAll().catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', back);
+    window.addEventListener('focus', back);
+    return () => {
+      document.removeEventListener('visibilitychange', back);
+      window.removeEventListener('focus', back);
+    };
+  }, [fetchAll]);
 
   const load = useCallback(() => {
     setLoadError('');
@@ -185,6 +204,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         state: data.state,
         masters: data.masters,
         refresh,
+        loadedAt,
         run,
         busy,
         toast,
@@ -195,7 +215,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         action,
         openAction: guardedOpen,
       },
-    [data, refresh, run, busy, toast, toasts, dismiss, traceJob, action, guardedOpen],
+    [data, refresh, loadedAt, run, busy, toast, toasts, dismiss, traceJob, action, guardedOpen],
   );
 
   if (!value) {

@@ -9,6 +9,7 @@ import { diesDoc, fmtDims, fmtWt, mainDiesDoc, printDieCard } from './print';
 import { ListButtons } from '../export/docOutput';
 import { DIE_STATUSES, KIND_LABEL, METALS, type Die, type DieKind } from './types';
 import { useTabAccess } from '../auth/tabs';
+import { usePaged } from '../components/Pager';
 
 export const go = (route: string) => {
   window.location.hash = `/${route}`;
@@ -91,6 +92,7 @@ export function DieMasterPage() {
         }),
     [data, q, metal, status, type, maker],
   );
+  const pgA = usePaged(rows, rows.length);
   const filtered = !!(q || metal || status || type || maker);
 
   return (
@@ -149,7 +151,7 @@ export function DieMasterPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ m, f, t }, i) => (
+                {pgA.rows.map(({ m, f, t }, i) => (
                   <ClickRow key={m.code} tone={DIE_ROW[m.status]} onOpen={() => go(`die-details?id=${m.code}`)}>
                     <td>{i + 1}</td>
                     <td>
@@ -182,6 +184,7 @@ export function DieMasterPage() {
                 ))}
               </tbody>
             </table>
+            {pgA.pager}
           </div>
         )}
       </div>
@@ -204,6 +207,7 @@ export function DieRegisterPage({ kind }: { kind: DieKind }) {
     .filter((d) => (!metal || mainOf(d).metal === metal) && (!maker || d.maker === maker) && (!status || d.status === status))
     .filter((d) => matches(q, d.code, d.mainCode, mainOf(d).name, mainOf(d).partCode, d.material, searchable(d.maker), d.location))
     .sort((a, b) => a.makingDate.localeCompare(b.makingDate) || a.code.localeCompare(b.code));
+  const pgB = usePaged(rows, rows.length);
   const filtered = !!(q || metal || maker || status);
   const label = KIND_LABEL[kind];
   const Ic = kind === 'forging' ? Hammer : Scissors;
@@ -267,7 +271,7 @@ export function DieRegisterPage({ kind }: { kind: DieKind }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((d) => (
+                {pgB.rows.map((d) => (
                   <ClickRow key={d.code} tone={DIE_ROW[d.status]} onOpen={() => openUI({ kind: 'die-view', dieKind: kind, code: d.code })}>
                     <td>
                       <span className="mono strong">{d.code}</span> <DemoChip demo={d.demo} />
@@ -309,6 +313,7 @@ export function DieRegisterPage({ kind }: { kind: DieKind }) {
                 ))}
               </tbody>
             </table>
+            {pgB.pager}
           </div>
         )}
       </div>

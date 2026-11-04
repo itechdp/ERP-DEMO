@@ -20,6 +20,7 @@ import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 type Proc = JobWork['processes'];
 const PROCESSES: { key: keyof Proc; label: string }[] = [
@@ -48,6 +49,7 @@ export function JobWorkPage() {
     .filter((w) => stageF === 'all' || jobOf(w)?.currentStage === stageF)
     .filter((w) => srcF === 'all' || w.materialSource === srcF)
     .filter((w) => matches(q, w.jobNo, w.challanNo, w.itemDescription, state.products.find((p) => p.id === jobOf(w)?.productId)?.name, searchable(jobOf(w)?.customer)));
+  const pg = usePaged(rows, rows.length);
   const stages = [...new Set(list.map((w) => jobOf(w)?.currentStage).filter(Boolean))] as string[];
 
   const add = (
@@ -103,7 +105,7 @@ export function JobWorkPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((w) => {
+                    {pg.rows.map((w) => {
                       const job = jobOf(w);
                       const p = state.products.find((x) => x.id === job?.productId);
                       const reason = jobWorkDeleteReason(state, w.jobNo);
@@ -169,6 +171,7 @@ export function JobWorkPage() {
                     })}
                   </tbody>
                 </table>
+                {pg.pager}
               </div>
             )}
           </>

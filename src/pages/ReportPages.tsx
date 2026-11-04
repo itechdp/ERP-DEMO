@@ -14,7 +14,10 @@ import { addSemiStock, rawKey, semiKey, setStockMin, useStock } from '../stock/s
 import { PartsAdjustModal } from '../components/AdjustModals';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, Priority, rowTone, Search, Stepper, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtNum, matches, plural } from '../components/format';
-import { ListButtons } from '../export/docOutput';
+import { DocButtons, ListButtons, listSpec, type ListDoc } from '../export/docOutput';
+import { Pager, usePager, usePaged } from '../components/Pager';
+import { fetchPage, likeText } from '../db/paged';
+import type { Movement } from '../store/types';
 import { FORM_FORMATS } from '../export/xlsxSheet';
 
 // ------------------------------------------------------- Job Traceability ---
@@ -32,6 +35,7 @@ export function TraceabilityPage() {
     .filter((s) => stageF === 'all' || s.job.currentStage === stageF)
     .filter((s) => matches(q, s.job.jobNo, s.product.name, searchable(s.job.customer), STAGE_LABEL[s.job.currentStage]))
     .reverse();
+  const pg = usePaged(rows, rows.length);
   const wip = state.jobs.filter((j) => !['dispatched', 'scrapped'].includes(j.currentStage)).length;
 
   return (
@@ -84,7 +88,7 @@ export function TraceabilityPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((s) => (
+                {pg.rows.map((s) => (
                   <tr key={s.job.jobNo} className={rowTone(s.status)}>
                     <td>
                       <JobLink jobNo={s.job.jobNo} />
@@ -149,6 +153,7 @@ export function TraceabilityPage() {
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>
@@ -173,14 +178,48 @@ export function LedgerPage() {
   const [toF, setToF] = useState('all');
   const [lossF, setLossF] = useState('all');
   const [kindF, setKindF] = useState('all');
+  // the DATABASE filters and pages the ledger (it grows for ever): one page comes back, with the number of lines that match
+  const filterKey = `${q}|${fromF}|${toF}|${lossF}|${kindF}`;
+  const pg = usePager(filterKey);
+  const [data, setData] = useState<{ rows: Movement[]; total: number }>({ rows: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
   const jobExists = (no: string) => state.jobs.some((j) => j.jobNo === no);
-  const rows = state.movements
-    .filter((m) => kindF === 'all' || (kindF === 'fixes' ? m.kind === 'correction' || m.kind === 'reversal' : (m.kind ?? 'move') === 'move'))
-    .filter((m) => fromF === 'all' || m.from === fromF)
-    .filter((m) => toF === 'all' || m.to === toF)
-    .filter((m) => lossF === 'all' || (lossF === 'loss' ? m.loss > 0 : m.loss === 0))
-    .filter((m) => matches(q, m.jobNo, m.from, m.to, m.note, m.enteredBy));
+
+  const apply = (qr: any) => {
+    if (kindF === 'move') qr = qr.or('kind.is.null,kind.eq.move');
+    if (kindF === 'fixes') qr = qr.in('kind', ['correction', 'reversal']);
+    if (fromF !== 'all') qr = qr.eq('from_loc', fromF);
+    if (toF !== 'all') qr = qr.eq('to_loc', toF);
+    if (lossF === 'loss') qr = qr.gt('loss', 0);
+    if (lossF === 'none') qr = qr.eq('loss', 0);
+    const t = likeText(q);
+    if (t) qr = qr.or(['job_no', 'from_loc', 'to_loc', 'note', 'entered_by'].map((c) => `${c}.ilike.%${t}%`).join(','));
+    return qr;
+  };
+  const toMovement = (r: Record<string, any>): Movement => ({ id: String(r.id), ts: r.ts, jobNo: r.job_no ?? '—', from: r.from_loc, to: r.to_loc, qty: Number(r.qty) || 0, loss: Number(r.loss) || 0, note: r.note ?? '', enteredBy: r.entered_by ?? '', enteredAt: r.entered_at ?? undefined, kind: (r.kind as Movement['kind']) ?? 'move' });
+  const ORDER: [string, boolean][] = [['ts', false], ['id', false]];
+
+  useEffect(() => {
+    let live = true;
+    setLoading(true);
+    fetchPage<Record<string, any>>('movements', { page: pg.page, size: pg.size, order: ORDER, apply })
+      .then((r) => live && (setData({ rows: r.rows.map(toMovement), total: r.total }), setErr('')))
+      .catch((e) => live && setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pg.page, pg.size, filterKey, state.movements.length]);
+
+  const rows = data.rows;
   const distinct = (pick: (m: (typeof state.movements)[number]) => string) => [...new Set(state.movements.map(pick))].sort().map((v) => ({ value: v, label: v }));
+  // the export takes every line that matches (up to 5,000), not just this page
+  const exportDoc = async (): Promise<ListDoc> => {
+    const all = (await fetchPage<Record<string, any>>('movements', { page: 1, size: 5000, order: ORDER, apply })).rows.map(toMovement);
+    return { filename: 'Quantity-Ledger', title: 'Quantity Movement Ledger', form: FORM_FORMATS.report, rows: all.map((m) => ({ ...m, type: m.kind === 'reversal' ? 'Reversal' : m.kind === 'correction' ? 'Correction' : 'Movement' })), cols: [{ label: 'Date', key: 'ts', kind: 'date' }, { label: 'Job No.', key: 'jobNo' }, { label: 'From', key: 'from' }, { label: 'To', key: 'to' }, { label: 'Qty Moved', key: 'qty', kind: 'num' }, { label: 'Loss', key: 'loss', kind: 'num' }, { label: 'Type', key: 'type' }, { label: 'Reference', key: 'note', width: 40 }, { label: 'Entered By', key: 'enteredBy' }, { label: 'Entered On', key: 'enteredAt', kind: 'date' }], totals: ['qty', 'loss'] };
+  };
   return (
     <>
       <PageHeader
@@ -199,16 +238,16 @@ export function LedgerPage() {
             ]}
           />
           <span className="muted" style={{ marginLeft: 'auto', fontSize: 12.5 }}>
-            {plural(rows.length, 'movement')}
-            {state.movements.length >= 5000 ? ' · latest 5,000 shown' : ''}
+            {loading ? 'Loading…' : plural(data.total, 'movement')}
           </span>
-          <ListButtons doc={() => ({ filename: 'Quantity-Ledger', title: 'Quantity Movement Ledger', form: FORM_FORMATS.report, rows: rows.map((m) => ({ ...m, type: m.kind === 'reversal' ? 'Reversal' : m.kind === 'correction' ? 'Correction' : 'Movement' })), cols: [{ label: 'Date', key: 'ts', kind: 'date' }, { label: 'Job No.', key: 'jobNo' }, { label: 'From', key: 'from' }, { label: 'To', key: 'to' }, { label: 'Qty Moved', key: 'qty', kind: 'num' }, { label: 'Loss', key: 'loss', kind: 'num' }, { label: 'Type', key: 'type' }, { label: 'Reference', key: 'note', width: 40 }, { label: 'Entered By', key: 'enteredBy' }, { label: 'Entered On', key: 'enteredAt', kind: 'date' }], totals: ['qty', 'loss'] })} />
+          <DocButtons build={async (u) => listSpec(await exportDoc(), u)} />
         </div>
         <div className="callout info" style={{ margin: '0 20px 12px' }}>
           <ScrollText size={16} />
           <div>The ledger is never edited or deleted. A fixed quantity or a deleted entry adds a <b>correction</b> or <b>reversal</b> line, and every line shows who entered it and when.</div>
         </div>
-        {rows.length === 0 && <Empty icon={ScrollText} title="No quantity movements yet" text="Every inward, stage transfer, QC result and dispatch is recorded here." />}
+        {err && <div className="callout warn" style={{ margin: '0 20px 12px' }}>{err}</div>}
+        {!loading && !err && rows.length === 0 && <Empty icon={ScrollText} title={data.total === 0 && filterKey === '|all|all|all|all' ? 'No quantity movements yet' : 'No movements match'} text="Every inward, stage transfer, QC result and dispatch is recorded here." />}
         <div className="table-wrap" hidden={rows.length === 0}>
           <table className="tbl">
             <thead>
@@ -249,6 +288,7 @@ export function LedgerPage() {
             </tbody>
           </table>
         </div>
+        {data.total > 0 && <Pager total={data.total} page={pg.page} size={pg.size} onPage={pg.setPage} onSize={pg.setSize} />}
       </div>
     </>
   );
@@ -260,6 +300,7 @@ export function ProductsPage() {
   const [deleting, setDeleting] = useState<Product | null>(null);
   const { canWrite } = useAccess();
   const mgmt = canWrite('products');
+  const pgp = usePaged(state.products, state.products.length);
   const add = (
     <button className="btn btn-primary" onClick={() => openAction({ kind: 'product' })}>
       <Plus size={15} /> Add Product
@@ -301,7 +342,7 @@ export function ProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {state.products.map((p) => (
+              {pgp.rows.map((p) => (
                 <tr key={p.id}>
                   <td className="mono strong">{p.code}</td>
                   <td className="strong">{p.name}</td>
@@ -348,6 +389,7 @@ export function ProductsPage() {
               ))}
             </tbody>
           </table>
+              {pgp.pager}
         </div>
         )}
       </div>

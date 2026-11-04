@@ -241,8 +241,8 @@ export async function loadERPState(): Promise<ERPState> {
     read('v_hardness_reports', [['date', true], ['id', true]]),
     read('v_finished_goods', [['received_at', true], ['id', true]]),
     read('v_dispatches', [['created_at', false], ['dispatch_no', false]]),
-    read('dispatch_bags', [['bag_no', true]]),
-    read('movements', [['ts', false], ['id', false]], 5000),
+    read('dispatch_bags', [['dispatch_no', true], ['bag_no', true]]),
+    read('movements', [['ts', false], ['id', false]]), // every line (the client reads lists in pages of 1,000, so none is cut off)
     read('activity', [['ts', false], ['id', false]], 300),
     readJobWork(),
   ]);

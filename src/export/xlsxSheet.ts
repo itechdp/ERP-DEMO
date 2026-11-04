@@ -28,6 +28,7 @@ export const FORM_FORMATS = {
   jobWorkOut: { formNo: 'F JW 02', revision: '00 / 01.10.25' },
   hardnessReport: { formNo: 'F QC 03', revision: '00 / 01.10.25' },
   qcRecord: { formNo: 'F QC 02', revision: '00 / 01.10.25' },
+  workInstruction: { formNo: 'F PD 04', revision: '00 / 01.10.25' },
 } as const;
 export type FormFormat = { formNo: string; revision: string };
 

@@ -47,6 +47,7 @@ import { fetchPRDetail } from '../services/prService';
 import { fetchRFQDetail } from '../services/rfqService';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 import type {
   SQStatus,
   SaveSQHeaderInput,
@@ -113,6 +114,7 @@ export function SupplierQuotationPage({
         )
       );
   }, [quotations, statusFilter, q]);
+  const pg = usePaged(shown, shown.length);
 
   const filterGroups = [
     {
@@ -245,7 +247,7 @@ export function SupplierQuotationPage({
                 </tr>
               </thead>
               <tbody>
-                {shown.map((s) => (
+                {pg.rows.map((s) => (
                   <tr key={s.id}>
                     <td className="strong">
                       <button
@@ -310,6 +312,7 @@ export function SupplierQuotationPage({
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

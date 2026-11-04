@@ -8,6 +8,7 @@ import { useStore } from '../store/StoreContext';
 import { matches } from '../components/format';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 const BLANK: Customer = { id: 0, name: '', code: '', contact: '', phone: '', email: '', address: '', city: '', state: '', gstin: '', paymentTerms: '', notes: '', active: true };
 
@@ -22,6 +23,7 @@ export function CustomersPage() {
     () => list.filter((c) => (show === 'all' ? true : c.active)).filter((c) => matches(q, c.name, c.code, c.contact, c.phone, c.email, c.city, c.gstin)),
     [list, q, show],
   );
+  const pg = usePaged(shown, shown.length);
 
   const add = (
     <Write res="customers">
@@ -63,7 +65,7 @@ export function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shown.map((c) => (
+                  {pg.rows.map((c) => (
                     <tr key={c.id} style={c.active ? undefined : { opacity: 0.6 }}>
                       <td className="mono nowrap">{c.code || '—'}</td>
                       <td className="strong">{c.name}</td>
@@ -84,6 +86,7 @@ export function CustomersPage() {
                   ))}
                 </tbody>
               </table>
+              {pg.pager}
             </div>
           </>
         )}

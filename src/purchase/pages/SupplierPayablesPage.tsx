@@ -7,6 +7,7 @@ import { fetchSupplierPayables } from '../services/invoiceService';
 import type { SupplierPayable } from '../types';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 
 const inr = (v: number) => (v ? '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—');
 
@@ -35,6 +36,7 @@ export function SupplierPayablesPage({ navigate }: { navigate: (r: string) => vo
   }, []);
 
   const shown = useMemo(() => rows.filter((r) => matches(q, showParty ? r.supplierName : '', r.supplierCode)), [rows, q, showParty]);
+  const pg = usePaged(shown, shown.length);
   const sum = (k: keyof SupplierPayable) => shown.reduce((a, r) => a + (r[k] as number), 0);
 
   return (
@@ -86,7 +88,7 @@ export function SupplierPayablesPage({ navigate }: { navigate: (r: string) => vo
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pg.rows.map((r) => (
                   <tr key={r.supplierId}>
                     <td className="strong">
                       {showParty ? r.supplierName : '—'}
@@ -125,6 +127,7 @@ export function SupplierPayablesPage({ navigate }: { navigate: (r: string) => vo
                 </Conf>
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

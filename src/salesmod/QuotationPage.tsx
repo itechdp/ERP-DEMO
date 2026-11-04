@@ -20,6 +20,7 @@ import { MaterialPick, SizePick } from '../masters/MaterialPick';
 import { ADD_NEW, useAddOption } from '../masters/AddItem';
 import { useOptions } from '../masters/useOptions';
 import { UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
+import { usePaged } from '../components/Pager';
 
 const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null, discountPct: 0, materialCost: null, processingCost: null, otherCost: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
@@ -98,6 +99,7 @@ export function QuotationPage({ query, navigate }: { query?: URLSearchParams; na
         .filter((x) => matches(q, x.docNo, x.customer, x.products, x.salesperson, x.displayStatus, x.enquiryNo)),
     [quotations, status, customer, q],
   );
+  const pg = usePaged(shown, shown.length);
 
   const showMoney = can('sales_rates');
   const showMargin = can('margins');
@@ -205,7 +207,7 @@ export function QuotationPage({ query, navigate }: { query?: URLSearchParams; na
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pg.rows.map((r) => (
                   <tr key={r.id}>
                     <td className="strong">
                       <button className="link-btn" style={{ fontWeight: 600 }} onClick={() => setSelected(r.id)}>
@@ -260,6 +262,7 @@ export function QuotationPage({ query, navigate }: { query?: URLSearchParams; na
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

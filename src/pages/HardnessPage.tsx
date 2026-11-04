@@ -23,6 +23,7 @@ import { printHtml } from '../components/printHtml';
 import { fmtDate, matches, todayISO } from '../components/format';
 import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
+import { usePaged } from '../components/Pager';
 
 const DEFAULT_READINGS = 1; // a new report starts with one row; "Add row" adds more (the paper sheet has 10)
 const MAX_READINGS = 50;
@@ -45,6 +46,7 @@ export function HardnessRegister() {
         .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)),
     [all, q, v, compF],
   );
+  const pg = usePaged(rows, rows.length);
 
   return (
     <>
@@ -101,7 +103,7 @@ export function HardnessRegister() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {pg.rows.map((r) => {
                 const vals = r.readings.filter((x): x is number => x !== null);
                 const verdict = hardnessVerdict(r);
                 const open = () => openAction({ kind: 'hardness', id: r.id, view: true });
@@ -158,6 +160,7 @@ export function HardnessRegister() {
               })}
             </tbody>
           </table>
+          {pg.pager}
         </div>
       )}
       <Confirm

@@ -41,9 +41,45 @@ const docNoFetch: typeof fetch = (input, init) => {
   return fetch(input, init);
 };
 
+/**
+ * The database returns at most 1,000 rows per request (the API's "max rows"), and a list read that goes over it would silently come back
+ * cut short. So every plain list read (a GET on a table or view with no limit / offset / range of its own, not a single row, not a count)
+ * is fetched in pages of 1,000 and joined, so a list is always complete however many rows there are. Pages the screens ask for
+ * themselves (fetchPage, the ledger) carry their own range and pass straight through.
+ */
+const PAGE = 1000;
+const MAX_PAGES = 500; // a safety stop: 500,000 rows
+const allPagesFetch: typeof fetch = async (input, init) => {
+  const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const method = (init?.method ?? (typeof input === 'object' && 'method' in input ? input.method : 'GET')).toUpperCase();
+  const headers = new Headers(init?.headers ?? (typeof input === 'object' && 'headers' in input ? input.headers : undefined));
+  const plain =
+    method === 'GET' &&
+    /\/rest\/v1\/(?!rpc\/)/.test(u) &&
+    !/[?&](limit|offset)=/.test(u) &&
+    !headers.has('Range') &&
+    !/count=/.test(headers.get('Prefer') ?? '') &&
+    !/pgrst\.object/.test(headers.get('Accept') ?? '');
+  if (!plain) return docNoFetch(input, init);
+
+  const all: unknown[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const h = new Headers(headers);
+    h.set('Range-Unit', 'items');
+    h.set('Range', `${page * PAGE}-${page * PAGE + PAGE - 1}`);
+    const res = await docNoFetch(u, { ...init, method: 'GET', headers: h });
+    if (!res.ok) return res; // 200 / 206 are both fine; anything else is the real error
+    const rows = (await res.json()) as unknown;
+    if (!Array.isArray(rows)) return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return new Response(JSON.stringify(all), { status: 200, headers: { 'Content-Type': 'application/json' } });
+};
+
 export const supabase = createClient(url || 'http://localhost:54321', key || 'not-configured', {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
-  global: { fetch: docNoFetch },
+  global: { fetch: allPagesFetch },
 });
 
 /** Turns any Supabase / PostgREST error into the plain message the database raised (same texts as the old ERPError). */

@@ -11,6 +11,7 @@ import { exportDimensionXlsx, printDimensionReport } from './output';
 import { CONCLUSIONS, INSTRUMENTS, SAMPLES, blankLine, lineResult, sampleOk, type DimLine, type DimReport, type LineKind } from './types';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 const overall = (r: DimReport) => {
   const res = r.lines.map(lineResult);
@@ -48,6 +49,7 @@ export function DimensionTab() {
   }, [load]);
 
   const rows = useMemo(() => list.filter((r) => matches(q, r.reportNo, r.itemName, r.itemNo, r.dieNo, searchable(r.customer))), [list, q]);
+  const pg = usePaged(rows, rows.length);
   const out = (fn: () => Promise<void>) => fn().catch((e) => toast({ kind: 'error', title: 'Could not export', message: e instanceof Error ? e.message : String(e) }));
 
   if (editing) return <DimensionForm report={editing === 'new' ? null : editing} suggested={suggestNo(list)} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await load(); }} />;
@@ -89,7 +91,7 @@ export function DimensionTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pg.rows.map((r) => (
                 <tr key={r.id}>
                   <td className="mono strong">{r.reportNo}</td>
                   <td className="nowrap">{fmtDate(r.reportDate)}</td>
@@ -128,6 +130,7 @@ export function DimensionTab() {
               ))}
             </tbody>
           </table>
+          {pg.pager}
         </div>
       )}
       <Confirm

@@ -8,6 +8,7 @@ import { UrgencyBadge } from './UrgencyBadge';
 import { TASK_REPORT_FIELDS, downloadTaskReport, taskReportSpec } from './taskReport';
 import { printSpec } from '../export/docOutput';
 import { TASK_STATUSES, URGENCIES, fetchTasks, fmtDuration, setTaskStatus, taskOverdueDays, taskTimeTaken, type Task } from './service';
+import { usePaged } from '../components/Pager';
 
 const RANK: Record<string, number> = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
 const isActive = (t: Task) => t.status === 'Open' || t.status === 'In Progress' || t.status === 'On Hold';
@@ -69,6 +70,7 @@ export function TaskPanel({ mode = 'overview' }: { mode?: 'overview' | 'mine' })
       .filter((t) => !ql || [t.docNo, t.title, t.assignee, t.assignedBy, t.refNo].some((v) => v.toLowerCase().includes(ql)))
       .sort((a, b) => Number(isActive(b)) - Number(isActive(a)) || (RANK[b.urgency] ?? 0) - (RANK[a.urgency] ?? 0) || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'));
   }, [tasks, scope, statusF, urgencyF, q]);
+  const pg = usePaged(shown, shown.length);
 
   const overdue = tasks.filter((t) => isActive(t) && taskOverdueDays(t) > 0).length;
   const mine = tasks.filter((t) => t.mine);
@@ -153,7 +155,7 @@ export function TaskPanel({ mode = 'overview' }: { mode?: 'overview' | 'mine' })
                 </tr>
               </thead>
               <tbody>
-                {shown.map((t) => {
+                {pg.rows.map((t) => {
                   const late = isActive(t) ? taskOverdueDays(t) : 0;
                   const can = t.mine || canAdd;
                   return (
@@ -210,6 +212,7 @@ export function TaskPanel({ mode = 'overview' }: { mode?: 'overview' | 'mine' })
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

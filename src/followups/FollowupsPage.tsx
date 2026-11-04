@@ -6,6 +6,7 @@ import { useFollowups } from './useFollowups';
 import { DUE_LABEL, KIND_LABEL, KIND_ORDER, dueState, dueText, type DueState, type FollowupKind } from './types';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 const TONE: Record<DueState, string> = { overdue: 'b-red', today: 'b-amber', tomorrow: 'b-amber', soon: 'b-blue', later: 'b-neutral', none: 'b-neutral' };
 
@@ -27,6 +28,7 @@ export function FollowupsPage({ navigate }: { navigate: (r: string) => void }) {
         .sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999')),
     [inTab, when, q],
   );
+  const pg = usePaged(shown, shown.length);
   const attention = items.filter((i) => i.due && ['overdue', 'today', 'tomorrow'].includes(dueState(i.due))).length;
 
   return (
@@ -78,7 +80,7 @@ export function FollowupsPage({ navigate }: { navigate: (r: string) => void }) {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((i) => {
+                {pg.rows.map((i) => {
                   const st = dueState(i.due);
                   return (
                     <tr key={i.key}>
@@ -102,6 +104,7 @@ export function FollowupsPage({ navigate }: { navigate: (r: string) => void }) {
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

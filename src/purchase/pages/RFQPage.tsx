@@ -29,6 +29,7 @@ import { markRFQSent, saveRFQ } from '../services/rfqService';
 import type { PurchaseRequisition } from '../types';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 
 /** one line that says what a requisition is for: number, department, the item(s) and the quantity */
 const prLabel = (p: PurchaseRequisition) => {
@@ -76,6 +77,7 @@ export function RFQPage({
         matches(q, r.rfqNo, r.prNo, r.status)
       );
   }, [rfqs, statusFilter, q]);
+  const pg = usePaged(shown, shown.length);
 
   const filterGroups = [
     {
@@ -212,7 +214,7 @@ export function RFQPage({
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pg.rows.map((r) => (
                   <tr key={r.id}>
                     <td className="strong">
                       <button
@@ -273,6 +275,7 @@ export function RFQPage({
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

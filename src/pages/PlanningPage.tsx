@@ -14,6 +14,7 @@ import { useStore } from '../store/StoreContext';
 import type { Job, ProcessStage, StageRecord } from '../store/types';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 type Stock = { tone: 'good' | 'warn' | 'bad'; label: string; sub?: string };
 /** `r` is the Heat Treatment order (pieces are waiting there); without it the batch is still at an earlier process. */
@@ -65,6 +66,7 @@ export function PlanningPage() {
   }, [state, plan, pf]);
 
   const shown = rows.filter((x) => matches(q, x.jobNo, getProduct(state, x.job.productId).name, searchable(x.job.customer)));
+  const pg = usePaged(shown, shown.length);
   const waiting = rows.filter((x) => x.r).length;
 
   const act = async (fn: () => Promise<void>, done: { title: string; message?: string }) => {
@@ -139,7 +141,7 @@ export function PlanningPage() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((x) => {
+                {pg.rows.map((x) => {
                   const ap = plan.find(x.jobNo, HT);
                   const lvl = levelOf(x);
                   return (
@@ -218,6 +220,7 @@ export function PlanningPage() {
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

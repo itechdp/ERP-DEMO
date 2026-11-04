@@ -20,6 +20,7 @@ import { DocButtons } from '../export/docOutput';
 import * as docs from '../export/documents';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 type View = 'stock' | 'inward' | 'issues';
 
@@ -85,6 +86,7 @@ export function RawInventoryPage() {
     .filter((l) => matches(q, l.id, l.material, l.materialType, searchable(l.supplier), searchableCol(l.heatNo, 'raw.heat_no'), `${l.od}`))
     .slice()
     .sort((a, b) => a.inwardDate.localeCompare(b.inwardDate) || a.id.localeCompare(b.id));
+  const pg = usePaged(stockRows, stockRows.length);
 
   return (
     <>
@@ -221,7 +223,7 @@ export function RawInventoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {stockRows.map((l) => (
+                  {pg.rows.map((l) => (
                     <tr key={l.id} className={rowTone(lotStatus(l))}>
                       <td>
                         <div className="mono strong nowrap">{l.id}</div>
@@ -288,6 +290,7 @@ export function RawInventoryPage() {
                   ))}
                 </tbody>
               </table>
+              {pg.pager}
             </div>
           ))}
 

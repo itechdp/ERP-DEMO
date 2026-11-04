@@ -1,14 +1,4 @@
-import { Cog } from 'lucide-react';
-import { Empty, PageHeader } from '../components/ui';
+import { MachinePage } from '../machining/MachinePage';
 
-/** Workflow → Machinery → VMC. The page is in place; what it holds is still to be decided. */
-export function VmcPage() {
-  return (
-    <>
-      <PageHeader eyebrow="Workflow · Machinery" title="VMC" />
-      <div className="card">
-        <Empty icon={Cog} title="VMC" text="This page is ready. Tell me what it should hold (for example machines, jobs on them, programs or running hours) and it will be added here." />
-      </div>
-    </>
-  );
-}
+/** Workflow → Machinery → VMC: the machines and the jobs run on them (see machining/MachinePage). */
+export const VmcPage = () => <MachinePage kind="vmc" />;

@@ -13,6 +13,7 @@ import { fmtNum, heatTempText, matches, todayISO } from '../components/format';
 import { usePlan } from '../planning/usePlan';
 import { useFurnaces } from '../furnaces/service';
 import { useProductFlows } from '../products/flow';
+import { usePaged } from '../components/Pager';
 
 /** why a waiting Heat Treatment batch cannot start: not approved yet, or no furnace assigned (when the plant has furnaces) */
 export type Block = 'approval' | 'furnace' | null;
@@ -82,6 +83,7 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
       })
       .sort((a, b) => order[a.status] - order[b.status] || (plan.find(a.jobNo, stage)?.rank ?? 1e9) - (plan.find(b.jobNo, stage)?.rank ?? 1e9) || (b.completedAt ?? b.receivedAt).localeCompare(a.completedAt ?? a.receivedAt));
   }, [recs, filter, q, productF, state, plan, stage]);
+  const pg = usePaged(rows, rows.length);
 
   // Jobs still upstream — they will arrive here later (demonstrates parallel stages)
   const idx = PROCESS_STAGES.indexOf(stage);
@@ -170,11 +172,12 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {pg.rows.map((r) => (
                   <Row key={r.id} r={r} approval={plan.find(r.jobNo, stage)} block={r.status === 'Pending' ? blockOf(r.jobNo, stage) : null} onProcess={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo })} deleteReason={jobDeleteReason(state, r.jobNo)} onDelete={() => setDeleting(r.jobNo)} />
                 ))}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

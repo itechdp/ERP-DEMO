@@ -34,6 +34,7 @@ import { DocNoField, useDocNo } from '../../components/DocNoField';
 import { usePRDetail, usePurchaseRequisitions } from '../hooks/usePurchase';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 import {
   cancelPR,
   decidePR,
@@ -118,6 +119,7 @@ export function PurchaseRequisitionPage({
         )
       );
   }, [requisitions, statusFilter, urgencyFilter, q]);
+  const pg = usePaged(shown, shown.length);
 
   const filterGroups = [
     {
@@ -275,7 +277,7 @@ export function PurchaseRequisitionPage({
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => {
+                {pg.rows.map((r) => {
                   const pctOrdered =
                     r.totalQty && r.totalQty > 0
                       ? Math.min(100, Math.round(((r.totalOrderedQty || 0) / r.totalQty) * 100))
@@ -358,6 +360,7 @@ export function PurchaseRequisitionPage({
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

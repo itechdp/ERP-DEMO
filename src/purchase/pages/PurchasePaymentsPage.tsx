@@ -8,6 +8,7 @@ import { fetchInvoices, fetchPayments } from '../services/invoiceService';
 import type { PurchaseInvoice, PurchasePayment } from '../types';
 import { DocButtons } from '../../export/docOutput';
 import * as docs from '../../export/documents';
+import { usePaged } from '../../components/Pager';
 
 const inr = (v: number) => '₹ ' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
@@ -51,6 +52,7 @@ export function PurchasePaymentsPage({ navigate }: { navigate: (r: string) => vo
         .filter((r) => matches(q, r.payNo, r.pinvNo, canSee('invoices') ? r.supplierInvNo : '', canSee('party_names') ? r.supplierName : '', r.poNo, r.reference, r.mode)),
     [rows, mode, from, to, q],
   );
+  const pg = usePaged(shown, shown.length);
   const total = shown.reduce((a, r) => a + r.amount, 0);
 
   return (
@@ -117,7 +119,7 @@ export function PurchasePaymentsPage({ navigate }: { navigate: (r: string) => vo
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pg.rows.map((r) => (
                   <tr key={r.paymentId}>
                     <td className="strong nowrap">{r.payNo}</td>
                     <td className="nowrap">{fmtDate(r.payDate)}</td>
@@ -152,6 +154,7 @@ export function PurchasePaymentsPage({ navigate }: { navigate: (r: string) => vo
                 </Conf>
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

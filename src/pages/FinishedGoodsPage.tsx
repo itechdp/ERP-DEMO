@@ -9,6 +9,7 @@ import { Badge, Empty, JobLink, PageHeader, rowTone, Search, SummaryLine, Filter
 import { fmtDate, fmtKg, fmtNum, matches } from '../components/format';
 import { ListButtons } from '../export/docOutput';
 import { FORM_FORMATS } from '../export/xlsxSheet';
+import { usePaged } from '../components/Pager';
 
 type Filter = 'stock' | 'dispatched' | 'all';
 
@@ -49,6 +50,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
     })
     .slice()
     .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  const pg = usePaged(rows, rows.length);
 
   return (
     <>
@@ -153,7 +155,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((f) => {
+                {pg.rows.map((f) => {
                   const p = getProduct(state, f.productId);
                   const a = fgAvailable(f);
                   return (
@@ -208,6 +210,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
                 })}
               </tbody>
             </table>
+            {pg.pager}
           </div>
         )}
       </div>

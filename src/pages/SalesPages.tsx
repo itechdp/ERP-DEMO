@@ -15,6 +15,7 @@ import { UrgencyBadge } from '../tasks/UrgencyBadge';
 import { PersonSelect } from '../components/PersonSelect';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import { fetchAssignableUsers, type AssignableUser } from '../tasks/service';
+import { usePaged } from '../components/Pager';
 
 export interface SalesPageDef {
   route: string;
@@ -94,6 +95,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
     .filter((r) => status === 'all' || r.status === status)
     .filter((r) => Object.entries(extra).every(([k, v]) => v === 'all' || r[k as 'party' | 'product' | 'source' | 'priority' | 'assignee'] === v))
     .filter((r) => matches(q, r.docNo, r.extRef, r.refNo, r.product, r.title, r.assignee, r.status, searchable(r.party), searchable(r.contact), searchable(r.phone)));
+  const pg = usePaged(shown, shown.length);
 
   const dim = (key: 'party' | 'product' | 'source' | 'priority' | 'assignee', label: string, all: string) => ({
     label,
@@ -126,7 +128,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
 
   return (
     <>
-      <PageHeader eyebrow="Sales & Orders" title={cfg.label} actions={mine.length > 0 ? <Write res={cfg.resource}>{add}</Write> : undefined} />
+      <PageHeader eyebrow={cfg.kind === 'task' ? 'Main Menu · Work Hub' : 'Sales & Orders'} title={cfg.label} actions={mine.length > 0 ? <Write res={cfg.resource}>{add}</Write> : undefined} />
       <div className="card">
         {error ? (
           <Empty icon={cfg.icon} title="Could not load" text={error} />
@@ -156,7 +158,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {shown.map((r) => (
+                    {pg.rows.map((r) => (
                       <tr key={r.id}>
                         {cfg.cols.map((c) => (
                           <Conf key={c} g={colGroup(c)}>
@@ -187,6 +189,7 @@ function SalesList({ cfg }: { cfg: KindCfg }) {
                     ))}
                   </tbody>
                 </table>
+                {pg.pager}
               </div>
             )}
           </>
@@ -220,7 +223,7 @@ function SalesFormPage({ cfg, editId, viewOnly }: { cfg: KindCfg; editId?: numbe
   return (
     <>
       <PageHeader
-        eyebrow="Sales & Orders"
+        eyebrow={cfg.kind === 'task' ? 'Main Menu · Work Hub' : 'Sales & Orders'}
         title={title}
         actions={
           <button className="btn" onClick={back}>
