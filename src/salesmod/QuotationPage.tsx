@@ -391,8 +391,63 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h4 style={{ margin: 0 }}>Products ({lines.length})</h4>
-              <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={14} /> Add Line</button>
+              <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={14} /> {editId ? 'Add Line' : 'Add Item'}</button>
             </div>
+            {/* New quotation: one vertical card per product (Edit keeps the table below until it is converted) */}
+            {!editId && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {lines.map((l, i) => {
+                  const c = lineCalc(l);
+                  const lineBelow = c.marginPct != null && c.marginPct < minMargin;
+                  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 12 } as const;
+                  return (
+                    <div key={i} className="card" style={{ padding: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                        <h4 style={{ margin: 0 }}>Item {i + 1}</h4>
+                        <div className="icon-actions">
+                          <button type="button" className="icon-btn" style={l.costing?.length ? { color: '#259392' } : undefined} title="Cost sheet (for the detailed quotation)" onClick={() => setCostOpen(costOpen === i ? null : i)}><ListTree size={15} /></button>
+                          <button type="button" className="icon-btn" title="Move up" disabled={i === 0} onClick={() => moveLine(i, -1)}><ArrowUp size={15} /></button>
+                          <button type="button" className="icon-btn" title="Move down" disabled={i === lines.length - 1} onClick={() => moveLine(i, 1)}><ArrowDown size={15} /></button>
+                          <button type="button" className="icon-btn text-red" title="Remove line" onClick={() => { setCostOpen(null); setLines((cur) => (cur.length > 1 ? cur.filter((_, k) => k !== i) : cur)); }}>
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <Field label="Product" required><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></Field>
+                        <div style={grid}>
+                          <Field label="Grade"><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></Field>
+                          <Field label="Size"><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></Field>
+                          <Field label="UOM">
+                            <select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>
+                              {UOMS.map((u) => <option key={u}>{u}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                        <div style={grid}>
+                          <Field label="Qty" required><input type="number" step="any" min="0" className="right mono" value={l.qty ?? ''} onChange={(e) => setLine(i, { qty: numOrNull(e.target.value) })} aria-label={`Qty ${i + 1}`} /></Field>
+                          <Field label="Rate (₹)" required><input type="number" step="any" min="0" className="right mono" value={l.rate ?? ''} onChange={(e) => setLine(i, { rate: numOrNull(e.target.value) })} aria-label={`Rate ${i + 1}`} /></Field>
+                          <Field label="Disc. %"><input type="number" step="any" min="0" max="99.99" className="right mono" value={l.discountPct ?? ''} onChange={(e) => setLine(i, { discountPct: numOrNull(e.target.value) })} /></Field>
+                          <div><div className="text-xs muted">Net rate</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.net)}</div></div>
+                          <div><div className="text-xs muted">Amount</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.amount)}</div></div>
+                        </div>
+                        <div style={{ ...grid, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                          <Field label="Material cost" required><input type="number" step="any" min="0" className="right mono" value={l.materialCost ?? ''} onChange={(e) => setLine(i, { materialCost: numOrNull(e.target.value) })} aria-label={`Material cost ${i + 1}`} /></Field>
+                          <Field label="Processing"><input type="number" step="any" min="0" className="right mono" value={l.processingCost ?? ''} onChange={(e) => setLine(i, { processingCost: numOrNull(e.target.value) })} /></Field>
+                          <Field label="Other cost"><input type="number" step="any" min="0" className="right mono" value={l.otherCost ?? ''} onChange={(e) => setLine(i, { otherCost: numOrNull(e.target.value) })} /></Field>
+                          <div><div className="text-xs muted">Margin</div><div className={`mono strong ${lineBelow ? 'text-red' : ''}`} style={{ marginTop: 8 }}>{pct(c.marginPct == null ? null : Math.round(c.marginPct * 100) / 100)}</div></div>
+                        </div>
+                        {costOpen === i && <CostSheetEditor rows={l.costing ?? []} onChange={(r) => setLine(i, { costing: r })} onUseRate={(a) => setLine(i, { rate: a })} />}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div>
+                  <button type="button" className="btn btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={15} /> Add Item</button>
+                </div>
+              </div>
+            )}
+            {editId && (
             <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
               <table className="tbl form-tbl" style={{ fontSize: 13, minWidth: 1400 }}>
                 <thead>
@@ -459,6 +514,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           <div className="card" style={{ padding: 16 }}>
