@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, FileSpreadsheet, ListTree, CheckCircle, ClipboardCheck, Download, Eye, Mail, MessageSquarePlus, Pencil, Plus, Printer, RefreshCw, Send, ShoppingCart, Trash2, Undo2, XCircle } from 'lucide-react';
 import { Write, useAccess } from '../auth/access';
 import { Badge, Empty, Field, FilterMenu, Modal, PageFormCtx, PageHeader, Search } from '../components/ui';
@@ -391,10 +391,10 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <h4 style={{ margin: 0 }}>Products ({lines.length})</h4>
-              <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={14} /> {editId ? 'Add Line' : 'Add Item'}</button>
+              <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={14} /> Add Item</button>
             </div>
-            {/* New quotation: one vertical card per product (Edit keeps the table below until it is converted) */}
-            {!editId && (
+            {/* one vertical card per product, used by both New and Edit */}
+            {(
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {lines.map((l, i) => {
                   const c = lineCalc(l);
@@ -446,74 +446,6 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                   <button type="button" className="btn btn-subtle" onClick={() => setLines((c) => [...c, blankLine()])}><Plus size={15} /> Add Item</button>
                 </div>
               </div>
-            )}
-            {editId && (
-            <div className="table-wrap" style={{ border: '1px solid var(--border)', borderRadius: 8 }}>
-              <table className="tbl form-tbl" style={{ fontSize: 13, minWidth: 1400 }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: 36 }}>#</th>
-                    <th style={{ minWidth: 190 }}>Product *</th>
-                    <th style={{ width: 100 }}>Grade</th>
-                    <th style={{ width: 120 }}>Size</th>
-                    <th style={{ width: 80 }}>UOM</th>
-                    <th className="right" style={{ width: 90 }}>Qty *</th>
-                    <th className="right" style={{ width: 100 }}>Rate (₹) *</th>
-                    <th className="right" style={{ width: 80 }}>Disc. %</th>
-                    <th className="right" style={{ width: 100 }}>Net rate</th>
-                    <th className="right" style={{ width: 100 }}>Material cost *</th>
-                    <th className="right" style={{ width: 100 }}>Processing</th>
-                    <th className="right" style={{ width: 100 }}>Other cost</th>
-                    <th className="right" style={{ width: 90 }}>Margin</th>
-                    <th style={{ width: 150 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l, i) => {
-                    const c = lineCalc(l);
-                    const lineBelow = c.marginPct != null && c.marginPct < minMargin;
-                    return (
-                      <Fragment key={i}>
-                      <tr>
-                        <td className="mono muted">{i + 1}</td>
-                        <td><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></td>
-                        <td><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></td>
-                        <td><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></td>
-                        <td>
-                          <select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>
-                            {UOMS.map((u) => <option key={u}>{u}</option>)}
-                          </select>
-                        </td>
-                        <td><input type="number" step="any" min="0" className="right mono" value={l.qty ?? ''} onChange={(e) => setLine(i, { qty: numOrNull(e.target.value) })} aria-label={`Qty ${i + 1}`} /></td>
-                        <td><input type="number" step="any" min="0" className="right mono" value={l.rate ?? ''} onChange={(e) => setLine(i, { rate: numOrNull(e.target.value) })} aria-label={`Rate ${i + 1}`} /></td>
-                        <td><input type="number" step="any" min="0" max="99.99" className="right mono" value={l.discountPct ?? ''} onChange={(e) => setLine(i, { discountPct: numOrNull(e.target.value) })} /></td>
-                        <td className="right mono">{l.rate == null ? '—' : inr(c.net)}</td>
-                        <td><input type="number" step="any" min="0" className="right mono" value={l.materialCost ?? ''} onChange={(e) => setLine(i, { materialCost: numOrNull(e.target.value) })} aria-label={`Material cost ${i + 1}`} /></td>
-                        <td><input type="number" step="any" min="0" className="right mono" value={l.processingCost ?? ''} onChange={(e) => setLine(i, { processingCost: numOrNull(e.target.value) })} /></td>
-                        <td><input type="number" step="any" min="0" className="right mono" value={l.otherCost ?? ''} onChange={(e) => setLine(i, { otherCost: numOrNull(e.target.value) })} /></td>
-                        <td className={`right mono strong ${lineBelow ? 'text-red' : ''}`}>{pct(c.marginPct == null ? null : Math.round(c.marginPct * 100) / 100)}</td>
-                        <td className="act">
-                          <button type="button" className="icon-btn" style={l.costing?.length ? { color: '#259392' } : undefined} title="Cost sheet (for the detailed quotation)" onClick={() => setCostOpen(costOpen === i ? null : i)}><ListTree size={15} /></button>
-                          <button type="button" className="icon-btn" title="Move up" disabled={i === 0} onClick={() => moveLine(i, -1)}><ArrowUp size={15} /></button>
-                          <button type="button" className="icon-btn" title="Move down" disabled={i === lines.length - 1} onClick={() => moveLine(i, 1)}><ArrowDown size={15} /></button>
-                          <button type="button" className="icon-btn text-red" title="Remove line" onClick={() => { setCostOpen(null); setLines((cur) => (cur.length > 1 ? cur.filter((_, k) => k !== i) : cur)); }}>
-                            <Trash2 size={15} />
-                          </button>
-                        </td>
-                      </tr>
-                      {costOpen === i && (
-                        <tr>
-                          <td colSpan={14}>
-                            <CostSheetEditor rows={l.costing ?? []} onChange={(r) => setLine(i, { costing: r })} onUseRate={(a) => setLine(i, { rate: a })} />
-                          </td>
-                        </tr>
-                      )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
             )}
           </div>
 
