@@ -15,6 +15,8 @@ import {
   addFollowup, createOrderFromQuotation, decideQuotation, fetchMinMargin, openQuotationPdf, respondQuotation, saveQuotation, sendQuotation, submitQuotation,
 } from './service';
 import { CostSheetEditor } from './CostSheetEditor';
+import { CostingTable } from './CostingTable';
+import { computeCosting, costBeforeProfit, costingProblem, emptyCosting, finalCostOf, isCosted, parseCosting, serializeCosting, type CostingState } from './costing';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import { MaterialPick, SizePick } from '../masters/MaterialPick';
 import { ADD_NEW, useAddOption } from '../masters/AddItem';
@@ -22,7 +24,11 @@ import { useOptions } from '../masters/useOptions';
 import { UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
 import { usePaged } from '../components/Pager';
 
-const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: null, rate: null, discountPct: 0, materialCost: null, processingCost: null, otherCost: null });
+// A new product is priced with the 14-row costing table. Its Final Cost is saved as the rate (qty 1, no discount), so orders, reports and
+// everything else that reads qty and rate keep working. Products saved before this change keep their own fields (see QuotationForm).
+const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: 1, rate: 0, discountPct: 0, materialCost: null, processingCost: null, otherCost: null, costing: serializeCosting(emptyCosting()) });
+/** the line's own fields for a given table: Final Cost becomes the rate and Cost Before Profit the cost (so the approval can still work out the margin) */
+const costedPatch = (l: QuotationLine, st: CostingState): Partial<QuotationLine> => ({ costing: serializeCosting(st), rate: computeCosting(st).final, qty: l.qty && l.qty > 0 ? l.qty : 1, discountPct: 0, materialCost: costBeforeProfit(st), processingCost: null, otherCost: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
 const userName = (u: { name?: string; email?: string } | null) => u?.name || u?.email || 'User';
 
@@ -284,6 +290,7 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
   const [lines, setLines] = useState<QuotationLine[]>([blankLine()]);
   const [revisionNote, setRevisionNote] = useState('');
   const [costOpen, setCostOpen] = useState<number | null>(null);
+  const [attempted, setAttempted] = useState(false); // a save was tried: show what is still missing in the costing tables
   const moveLine = (i: number, d: -1 | 1) => {
     setCostOpen(null);
     setLines((c) => {
@@ -330,6 +337,16 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
   const below = totals.marginPct != null && totals.marginPct < minMargin;
 
   const save = async (submit: boolean) => {
+    // every product priced with the costing table needs its weight and material rate, and no wrong values
+    for (let i = 0; i < lines.length; i++) {
+      const st = parseCosting(lines[i].costing);
+      const problem = st ? costingProblem(st) : '';
+      if (problem) {
+        setAttempted(true);
+        toast({ kind: 'error', title: `Item ${i + 1}: complete the costing`, message: problem });
+        return;
+      }
+    }
     setSaving(true);
     try {
       const me = userName(user);
@@ -400,12 +417,13 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                   const c = lineCalc(l);
                   const lineBelow = c.marginPct != null && c.marginPct < minMargin;
                   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 12 } as const;
+                  const st = parseCosting(l.costing); // null = a product saved before the costing table existed
                   return (
                     <div key={i} className="card" style={{ padding: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
                         <h4 style={{ margin: 0 }}>Item {i + 1}</h4>
                         <div className="icon-actions">
-                          <button type="button" className="icon-btn" style={l.costing?.length ? { color: '#259392' } : undefined} title="Cost sheet (for the detailed quotation)" onClick={() => setCostOpen(costOpen === i ? null : i)}><ListTree size={15} /></button>
+                          {!st && <button type="button" className="icon-btn" style={l.costing?.length ? { color: '#259392' } : undefined} title="Cost sheet (for the detailed quotation)" onClick={() => setCostOpen(costOpen === i ? null : i)}><ListTree size={15} /></button>}
                           <button type="button" className="icon-btn" title="Move up" disabled={i === 0} onClick={() => moveLine(i, -1)}><ArrowUp size={15} /></button>
                           <button type="button" className="icon-btn" title="Move down" disabled={i === lines.length - 1} onClick={() => moveLine(i, 1)}><ArrowDown size={15} /></button>
                           <button type="button" className="icon-btn text-red" title="Remove line" onClick={() => { setCostOpen(null); setLines((cur) => (cur.length > 1 ? cur.filter((_, k) => k !== i) : cur)); }}>
@@ -424,20 +442,33 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                             </select>
                           </Field>
                         </div>
-                        <div style={grid}>
-                          <Field label="Qty" required><input type="number" step="any" min="0" className="right mono" value={l.qty ?? ''} onChange={(e) => setLine(i, { qty: numOrNull(e.target.value) })} aria-label={`Qty ${i + 1}`} /></Field>
-                          <Field label="Rate (₹)" required><input type="number" step="any" min="0" className="right mono" value={l.rate ?? ''} onChange={(e) => setLine(i, { rate: numOrNull(e.target.value) })} aria-label={`Rate ${i + 1}`} /></Field>
-                          <Field label="Disc. %"><input type="number" step="any" min="0" max="99.99" className="right mono" value={l.discountPct ?? ''} onChange={(e) => setLine(i, { discountPct: numOrNull(e.target.value) })} /></Field>
-                          <div><div className="text-xs muted">Net rate</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.net)}</div></div>
-                          <div><div className="text-xs muted">Amount</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.amount)}</div></div>
-                        </div>
-                        <div style={{ ...grid, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-                          <Field label="Material cost" required><input type="number" step="any" min="0" className="right mono" value={l.materialCost ?? ''} onChange={(e) => setLine(i, { materialCost: numOrNull(e.target.value) })} aria-label={`Material cost ${i + 1}`} /></Field>
-                          <Field label="Processing"><input type="number" step="any" min="0" className="right mono" value={l.processingCost ?? ''} onChange={(e) => setLine(i, { processingCost: numOrNull(e.target.value) })} /></Field>
-                          <Field label="Other cost"><input type="number" step="any" min="0" className="right mono" value={l.otherCost ?? ''} onChange={(e) => setLine(i, { otherCost: numOrNull(e.target.value) })} /></Field>
-                          <div><div className="text-xs muted">Margin</div><div className={`mono strong ${lineBelow ? 'text-red' : ''}`} style={{ marginTop: 8 }}>{pct(c.marginPct == null ? null : Math.round(c.marginPct * 100) / 100)}</div></div>
-                        </div>
-                        {costOpen === i && <CostSheetEditor rows={l.costing ?? []} onChange={(r) => setLine(i, { costing: r })} onUseRate={(a) => setLine(i, { rate: a })} />}
+                        {st ? (
+                          <div>
+                            <div className="text-xs muted" style={{ marginBottom: 6 }}>Costing for this product (per piece). Fill the white boxes; the other rows work themselves out. Optional rows can be removed.</div>
+                            <CostingTable state={st} showMissing={attempted} onChange={(next) => setLine(i, costedPatch(l, next))} />
+                          </div>
+                        ) : (
+                          <>
+                            <div className="callout warn" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                              <span>This product was saved with the older pricing (Qty, Rate, Discount, costs).</span>
+                              <button type="button" className="btn btn-sm btn-subtle" onClick={() => { setCostOpen(null); setLine(i, costedPatch(l, emptyCosting())); }}>Switch to the costing table</button>
+                            </div>
+                            <div style={grid}>
+                              <Field label="Qty" required><input type="number" step="any" min="0" className="right mono" value={l.qty ?? ''} onChange={(e) => setLine(i, { qty: numOrNull(e.target.value) })} aria-label={`Qty ${i + 1}`} /></Field>
+                              <Field label="Rate (₹)" required><input type="number" step="any" min="0" className="right mono" value={l.rate ?? ''} onChange={(e) => setLine(i, { rate: numOrNull(e.target.value) })} aria-label={`Rate ${i + 1}`} /></Field>
+                              <Field label="Disc. %"><input type="number" step="any" min="0" max="99.99" className="right mono" value={l.discountPct ?? ''} onChange={(e) => setLine(i, { discountPct: numOrNull(e.target.value) })} /></Field>
+                              <div><div className="text-xs muted">Net rate</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.net)}</div></div>
+                              <div><div className="text-xs muted">Amount</div><div className="mono strong" style={{ marginTop: 8 }}>{l.rate == null ? '—' : inr(c.amount)}</div></div>
+                            </div>
+                            <div style={{ ...grid, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                              <Field label="Material cost" required><input type="number" step="any" min="0" className="right mono" value={l.materialCost ?? ''} onChange={(e) => setLine(i, { materialCost: numOrNull(e.target.value) })} aria-label={`Material cost ${i + 1}`} /></Field>
+                              <Field label="Processing"><input type="number" step="any" min="0" className="right mono" value={l.processingCost ?? ''} onChange={(e) => setLine(i, { processingCost: numOrNull(e.target.value) })} /></Field>
+                              <Field label="Other cost"><input type="number" step="any" min="0" className="right mono" value={l.otherCost ?? ''} onChange={(e) => setLine(i, { otherCost: numOrNull(e.target.value) })} /></Field>
+                              <div><div className="text-xs muted">Margin</div><div className={`mono strong ${lineBelow ? 'text-red' : ''}`} style={{ marginTop: 8 }}>{pct(c.marginPct == null ? null : Math.round(c.marginPct * 100) / 100)}</div></div>
+                            </div>
+                            {costOpen === i && <CostSheetEditor rows={l.costing ?? []} onChange={(r) => setLine(i, { costing: r })} onUseRate={(a) => setLine(i, { rate: a })} />}
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -449,21 +480,40 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
             )}
           </div>
 
-          <div className="card" style={{ padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 16 }}>
-              <div><div className="text-xs muted">Quotation value</div><div className="strong mono" style={{ fontSize: 18 }}>{inr(totals.amount)}</div></div>
-              <div><div className="text-xs muted">Discount given</div><div className="mono">{inr(totals.discount)}</div></div>
-              <div><div className="text-xs muted">Total cost</div><div className="mono">{inr(totals.cost)}</div></div>
-              <div><div className="text-xs muted">Gross profit</div><div className="mono">{inr(totals.profit)}</div></div>
-              <div><div className="text-xs muted">Gross margin</div><div className={`strong mono ${below ? 'text-red' : ''}`} style={{ fontSize: 18 }}>{pct(totals.marginPct == null ? null : Math.round(totals.marginPct * 100) / 100)}</div></div>
-            </div>
-            {below && (
-              <div className="callout warn" style={{ marginTop: 12 }}>
-                <AlertTriangle size={14} /> The margin is below the minimum of {minMargin}%. You can still submit it; the Director must give a reason to approve.
+          {lines.every(isCosted) ? (
+            <div className="card" style={{ padding: 16 }}>
+              <div className="text-xs muted" style={{ marginBottom: 8 }}>Final Cost per piece</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16 }}>
+                {lines.map((l, i) => (
+                  <div key={i}>
+                    <div className="text-xs muted">Item {i + 1}{l.product ? ` · ${l.product}` : ''}</div>
+                    <div className="strong mono" style={{ fontSize: 18 }}>{inr(finalCostOf(l) ?? 0)}</div>
+                  </div>
+                ))}
               </div>
-            )}
-            <div className="text-xs muted" style={{ marginTop: 10 }}>Gross margin % = (net rate − total cost) ÷ net rate × 100. Cost per unit = material + processing + other.</div>
-          </div>
+              {below && (
+                <div className="callout warn" style={{ marginTop: 12 }}>
+                  <AlertTriangle size={14} /> The profit on this quotation is below the minimum margin of {minMargin}% ({pct(totals.marginPct == null ? null : Math.round(totals.marginPct * 100) / 100)}). You can still submit it; the Director must give a reason to approve.
+                </div>
+              )}
+            </div>
+          ) : (
+          <div className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 16 }}>
+                <div><div className="text-xs muted">Quotation value</div><div className="strong mono" style={{ fontSize: 18 }}>{inr(totals.amount)}</div></div>
+                <div><div className="text-xs muted">Discount given</div><div className="mono">{inr(totals.discount)}</div></div>
+                <div><div className="text-xs muted">Total cost</div><div className="mono">{inr(totals.cost)}</div></div>
+                <div><div className="text-xs muted">Gross profit</div><div className="mono">{inr(totals.profit)}</div></div>
+                <div><div className="text-xs muted">Gross margin</div><div className={`strong mono ${below ? 'text-red' : ''}`} style={{ fontSize: 18 }}>{pct(totals.marginPct == null ? null : Math.round(totals.marginPct * 100) / 100)}</div></div>
+              </div>
+              {below && (
+                <div className="callout warn" style={{ marginTop: 12 }}>
+                  <AlertTriangle size={14} /> The margin is below the minimum of {minMargin}%. You can still submit it; the Director must give a reason to approve.
+                </div>
+              )}
+              <div className="text-xs muted" style={{ marginTop: 10 }}>Gross margin % = (net rate − total cost) ÷ net rate × 100. Cost per unit = material + processing + other.</div>
+            </div>
+          )}
         </div>
       )}
     </Modal>
@@ -584,9 +634,9 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
             <button className="btn btn-subtle" onClick={() => reload()} disabled={busy}><RefreshCw size={14} /> Refresh</button>
             {printable && (
               <>
-                <select value={detailed ? 'detailed' : 'standard'} onChange={(e) => setDetailed(e.target.value === 'detailed')} title="Detailed adds each line's cost sheet" aria-label="Quotation format" style={{ width: 'auto' }}>
-                  <option value="standard">Standard</option>
-                  <option value="detailed">Detailed (with cost sheet)</option>
+                <select value={detailed ? 'detailed' : 'standard'} onChange={(e) => setDetailed(e.target.value === 'detailed')} title="Summary: product details and price only. Detailed: also the full costing of each product." aria-label="Quotation format" style={{ width: 'auto' }}>
+                  <option value="standard">Summary quotation</option>
+                  <option value="detailed">Detailed quotation (with costing)</option>
                 </select>
                 <button className="btn btn-subtle" onClick={() => printQuotation(q, lines, { detailed })}><Printer size={14} /> Print / PDF</button>
                 <button className="btn btn-subtle" onClick={() => exportQuotationXlsx(q, lines, me, { detailed }).catch((e) => toast({ kind: 'error', title: 'Could not export', message: e instanceof Error ? e.message : String(e) }))}><FileSpreadsheet size={14} /> Excel</button>
@@ -678,7 +728,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
                   <td className="mono">{i + 1}</td>
                   <td className="strong">{l.product}</td>
                   <td>{[l.grade, l.size].filter(Boolean).join(' • ') || '—'}</td>
-                  <td className="right mono nowrap">{fmtNum(l.qty ?? 0)} {l.uom}</td>
+                  <td className="right mono nowrap">{isCosted(l) ? <span className="muted" title="Priced per piece with the costing table">per piece</span> : <>{fmtNum(l.qty ?? 0)} {l.uom}</>}</td>
                   {showMoney && (
                     <>
                       <td className="right mono nowrap">{inr(l.rate)}</td>
@@ -708,6 +758,28 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
           </div>
         )}
       </div>
+
+      {showMargin && lines.some(isCosted) && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-head">
+            <div>
+              <h3>Costing</h3>
+              <div className="sub">How each product's Final Cost was worked out. This is the detailed quotation; the summary quotation leaves it out.</div>
+            </div>
+          </div>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {lines.map((l, i) => {
+              const st = parseCosting(l.costing);
+              return st ? (
+                <div key={l.id ?? i}>
+                  <div className="strong" style={{ marginBottom: 8 }}>{i + 1}. {l.product}{[l.grade, l.size].filter(Boolean).length ? <span className="muted" style={{ fontWeight: 500 }}> ({[l.grade, l.size].filter(Boolean).join(' • ')})</span> : null}</div>
+                  <CostingTable state={st} readOnly />
+                </div>
+              ) : null;
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(340px, 100%), 1fr))', gap: 20 }}>
         <div className="card">

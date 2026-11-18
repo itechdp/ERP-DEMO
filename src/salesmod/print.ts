@@ -2,22 +2,32 @@
 import { printHtml } from '../components/printHtml';
 import { PO_UFLOW_CSS, esc, dmy, rupeesInWords } from '../sales/print';
 import { inr } from './calc';
+import { finalCostOf, isCosted, printableRows } from './costing';
 import type { CostRow, OrderLine, OrderRow, QuotationLine, QuotationRow } from './types';
 
 export interface QuotationOutput {
-  /** also print each line's cost sheet (input weight → final cost) */
+  /**
+   * false (default) = SUMMARY quotation: product details and the price only, none of the internal costing.
+   * true = DETAILED quotation: also each product's cost sheet (input weight → final cost).
+   */
   detailed?: boolean;
 }
 
-export const costAmount = (r: CostRow) => (r.amount == null ? '' : r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(r.amount) ? 0 : 2 }));
+export const costAmount = (r: CostRow) =>
+  r.amount == null
+    ? ''
+    : r.key
+      ? // a row of the 14-row costing table: always 2 decimals, a deduction with a minus sign
+        `${r.amount < 0 ? '− ' : ''}${Math.abs(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : r.amount.toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: Number.isInteger(r.amount) ? 0 : 2 });
 
 const costSheetHtml = (lines: QuotationLine[]) =>
   lines
     .filter((l) => l.costing?.length)
     .map(
       (l, n) => `<div class="qt-cost"><div class="qt-cost-h">Cost sheet ${lines.filter((x) => x.costing?.length).length > 1 ? n + 1 + ' · ' : '· '}${esc(l.product)}${[l.grade, l.size].filter(Boolean).length ? ' (' + esc([l.grade, l.size].filter(Boolean).join(' • ')) + ')' : ''}</div>
-        <table class="qt-table"><thead><tr><th style="width:34px">Sr.</th><th>Description</th><th>Calculation</th><th class="r" style="width:90px">Amount</th></tr></thead><tbody>${(l.costing ?? [])
-          .map((r, i) => `<tr${r.bold ? ' class="b"' : ''}><td>${i + 1}</td><td>${esc(r.label)}</td><td>${esc(r.basis)}</td><td class="r">${costAmount(r)}</td></tr>`)
+        <table class="qt-table"><thead><tr><th style="width:34px">No.</th><th>Description</th><th>Calculation</th><th class="r" style="width:90px">Amount</th></tr></thead><tbody>${printableRows(l.costing ?? [])
+          .map((r, i) => `<tr class="${r.bold ? 'b' : ''}${r.key === 'final' ? ' f' : ''}"><td>${r.no ?? i + 1}</td><td>${esc(r.label)}</td><td>${esc(r.basis)}</td><td class="r">${costAmount(r)}</td></tr>`)
           .join('')}</tbody></table></div>`,
     )
     .join('');
@@ -40,20 +50,30 @@ const CSS = `
 .qt-cost { margin: 0 0 12px; page-break-inside: avoid; }
 .qt-cost-h { font-size: 10.5px; font-weight: 700; margin: 4px 0; color: #166564; }
 .qt-table tr.b td { font-weight: 700; background: #f8fafc !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.qt-table tr.f td { background: #1a3c61 !important; color: #fff !important; font-size: 11.5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .qt-sign { display: flex; justify-content: space-between; margin-top: 46px; font-size: 10.5px; }
 .qt-sign div { width: 40%; border-top: 1px solid #475569; padding-top: 4px; }
 `;
 
-export function printQuotation(q: QuotationRow, lines: QuotationLine[], opts: QuotationOutput = {}) {
+/** the quotation page as HTML (kept apart from printing so it can be checked on its own) */
+export function quotationHtml(q: QuotationRow, lines: QuotationLine[], opts: QuotationOutput = {}): string {
+  // Products priced with the 14-row costing table are quoted per piece: product details and Final Cost, with no quantity, discount or total.
+  const perPiece = lines.length > 0 && lines.every(isCosted);
   const rows = lines
     .map((l, i) => {
       const spec = [l.grade, l.size].filter(Boolean).join(' • ');
+      if (perPiece) return `<tr><td>${i + 1}</td><td><b>${esc(l.product)}</b>${spec ? `<div>${esc(spec)}</div>` : ''}</td><td class="r">${inr(finalCostOf(l) ?? l.rate ?? 0)}</td></tr>`;
       return `<tr><td>${i + 1}</td><td><b>${esc(l.product)}</b>${spec ? `<div>${esc(spec)}</div>` : ''}</td><td class="r">${l.qty ?? ''}</td><td>${esc(l.uom)}</td>
       <td class="r">${l.rate == null ? '' : inr(l.rate)}</td><td class="r">${l.discountPct ? l.discountPct + '%' : '—'}</td>
       <td class="r">${l.netRate == null ? '' : inr(l.netRate)}</td><td class="r">${l.amount == null ? '' : inr(l.amount)}</td></tr>`;
     })
     .join('');
   const total = q.amount ?? lines.reduce((a, l) => a + (l.amount ?? 0), 0);
+  const table = perPiece
+    ? `<table class="qt-table"><thead><tr><th style="width:28px">#</th><th>Product</th><th class="r" style="width:150px">Final Cost (per piece)</th></tr></thead><tbody>${rows}</tbody></table>`
+    : `<table class="qt-table"><thead><tr><th style="width:28px">#</th><th>Product</th><th class="r">Qty</th><th>UOM</th><th class="r">Rate</th><th class="r">Disc.</th><th class="r">Net Rate</th><th class="r">Amount</th></tr></thead>
+    <tbody>${rows}<tr class="tot"><td colspan="7" class="r">Total</td><td class="r">${inr(total)}</td></tr></tbody></table>
+  <div class="qt-words"><b>Amount in words:</b> ${esc(rupeesInWords(total))}</div>`;
   const html = `
 <div class="po-doc">
   <table class="po-top-table"><tr>
@@ -68,9 +88,7 @@ export function printQuotation(q: QuotationRow, lines: QuotationLine[], opts: Qu
   </tr></table>
   <div class="qt-title"><div class="band">To</div><div class="name">${esc(q.customer)}</div></div>
   <div class="qt-cust">${[q.contact && `Attention: <b>${esc(q.contact)}</b>`, q.phone && `Phone: <b>${esc(q.phone)}</b>`, q.email && `Email: <b>${esc(q.email)}</b>`].filter(Boolean).join(' &nbsp;·&nbsp; ') || '&nbsp;'}</div>
-  <table class="qt-table"><thead><tr><th style="width:28px">#</th><th>Product</th><th class="r">Qty</th><th>UOM</th><th class="r">Rate</th><th class="r">Disc.</th><th class="r">Net Rate</th><th class="r">Amount</th></tr></thead>
-    <tbody>${rows}<tr class="tot"><td colspan="7" class="r">Total</td><td class="r">${inr(total)}</td></tr></tbody></table>
-  <div class="qt-words"><b>Amount in words:</b> ${esc(rupeesInWords(total))}</div>
+  ${table}
   ${opts.detailed ? costSheetHtml(lines) : ''}
   <div class="qt-terms">
     <div><b>Payment terms:</b> ${esc(q.paymentTerms || '—')}</div>
@@ -81,7 +99,11 @@ export function printQuotation(q: QuotationRow, lines: QuotationLine[], opts: Qu
   <div class="qt-sign"><div>Customer acceptance (signature &amp; date)</div><div>For Everest Auto Forge Pvt. Ltd.</div></div>
   <div class="po-foot-meta"><span>This is a computer-generated quotation. &nbsp;·&nbsp; E.&amp;O.E.</span><span>${esc(q.docNo)}</span></div>
 </div>`;
-  printHtml(`Quotation ${q.docNo}${opts.detailed ? ' (detailed)' : ''}`, html, PO_UFLOW_CSS + CSS);
+  return html;
+}
+
+export function printQuotation(q: QuotationRow, lines: QuotationLine[], opts: QuotationOutput = {}) {
+  printHtml(`Quotation ${q.docNo}${opts.detailed ? ' (detailed)' : ''}`, quotationHtml(q, lines, opts), PO_UFLOW_CSS + CSS);
 }
 
 export function printSalesOrder(o: OrderRow, lines: OrderLine[]) {

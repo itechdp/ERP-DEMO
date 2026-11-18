@@ -26,7 +26,13 @@ const mapLine = (r: R): QuotationLine => ({
   id: num(r.id), product: s(r.product), grade: s(r.grade), size: s(r.size), uom: s(r.uom) || 'PCS', qty: nn(r.qty), rate: nn(r.rate), discountPct: nn(r.discount_pct) ?? 0,
   materialCost: nn(r.material_cost), processingCost: nn(r.processing_cost), otherCost: nn(r.other_cost),
   netRate: nn(r.net_rate), amount: nn(r.amount), unitCost: nn(r.unit_cost), marginPct: nn(r.margin_pct),
-  costing: Array.isArray(r.costing) ? (r.costing as R[]).map((c): CostRow => ({ label: s(c.label), basis: s(c.basis), amount: nn(c.amount), bold: !!c.bold })) : null,
+  costing: Array.isArray(r.costing)
+    ? (r.costing as R[]).map((c): CostRow => ({
+        label: s(c.label), basis: s(c.basis), amount: nn(c.amount), bold: !!c.bold,
+        // the structured 14-row table keeps its inputs in the same list (see costing.ts); older sheets simply have none of these
+        ...(typeof c.key === 'string' ? { key: c.key, no: nn(c.no) ?? undefined, input: nn(c.input), input2: nn(c.input2), input3: nn(c.input3), mode: typeof c.mode === 'string' ? c.mode : undefined, unit: c.unit === 'g' ? ('g' as const) : c.unit === 'kg' ? ('kg' as const) : undefined, removed: !!c.removed } : {}),
+      }))
+    : null,
 });
 
 export async function fetchQuotations(): Promise<QuotationRow[]> {

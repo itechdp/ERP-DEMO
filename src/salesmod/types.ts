@@ -49,7 +49,29 @@ export interface QuotationRow {
 }
 
 /** One row of a line's cost sheet (the "detailed" quotation). Rows are numbered by their position, so they can be added, deleted and moved freely. */
-export interface CostRow { label: string; basis: string; amount: number | null; bold?: boolean }
+export interface CostRow {
+  label: string;
+  basis: string;
+  amount: number | null;
+  bold?: boolean;
+  // Only on rows of the structured 14-row costing table (src/salesmod/costing.ts). Older free-form cost sheets do not have them.
+  /** which of the 14 rows this is */
+  key?: string;
+  /** the fixed row number, 1-14 */
+  no?: number;
+  /** what the person typed on this row (weight, material rate, an amount, a rate or a percentage) */
+  input?: number | null;
+  /** a second typed value (scrap weight in grams, when scrap is entered as rate × weight) */
+  input2?: number | null;
+  /** a third typed value (the scrap amount, kept while Scrap Recovery is entered as rate × weight) */
+  input3?: number | null;
+  /** how a Forging Labour / Scrap Recovery row was entered: 'kg' (₹ per kg × weight), 'weight' (₹ per kg × grams) or 'amt' (an amount) */
+  mode?: string;
+  /** weight unit, on the Input Weight row */
+  unit?: 'kg' | 'g';
+  /** an optional row the person removed: it counts for nothing and is not printed */
+  removed?: boolean;
+}
 
 export interface QuotationLine {
   id?: number;

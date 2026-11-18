@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test:engine": "vite-node scripts/engine-test.ts",
     "test:calendar": "vite-node scripts/calendar-test.ts",
+    "test:costing": "vite-node scripts/costing-test.ts",
     "check:resources": "vite-node scripts/check-resource-drift.ts"
   },
   "dependencies": {

@@ -2,22 +2,32 @@
 // Standard = the same columns as the printed quotation; detailed = the same plus each line's cost sheet.
 import { FORM_FORMATS, downloadFormSheet, type SheetBlock } from '../export/xlsxSheet';
 import { dmy, rupeesInWords } from '../sales/print';
+import { finalCostOf, isCosted, printableRows } from './costing';
 import type { QuotationLine, QuotationRow } from './types';
 import type { QuotationOutput } from './print';
 
 export async function exportQuotationXlsx(q: QuotationRow, lines: QuotationLine[], user: string, opts: QuotationOutput = {}) {
   const total = q.amount ?? lines.reduce((a, l) => a + (l.amount ?? 0), 0);
+  // Products priced with the 14-row costing table are quoted per piece: product details and Final Cost only.
+  const perPiece = lines.length > 0 && lines.every(isCosted);
   const blocks: SheetBlock[] = [
-    {
-      headers: ['Sr. No.', 'Product', 'Qty', 'UOM', 'Rate (₹)', 'Disc. %', 'Net Rate (₹)', 'Amount (₹)'],
-      align: ['center', 'left', 'right', 'center', 'right', 'right', 'right', 'right'],
-      rows: [
-        ...lines.map((l, i) => ({
-          cells: [i + 1, [l.product, [l.grade, l.size].filter(Boolean).join(' • ')].filter(Boolean).join('\n'), l.qty, l.uom, l.rate, l.discountPct || 0, l.netRate, l.amount],
-        })),
-        { cells: ['', 'Total', '', '', '', '', '', total], bold: true },
-      ],
-    },
+    perPiece
+      ? {
+          headers: ['Sr. No.', 'Product', 'Final Cost (₹ per piece)'],
+          spans: [1, 4, 3],
+          align: ['center', 'left', 'right'],
+          rows: lines.map((l, i) => ({ cells: [i + 1, [l.product, [l.grade, l.size].filter(Boolean).join(' • ')].filter(Boolean).join('\n'), finalCostOf(l) ?? l.rate] })),
+        }
+      : {
+          headers: ['Sr. No.', 'Product', 'Qty', 'UOM', 'Rate (₹)', 'Disc. %', 'Net Rate (₹)', 'Amount (₹)'],
+          align: ['center', 'left', 'right', 'center', 'right', 'right', 'right', 'right'],
+          rows: [
+            ...lines.map((l, i) => ({
+              cells: [i + 1, [l.product, [l.grade, l.size].filter(Boolean).join(' • ')].filter(Boolean).join('\n'), l.qty, l.uom, l.rate, l.discountPct || 0, l.netRate, l.amount],
+            })),
+            { cells: ['', 'Total', '', '', '', '', '', total], bold: true },
+          ],
+        },
   ];
 
   if (opts.detailed) {
@@ -28,7 +38,7 @@ export async function exportQuotationXlsx(q: QuotationRow, lines: QuotationLine[
         headers: ['Sr. No.', 'Description', 'Calculation', 'Amount (₹)'],
         spans: [1, 3, 3, 1],
         align: ['center', 'left', 'left', 'right'],
-        rows: (l.costing ?? []).map((r, i) => ({ cells: [i + 1, r.label, r.basis, r.amount], bold: r.bold })),
+        rows: printableRows(l.costing ?? []).map((r, i) => ({ cells: [r.no ?? i + 1, r.label, r.basis, r.amount], bold: r.bold })),
       });
     }
   }
@@ -46,7 +56,7 @@ export async function exportQuotationXlsx(q: QuotationRow, lines: QuotationLine[
     widths: [8, 34, 9, 8, 13, 9, 13, 15],
     blocks,
     notes: [
-      `Amount in words : ${rupeesInWords(total)}`,
+      ...(perPiece ? [] : [`Amount in words : ${rupeesInWords(total)}`]),
       `Payment terms : ${q.paymentTerms || '—'}      Delivery terms : ${q.deliveryTerms || '—'}`,
       ...(q.remarks ? [`Remarks : ${q.remarks}`] : []),
     ],
