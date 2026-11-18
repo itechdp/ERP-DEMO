@@ -16,6 +16,7 @@ import { UsersPage } from './pages/UsersPage';
 import { ListsPage } from './pages/ListsPage';
 import { CustomersPage } from './pages/CustomersPage';
 import { NotificationHost } from './tasks/NotificationHost';
+import { CalendarReminders } from './calendar/CalendarReminders';
 import { NotificationProvider } from './tasks/notifications';
 import { dbConfigured } from './db/client';
 import { LoginPage } from './auth/LoginPage';
@@ -227,6 +228,7 @@ function Shell() {
         <DieHost />
         <Toasts />
         <NotificationHost />
+        <CalendarReminders />
       </DieProvider>
       </NotificationProvider>
     </StoreProvider>

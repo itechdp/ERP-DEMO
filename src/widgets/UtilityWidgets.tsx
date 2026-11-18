@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Calculator, Check, Copy, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
+import { Calculator, CalendarDays, Check, Copy, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
+import { useAccess } from '../auth/access';
 import { Kpi, Modal } from '../components/ui';
+import { CalendarPanel } from '../calendar/CalendarWidget';
+import { fetchEvents } from '../calendar/service';
+import { isoOf, startOf, time12, type CalEvent } from '../calendar/logic';
 import { fmtDate, fmtKg, todayISO } from '../components/format';
 import { addMaterialLog, addPettyCash, deleteMaterialLog, deletePettyCash, fetchMaterialLog, fetchPettyCash, updateMaterialLog, updatePettyCash, type MaterialLogRow, type PettyCashRow } from './service';
 
@@ -22,12 +26,24 @@ function useRows<T>(load: () => Promise<T[]>) {
  * Standalone: nothing here touches inventory or accounting. A failed load only shows inside the pop-up.
  */
 export function UtilityWidgets() {
-  const [open, setOpen] = useState<'calc' | 'cash' | 'log' | null>(null);
+  const [open, setOpen] = useState<'calc' | 'cash' | 'log' | 'cal' | null>(null);
+  const { role } = useAccess();
+  const [today, setToday] = useState<CalEvent[]>([]);
+  const loadToday = useCallback(async () => {
+    const t = isoOf(new Date());
+    try { setToday(await fetchEvents(role, t, t)); } catch { setToday([]); } // no calendar table yet: the card just shows 0
+  }, [role]);
+  useEffect(() => {
+    void loadToday();
+    const id = window.setInterval(() => void loadToday(), 60_000);
+    return () => window.clearInterval(id);
+  }, [loadToday]);
+  const next = today.find((e) => startOf(e).getTime() >= Date.now());
   const cash = useRows<PettyCashRow>(fetchPettyCash);
   const log = useRows<MaterialLogRow>(fetchMaterialLog);
   const cashTotal = cash.rows.reduce((t, r) => t + r.amount, 0);
   const kgTotal = log.rows.reduce((t, r) => t + r.weightKg, 0);
-  const close = () => setOpen(null);
+  const close = () => { setOpen(null); void loadToday(); };
 
   return (
     <>
@@ -35,10 +51,12 @@ export function UtilityWidgets() {
         <Kpi label="Tap to open" value="Calculator" icon={Calculator} tone="blue" onClick={() => setOpen('calc')} />
         <Kpi label="Petty Cash Tracker" value={inr(cashTotal)} icon={Wallet} tone="green" hint={`${cash.rows.length} entr${cash.rows.length === 1 ? 'y' : 'ies'} · total amount`} onClick={() => setOpen('cash')} />
         <Kpi label="Quick Material Log" value={kgTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} unit="KG" icon={Scale} tone="amber" hint={`${log.rows.length} unload${log.rows.length === 1 ? '' : 's'} · not added to stock`} onClick={() => setOpen('log')} />
+        <Kpi label="Calendar" value={today.length} unit="events" icon={CalendarDays} tone="violet" hint={next ? `Next: ${time12(next.time)} · ${next.title}` : today.length ? 'No more events today' : 'Meetings & tasks · tap to open'} onClick={() => setOpen('cal')} />
       </div>
 
       <Modal open={open === 'calc'} title="Calculator" icon={Calculator} onClose={close}><CalculatorTool /></Modal>
       <Modal open={open === 'cash'} title="Petty Cash Tracker" icon={Wallet} onClose={close}><PettyCashTool {...cash} total={cashTotal} /></Modal>
+      <Modal open={open === 'cal'} title="Calendar" subtitle="Meetings and tasks for your role. Click a day to see it or add an event." icon={CalendarDays} onClose={close}><CalendarPanel onChanged={() => void loadToday()} /></Modal>
       <Modal open={open === 'log'} title="Quick Material Log" subtitle="A scratchpad for truck unloads. It does not change stock." icon={Scale} onClose={close}><MaterialLogTool {...log} /></Modal>
     </>
   );

@@ -1523,3 +1523,47 @@ body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacit
 .calc-hist .he { grid-column: 1 / -1; color: var(--text-3); font-size: 13.5px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calc-hist .hr { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; grid-column: 1 / -1; }
 .calc-hist .ht { grid-column: 1 / -1; font-size: 11.5px; color: var(--text-3); }
+
+/* ---- role calendar (dashboard) ---- */
+.cal-month { min-width: 130px; text-align: center; font-weight: 700; font-size: 14px; }
+.cal-body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cal-dow { margin-bottom: 6px; }
+.cal-dow span { text-align: center; font-size: 11.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.cal-day { height: 58px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; transition: background .12s, border-color .12s; }
+.cal-day:hover { background: var(--surface-2); border-color: var(--primary-100); }
+.cal-day .n { font-size: 14px; font-weight: 600; }
+.cal-day.out { opacity: 0.4; }
+.cal-day.today { border-color: var(--primary); }
+.cal-day.today .n { color: var(--primary); font-weight: 800; }
+.cal-day.sel { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cal-day.sel .n { color: #fff; }
+.cal-day .dots { display: inline-flex; gap: 3px; align-items: center; height: 7px; }
+.cal-day .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+.cal-day .dots i.task { background: #d97706; }
+.cal-day.sel .dots i { background: #fff; }
+.cal-day .dots small { font-size: 10px; line-height: 1; color: var(--text-3); }
+.cal-day.sel .dots small { color: #fff; }
+.cal-side h4 { margin: 0 0 10px; font-size: 16px; }
+.cal-none { padding: 14px 0 18px; }
+.cal-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: 190px; overflow-y: auto; }
+.cal-list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.cal-list li:last-child { border-bottom: 0; }
+.cal-time { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: var(--text-2); white-space: nowrap; min-width: 68px; }
+.cal-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-kind.task { background: #fef3c7; color: #92400e; }
+.cal-kind.meeting { background: var(--primary-50); color: var(--primary); }
+.cal-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; align-items: end; }
+.cal-form .cal-f-title { grid-column: 1 / -1; }
+.cal-add { grid-column: 1 / -1; height: 42px; justify-content: center; border-radius: 11px; }
+.cal-form .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.cal-form .field label .req { color: var(--crit); }
+.cal-form input, .cal-form select { width: 100%; height: 42px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 11px; padding: 0 12px; background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; }
+.cal-form input:focus, .cal-form select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.cal-rem { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+.cal-rem li { display: flex; gap: 12px; align-items: center; }
+@media (max-width: 1100px) { .cal-body { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .cal-day { height: 46px; } .cal-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+.cal-toolbar .sub { color: var(--text-3); font-size: 13.5px; }
+.cal-toolbar .right { display: flex; align-items: center; gap: 8px; }
