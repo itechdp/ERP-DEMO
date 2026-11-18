@@ -28,6 +28,7 @@ import { nextStep, pendingSteps } from '../components/workflow';
 import { useFollowups } from '../followups/useFollowups';
 import { BellRing } from 'lucide-react';
 import { AnimatedNum } from '../components/motion';
+import { UtilityWidgets } from '../widgets/UtilityWidgets';
 import { fmtKg, fmtNum, plural, timeAgo, todayISO } from '../components/format';
 
 const FEED_ICON: Record<Activity['kind'], typeof Play> = {
@@ -170,6 +171,8 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
         <Kpi label="At Heat Treatment" value={d.stage.heatTreatment.jobs} unit="jobs" hint={`${fmtNum(d.stage.heatTreatment.wip)} PCS`} icon={Flame} tone="amber" onClick={() => navigate('heat-treatment')} />
         <Kpi label="QC Pending" value={d.qc.jobs} unit="jobs" hint={`${fmtNum(d.qc.wip)} PCS to inspect`} icon={ShieldCheck} tone="amber" onClick={() => navigate('qc')} />
       </div>
+      {/* standalone utility cards: calculator, petty cash, quick material log */}
+      <UtilityWidgets />
 
       {/* ---------------- Production flow ---------------- */}
       <div className="card mb-lg">
@@ -404,7 +407,6 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
           </div>
         </div>
       </div>
-
     </>
   );
 }
