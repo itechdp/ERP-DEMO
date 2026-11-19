@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Calculator, CalendarDays, Weight, Check, Copy, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { Calculator, CalendarDays, Weight, Check, Copy, Eye, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
 import { useAccess } from '../auth/access';
 import { Kpi, Modal } from '../components/ui';
 import { CalendarPanel } from '../calendar/CalendarWidget';
 import { MetalWeightCalculator } from '../metalweight/MetalWeightCalculator';
 import { fetchEvents } from '../calendar/service';
 import { isoOf, startOf, time12, type CalEvent } from '../calendar/logic';
-import { fmtDate, fmtKg, todayISO } from '../components/format';
+import { fmtDate, todayISO } from '../components/format';
 import { addMaterialLog, addPettyCash, deleteMaterialLog, deletePettyCash, fetchMaterialLog, fetchPettyCash, updateMaterialLog, updatePettyCash, type MaterialLogRow, type PettyCashRow } from './service';
 
 const inr = (v: number) => `₹ ${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -457,37 +457,170 @@ function PettyCashTool({ rows, loaded, err, setErr, reload, total }: ReturnType<
 }
 
 /* ---------------- Quick Material Log ---------------- */
+// One log = a date, an item name (typed, not picked) and a list of bags, as on the Dispatch page. Quantity and weight of each bag are both typed
+// by hand; the weight is never worked out from the quantity. The totals are the sums of the bags. Not linked to stock or inventory.
+interface BagIn { qty: string; weight: string }
+const blankBag = (): BagIn => ({ qty: '', weight: '' });
+const fmtW = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 3 });
+const round3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
+
 function MaterialLogTool({ rows, loaded, err, setErr, reload }: ReturnType<typeof useRows<MaterialLogRow>>) {
+  const [editId, setEditId] = useState<number | null>(null);
   const [date, setDate] = useState(todayISO());
-  const [kg, setKg] = useState('');
-  const [name, setName] = useState('');
+  const [item, setItem] = useState('');
+  const [bags, setBags] = useState<BagIn[]>([blankBag()]);
   const [busy, setBusy] = useState(false);
+  const [tried, setTried] = useState(false); // a save was tried: mark the bags that still need fixing
+  const [open, setOpen] = useState<number | null>(null); // the log whose bags are shown (View)
+  const formRef = useRef<HTMLFormElement>(null);
   const f = useDateFilter(rows);
+
+  const parsed = bags.map((b) => {
+    const q = b.qty.trim() === '' ? null : Number(b.qty);
+    const w = b.weight.trim() === '' ? null : Number(b.weight);
+    return { q, w, qBad: q == null || !Number.isInteger(q) || q < 1, wBad: w == null || !Number.isFinite(w) || round3(w) <= 0 };
+  });
+  // live totals: only the numbers that are valid so far count
+  const totalQty = parsed.reduce((t, p) => t + (!p.qBad ? (p.q as number) : 0), 0);
+  const totalKg = round3(parsed.reduce((t, p) => t + (!p.wBad ? (p.w as number) : 0), 0));
+  // a new bag starts with what was typed in the FIRST bag (quantity and weight), so equal bags need no retyping. It is a copy, never a calculation:
+  // change either box freely. If the first bag is still empty the new bag is empty too.
+  const addBag = () => setBags((list) => {
+    const first = list[0];
+    return [...list, first && (first.qty.trim() !== '' || first.weight.trim() !== '') ? { qty: first.qty, weight: first.weight } : blankBag()];
+  });
+  const setBag = (i: number, k: keyof BagIn, v: string) => setBags((list) => list.map((b, j) => (j === i ? { ...b, [k]: v } : b)));
+
+  const reset = () => { setEditId(null); setItem(''); setBags([blankBag()]); setTried(false); };
+  const startEdit = (r: MaterialLogRow) => {
+    setErr(''); setTried(false); setEditId(r.id); setDate(r.date); setItem(r.material);
+    // a log saved before bags existed has one weight and no quantity: it opens as one bag with the weight filled in
+    setBags(r.bags.length ? r.bags.map((b) => ({ qty: String(b.qty), weight: String(b.weight) })) : [{ qty: '', weight: String(r.weightKg) }]);
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const w = parseFloat(kg);
-    if (!(w > 0) || !name.trim()) { setErr('Enter a weight above 0 and a material name.'); return; }
+    const badAt = parsed.findIndex((p) => p.qBad || p.wBad);
+    if (!item.trim()) { setErr('Enter the item name.'); return; }
+    if (!date) { setErr('Choose the date.'); return; }
+    if (badAt >= 0) { setTried(true); setErr(`Bag ${badAt + 1}: enter the quantity as a whole number (1 or more) and the weight (more than 0).`); return; }
     setBusy(true);
-    try { await addMaterialLog(date, w, name); setKg(''); setName(''); await reload(); } catch (x) { setErr((x as Error).message); }
+    try {
+      const list = parsed.map((p) => ({ qty: p.q as number, weight: round3(p.w as number) }));
+      if (editId != null) await updateMaterialLog(editId, date, item, list); else await addMaterialLog(date, item, list);
+      reset();
+      setErr('');
+      await reload();
+    } catch (x) { setErr((x as Error).message); }
     setBusy(false);
   };
-  const remove = async (id: number) => { try { await deleteMaterialLog(id); await reload(); } catch (x) { setErr((x as Error).message); } };
+  const remove = async (id: number) => {
+    try { await deleteMaterialLog(id); if (editId === id) reset(); if (open === id) setOpen(null); await reload(); } catch (x) { setErr((x as Error).message); }
+  };
+
+  const shownQty = f.shown.reduce((t, r) => t + r.totalQty, 0);
+  const shownKg = round3(f.shown.reduce((t, r) => t + r.weightKg, 0));
 
   return (
     <>
-      <form onSubmit={submit} className="tool-form">
-        <div className="field"><label>Date <span className="req">*</span></label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></div>
-        <div className="field"><label>Weight (KG) <span className="req">*</span></label><input type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0.00" value={kg} onChange={(e) => setKg(e.target.value)} required /></div>
-        <div className="field"><label>Material name <span className="req">*</span></label><input placeholder="e.g. EN8 round bar" value={name} onChange={(e) => setName(e.target.value)} required /></div>
-        <button className="btn btn-primary tool-add" disabled={busy}><Plus size={15} /> Add to Log</button>
+      <form onSubmit={submit} className="mlog-form" ref={formRef}>
+        {editId != null && (
+          <div className="callout warn mlog-editing">
+            <span>Editing a saved log. Change anything and press <b>Update Log</b>.</span>
+            <button type="button" className="btn btn-sm btn-subtle" onClick={reset}>Cancel edit</button>
+          </div>
+        )}
+        <div className="mlog-head">
+          <div className="field"><label>Date <span className="req">*</span></label><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></div>
+          <div className="field"><label>Item name <span className="req">*</span></label><input className="input" placeholder="e.g. EN8 round bar" maxLength={120} value={item} onChange={(e) => setItem(e.target.value)} required /></div>
+        </div>
+
+        <div className="section-label">Bags</div>
+        <table className="bag-tbl mlog-bags">
+          <thead>
+            <tr><th>Bag #</th><th>Qty (PCS)</th><th>Weight (KG)</th><th /></tr>
+          </thead>
+          <tbody>
+            {bags.map((b, i) => (
+              <tr key={i}>
+                <td className="muted">{i + 1}</td>
+                <td><input className={`input num ${tried && parsed[i].qBad ? 'bad' : ''}`} type="number" min={1} step={1} inputMode="numeric" placeholder="0" aria-label={`Bag ${i + 1} quantity in pieces`} value={b.qty} autoFocus={i === bags.length - 1 && i > 0} onFocus={(e) => e.target.select()} onChange={(e) => setBag(i, 'qty', e.target.value)} /></td>
+                <td><input className={`input num ${tried && parsed[i].wBad ? 'bad' : ''}`} type="number" min={0} step="any" inputMode="decimal" placeholder="0.000" aria-label={`Bag ${i + 1} weight in kg`} value={b.weight} onFocus={(e) => e.target.select()} onChange={(e) => setBag(i, 'weight', e.target.value)} /></td>
+                <td>
+                  {bags.length > 1 && (
+                    <button type="button" className="icon-btn" title="Remove bag" aria-label={`Remove bag ${i + 1}`} onClick={() => setBags((list) => list.filter((_, j) => j !== i))}><X size={15} /></button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><button type="button" className="btn btn-sm btn-soft" onClick={addBag}><Plus size={14} /> Add Bag</button></td>
+              <td className="strong num" aria-live="polite"><span className="muted mlog-tot">Total</span> <span data-testid="total-qty">{fmtW(totalQty)}</span> PCS</td>
+              <td className="strong num" aria-live="polite"><span className="muted mlog-tot">Total</span> <span data-testid="total-kg">{totalKg.toFixed(3)}</span> KG</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+        <div className="mlog-actions">
+          <button className="btn btn-primary mlog-save" disabled={busy}>{editId != null ? 'Update Log' : 'Save Log'}</button>
+        </div>
       </form>
       {err && <div className="tool-err">{err}</div>}
       {f.bar}
-      <EntryTable rows={f.shown} loaded={loaded} emptyText={f.on ? 'No entries on the selected dates.' : undefined} err={err} valueLabel="Weight (KG)" valueStep="0.01" textLabel="Material"
-        show={(id) => fmtKg(rows.find((r) => r.id === id)!.weightKg)} getText={(id) => rows.find((r) => r.id === id)!.material} getValue={(id) => rows.find((r) => r.id === id)!.weightKg}
-        onSave={async (id, d, n, t) => { await updateMaterialLog(id, d, n, t); await reload(); }} onDelete={remove}
-        footer={<tfoot><tr><td colSpan={4} className="strong" style={{ fontSize: 15 }}>{f.on ? 'Total for selected dates' : 'Total Weight'}</td><td className="r num strong" style={{ fontSize: 15 }}>{fmtKg(f.shown.reduce((t, r) => t + r.weightKg, 0))}</td><td /></tr></tfoot>} />
+      <div className="table-wrap">
+        <table className="tbl compact">
+          <thead>
+            <tr><th>#</th><th>Date</th><th>Time</th><th>Item</th><th className="r">Qty (PCS)</th><th className="r">Weight (KG)</th><th className="r">Action</th></tr>
+          </thead>
+          <tbody>
+            {loaded && f.shown.length === 0 && !err && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 20 }}>{f.on ? 'No entries on the selected dates.' : 'No entries yet.'}</td></tr>}
+            {f.shown.map((r, i) => (
+              <Fragment key={r.id}>
+                <tr className={editId === r.id ? 'mlog-editing-row' : ''}>
+                  <td className="muted">{f.shown.length - i}</td>
+                  <td className="nowrap">{fmtDate(r.date)}</td>
+                  <td className="muted nowrap">{timeOf(r.createdAt)}</td>
+                  <td className="strong">{r.material}{r.bags.length > 0 && <span className="muted" style={{ fontWeight: 500 }}> · {r.bags.length} bag{r.bags.length === 1 ? '' : 's'}</span>}</td>
+                  <td className="r num strong">{r.bags.length ? fmtW(r.totalQty) : <span className="muted" title="Saved before quantities were recorded">—</span>}</td>
+                  <td className="r num strong">{fmtW(r.weightKg)}</td>
+                  <td className="r nowrap">
+                    <button className="btn btn-sm btn-subtle" title={open === r.id ? 'Hide the bags' : 'View the bags'} aria-label="View the bags" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}><Eye size={13} /></button>{' '}
+                    <button className="btn btn-sm btn-subtle" title="Edit this log" aria-label="Edit this log" onClick={() => startEdit(r)}><Pencil size={13} /></button>{' '}
+                    <button className="btn btn-sm btn-subtle" title="Delete this log" aria-label="Delete this log" onClick={() => void remove(r.id)}><Trash2 size={13} /></button>
+                  </td>
+                </tr>
+                {open === r.id && (
+                  <tr className="mlog-bagrow">
+                    <td />
+                    <td colSpan={6}>
+                      {r.bags.length ? (
+                        <table className="mlog-view">
+                          <thead><tr><th>Bag #</th><th className="r">Qty (PCS)</th><th className="r">Weight (KG)</th></tr></thead>
+                          <tbody>{r.bags.map((b) => <tr key={b.no}><td>{b.no}</td><td className="r num">{fmtW(b.qty)}</td><td className="r num">{fmtW(b.weight)}</td></tr>)}</tbody>
+                          <tfoot><tr><td>Total</td><td className="r num">{fmtW(r.totalQty)}</td><td className="r num">{fmtW(r.weightKg)}</td></tr></tfoot>
+                        </table>
+                      ) : (
+                        <span className="muted">An older entry: one total weight, no bags. Edit it to add the bags and quantities.</span>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4} className="strong" style={{ fontSize: 15 }}>{f.on ? 'Total for selected dates' : 'Total'}</td>
+              <td className="r num strong" style={{ fontSize: 15 }}>{fmtW(shownQty)}</td>
+              <td className="r num strong" style={{ fontSize: 15 }}>{fmtW(shownKg)}</td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </>
   );
 }
