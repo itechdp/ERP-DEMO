@@ -457,11 +457,13 @@ function PettyCashTool({ rows, loaded, err, setErr, reload, total }: ReturnType<
 }
 
 /* ---------------- Quick Material Log ---------------- */
-// One log = a date, an item name (typed, not picked) and a list of bags, as on the Dispatch page. Quantity and weight of each bag are both typed
-// by hand; the weight is never worked out from the quantity. The totals are the sums of the bags. Not linked to stock or inventory.
-interface BagIn { qty: string; weight: string }
+// One log = a date, an item name (typed, not picked) and a list of bags, as on the Dispatch page. The FIRST bag sets the weight per piece
+// (its weight ÷ its quantity). When the quantity of another bag is changed, that bag's weight follows it (quantity × weight per piece). A weight
+// can always be typed over by hand. The totals are the sums of the bags. Not linked to stock or inventory.
+interface BagIn { qty: string; weight: string; /** the weight was typed (or saved earlier): it is kept until this bag's quantity is changed */ manual?: boolean }
 const blankBag = (): BagIn => ({ qty: '', weight: '' });
 const fmtW = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 3 });
+const fmtPiece = (v: number) => v.toLocaleString('en-IN', { maximumFractionDigits: 4 });
 const round3 = (v: number) => Math.round((v + Number.EPSILON) * 1000) / 1000;
 
 function MaterialLogTool({ rows, loaded, err, setErr, reload }: ReturnType<typeof useRows<MaterialLogRow>>) {
@@ -483,19 +485,39 @@ function MaterialLogTool({ rows, loaded, err, setErr, reload }: ReturnType<typeo
   // live totals: only the numbers that are valid so far count
   const totalQty = parsed.reduce((t, p) => t + (!p.qBad ? (p.q as number) : 0), 0);
   const totalKg = round3(parsed.reduce((t, p) => t + (!p.wBad ? (p.w as number) : 0), 0));
-  // a new bag starts with what was typed in the FIRST bag (quantity and weight), so equal bags need no retyping. It is a copy, never a calculation:
-  // change either box freely. If the first bag is still empty the new bag is empty too.
+  // a new bag starts with what was typed in the FIRST bag (quantity and weight), so equal bags need no retyping. If the first bag is still empty
+  // the new bag is empty too.
   const addBag = () => setBags((list) => {
     const first = list[0];
-    return [...list, first && (first.qty.trim() !== '' || first.weight.trim() !== '') ? { qty: first.qty, weight: first.weight } : blankBag()];
+    return [...list, first && (first.qty.trim() !== '' || first.weight.trim() !== '') ? { qty: first.qty, weight: first.weight, manual: false } : blankBag()];
   });
-  const setBag = (i: number, k: keyof BagIn, v: string) => setBags((list) => list.map((b, j) => (j === i ? { ...b, [k]: v } : b)));
+  // The weight per piece of the first bag, or null until its quantity (whole number) and weight are both filled in.
+  const reference = (list: BagIn[]) => {
+    const q = list[0]?.qty.trim() === '' ? NaN : Number(list[0]?.qty);
+    const w = list[0]?.weight.trim() === '' ? NaN : Number(list[0]?.weight);
+    return Number.isInteger(q) && q >= 1 && Number.isFinite(w) && w > 0 ? { q, w } : null;
+  };
+  const setBag = (i: number, k: keyof Pick<BagIn, 'qty' | 'weight'>, v: string) => setBags((list) => {
+    let next = list.map((b, j) => (j === i ? { ...b, [k]: v, ...(k === 'weight' ? { manual: true } : {}) } : b));
+    const ref = reference(next);
+    if (!ref) return next;
+    next = next.map((b, j) => {
+      if (j === 0) return b; // the first bag is the reference: it is never calculated
+      const q = b.qty.trim() === '' ? NaN : Number(b.qty);
+      if (!Number.isInteger(q) || q < 1) return b;
+      // a changed quantity always brings the weight with it; a change in the first bag only moves the bags whose weight was not typed
+      const follows = (j === i && k === 'qty') || (i === 0 && !b.manual);
+      return follows ? { ...b, weight: String(round3((q * ref.w) / ref.q)), manual: false } : b;
+    });
+    return next;
+  });
+  const perPiece = reference(bags);
 
   const reset = () => { setEditId(null); setItem(''); setBags([blankBag()]); setTried(false); };
   const startEdit = (r: MaterialLogRow) => {
     setErr(''); setTried(false); setEditId(r.id); setDate(r.date); setItem(r.material);
     // a log saved before bags existed has one weight and no quantity: it opens as one bag with the weight filled in
-    setBags(r.bags.length ? r.bags.map((b) => ({ qty: String(b.qty), weight: String(b.weight) })) : [{ qty: '', weight: String(r.weightKg) }]);
+    setBags(r.bags.length ? r.bags.map((b) => ({ qty: String(b.qty), weight: String(b.weight), manual: true })) : [{ qty: '', weight: String(r.weightKg), manual: true }]);
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -564,6 +586,11 @@ function MaterialLogTool({ rows, loaded, err, setErr, reload }: ReturnType<typeo
             </tr>
           </tfoot>
         </table>
+        <div className="hint muted mlog-hint">
+          {perPiece
+            ? <>Weight per piece (from bag 1): <b>{fmtPiece(perPiece.w / perPiece.q)} kg</b>. Changing a bag&apos;s quantity updates its weight from this; you can still type a weight yourself.</>
+            : <>Fill in bag 1&apos;s quantity and weight. The other bags then work out their weight from it when their quantity changes.</>}
+        </div>
         <div className="mlog-actions">
           <button className="btn btn-primary mlog-save" disabled={busy}>{editId != null ? 'Update Log' : 'Save Log'}</button>
         </div>

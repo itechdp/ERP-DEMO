@@ -3,14 +3,15 @@
 -- ============================================================
 -- Needs 75. Still a standalone scratchpad: not linked to inventory, stock or accounting. Existing rows are kept as they are.
 --
---   bags        the bags of the log: [{"no":1,"qty":10,"weight":25.5}, …]   (qty = pieces, a whole number; weight = kg, typed by hand)
+--   bags        the bags of the log: [{"no":1,"qty":10,"weight":25.5}, …]   (qty = pieces, a whole number; weight = kg)
 --   total_qty   the pieces in all the bags
 --   weight_kg   (already there) the total weight; for a log with bags it is the sum of the bags' weights
 --   material_name  (already there) holds the Item name
 --
 -- A trigger works the totals out from the bags and renumbers them 1, 2, 3 …, so a screen (or anyone calling the API) cannot save totals that do
 -- not match the bags. A log saved before this change has no bags: it keeps its single weight and shows no quantity.
--- Weight is never worked out from quantity anywhere. Safe to run twice.
+-- The database never works a weight out from a quantity: it stores what it is sent. (The screen suggests a bag's weight from the first bag's
+-- weight per piece when the quantity is changed, and every weight can be typed over.) Safe to run twice.
 
 alter table quick_material_logs add column if not exists bags      jsonb  not null default '[]'::jsonb;
 alter table quick_material_logs add column if not exists total_qty bigint not null default 0;

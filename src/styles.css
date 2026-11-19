@@ -1670,3 +1670,4 @@ body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacit
 .mlog-view tfoot td { font-weight: 700; }
 @media (max-width: 640px) { .mlog-head { grid-template-columns: minmax(0, 1fr); } .mlog-save { width: 100%; } }
 .mlog-form .section-label { margin-top: 24px; }
+.mlog-hint { margin-top: 10px; font-size: 12.5px; }
