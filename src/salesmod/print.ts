@@ -2,7 +2,7 @@
 import { printHtml } from '../components/printHtml';
 import { PO_UFLOW_CSS, esc, dmy, rupeesInWords } from '../sales/print';
 import { inr } from './calc';
-import { finalCostOf, isCosted, printableRows } from './costing';
+import { finalCostOf, isCosted, printableRows, rowNo } from './costing';
 import type { CostRow, OrderLine, OrderRow, QuotationLine, QuotationRow } from './types';
 
 export interface QuotationOutput {
@@ -27,7 +27,7 @@ const costSheetHtml = (lines: QuotationLine[]) =>
     .map(
       (l, n) => `<div class="qt-cost"><div class="qt-cost-h">Cost sheet ${lines.filter((x) => x.costing?.length).length > 1 ? n + 1 + ' · ' : '· '}${esc(l.product)}${[l.grade, l.size].filter(Boolean).length ? ' (' + esc([l.grade, l.size].filter(Boolean).join(' • ')) + ')' : ''}</div>
         <table class="qt-table"><thead><tr><th style="width:34px">No.</th><th>Description</th><th>Calculation</th><th class="r" style="width:90px">Amount</th></tr></thead><tbody>${printableRows(l.costing ?? [])
-          .map((r, i) => `<tr class="${r.bold ? 'b' : ''}${r.key === 'final' ? ' f' : ''}"><td>${r.no ?? i + 1}</td><td>${esc(r.label)}</td><td>${esc(r.basis)}</td><td class="r">${costAmount(r)}</td></tr>`)
+          .map((r, i, all) => `<tr class="${r.bold ? 'b' : ''}${r.key === 'final' ? ' f' : ''}"><td>${rowNo(r, i, all)}</td><td>${esc(r.label)}</td><td>${esc(r.basis)}</td><td class="r">${costAmount(r)}</td></tr>`)
           .join('')}</tbody></table></div>`,
     )
     .join('');

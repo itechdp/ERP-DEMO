@@ -2,7 +2,7 @@
 // Standard = the same columns as the printed quotation; detailed = the same plus each line's cost sheet.
 import { FORM_FORMATS, downloadFormSheet, type SheetBlock } from '../export/xlsxSheet';
 import { dmy, rupeesInWords } from '../sales/print';
-import { finalCostOf, isCosted, printableRows } from './costing';
+import { finalCostOf, isCosted, printableRows, rowNo } from './costing';
 import type { QuotationLine, QuotationRow } from './types';
 import type { QuotationOutput } from './print';
 
@@ -38,7 +38,7 @@ export async function exportQuotationXlsx(q: QuotationRow, lines: QuotationLine[
         headers: ['Sr. No.', 'Description', 'Calculation', 'Amount (₹)'],
         spans: [1, 3, 3, 1],
         align: ['center', 'left', 'left', 'right'],
-        rows: printableRows(l.costing ?? []).map((r, i) => ({ cells: [r.no ?? i + 1, r.label, r.basis, r.amount], bold: r.bold })),
+        rows: printableRows(l.costing ?? []).map((r, i, all) => ({ cells: [rowNo(r, i, all), r.label, r.basis, r.amount], bold: r.bold })),
       });
     }
   }

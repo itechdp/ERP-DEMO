@@ -16,7 +16,7 @@ import {
 } from './service';
 import { CostSheetEditor } from './CostSheetEditor';
 import { CostingTable } from './CostingTable';
-import { computeCosting, costBeforeProfit, costingProblem, emptyCosting, finalCostOf, isCosted, parseCosting, serializeCosting, type CostingState } from './costing';
+import { computeCosting, costingProblem, dropBlankCustom, emptyCosting, finalCostOf, isCosted, parseCosting, serializeCosting, unitCostOf, type CostingState } from './costing';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import { MaterialPick, SizePick } from '../masters/MaterialPick';
 import { ADD_NEW, useAddOption } from '../masters/AddItem';
@@ -27,8 +27,8 @@ import { usePaged } from '../components/Pager';
 // A new product is priced with the 14-row costing table. Its Final Cost is saved as the rate (qty 1, no discount), so orders, reports and
 // everything else that reads qty and rate keep working. Products saved before this change keep their own fields (see QuotationForm).
 const blankLine = (): QuotationLine => ({ product: '', grade: '', size: '', uom: 'PCS', qty: 1, rate: 0, discountPct: 0, materialCost: null, processingCost: null, otherCost: null, costing: serializeCosting(emptyCosting()) });
-/** the line's own fields for a given table: Final Cost becomes the rate and Cost Before Profit the cost (so the approval can still work out the margin) */
-const costedPatch = (l: QuotationLine, st: CostingState): Partial<QuotationLine> => ({ costing: serializeCosting(st), rate: computeCosting(st).final, qty: l.qty && l.qty > 0 ? l.qty : 1, discountPct: 0, materialCost: costBeforeProfit(st), processingCost: null, otherCost: null });
+/** the line's own fields for a given table: Final Cost becomes the rate and Cost Before Profit plus any added cost rows the cost (so the approval can still work out the margin) */
+const costedPatch = (l: QuotationLine, st: CostingState): Partial<QuotationLine> => ({ costing: serializeCosting(st), rate: computeCosting(st).final, qty: l.qty && l.qty > 0 ? l.qty : 1, discountPct: 0, materialCost: unitCostOf(st), processingCost: null, otherCost: null });
 const numOrNull = (v: string) => (v === '' ? null : Number(v));
 const userName = (u: { name?: string; email?: string } | null) => u?.name || u?.email || 'User';
 
@@ -350,7 +350,12 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
     setSaving(true);
     try {
       const me = userName(user);
-      const id = await withDocNo(editId ? undefined : doc.custom, () => saveQuotation(editId, h, lines, me));
+      // added cost rows left completely empty are not saved
+      const toSave = lines.map((l) => {
+        const st = parseCosting(l.costing);
+        return st ? { ...l, costing: serializeCosting(dropBlankCustom(st)) } : l;
+      });
+      const id = await withDocNo(editId ? undefined : doc.custom, () => saveQuotation(editId, h, toSave, me));
       if (submit) {
         await submitQuotation(id, me);
         toast({ kind: 'success', title: 'Submitted for approval', message: 'The Director will see it in Quotation Approvals.' });

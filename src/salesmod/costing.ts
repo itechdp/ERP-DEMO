@@ -17,6 +17,11 @@ export const ROW_KEYS: RowKey[] = ['weight', 'material', 'forging', 'rm', 'rejec
 /** the rows that may be removed when they do not apply. Input Weight, Material and the subtotals / Final Cost can never be removed. */
 export const OPTIONAL_KEYS: RowKey[] = ['forging', 'rejection', 'machining', 'scrap', 'packing', 'profit'];
 
+/** A cost the person adds on top of the 14 rows (Surface Treatment, Extra Charge ...). It is added to the Final Cost as a flat amount, after the profit. */
+export interface CustomCost { name: string; amount: number | null }
+/** the most custom cost rows one product can have */
+export const MAX_CUSTOM = 20;
+
 export interface CostingState {
   weight: number | null;
   unit: Unit;
@@ -32,12 +37,14 @@ export interface CostingState {
   packing: number | null;
   profitPct: number | null;
   removed: RowKey[];
+  /** the added cost rows, in the order they were added */
+  custom: CustomCost[];
 }
 
 /** rejection 2 % and profit 5 % are the usual starting values (same as the older cost sheet); both can be changed or removed */
 export const emptyCosting = (): CostingState => ({
   weight: null, unit: 'kg', matRate: null, forging: null, forgingMode: 'kg', rejPct: 2, machining: null,
-  scrap: null, scrapMode: 'weight', scrapRate: null, scrapG: null, packing: null, profitPct: 5, removed: [],
+  scrap: null, scrapMode: 'weight', scrapRate: null, scrapG: null, packing: null, profitPct: 5, removed: [], custom: [],
 });
 
 /**
@@ -52,7 +59,10 @@ const f2 = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 2, 
 const kg3 = (v: number) => v.toLocaleString('en-IN', { minimumFractionDigits: 3, maximumFractionDigits: 3, useGrouping: false });
 
 export interface ComputedRow {
-  key: RowKey;
+  /** one of the 14 rows, or 'custom' for an added cost row */
+  key: RowKey | 'custom';
+  /** for a custom row: its place in the custom list (0, 1, 2 ...) */
+  index?: number;
   no: number;
   label: string;
   /** the calculation, with the numbers in it, e.g. "607.50 + 12.15" */
@@ -70,7 +80,7 @@ export const weightKg = (s: CostingState) => (s.unit === 'g' ? pos(s.weight) / 1
 const scrapAmount = (s: CostingState) => (s.scrapMode === 'weight' ? r2((pos(s.scrapRate) * pos(s.scrapG)) / 1000) : r2(pos(s.scrap)));
 const forgingAmount = (s: CostingState) => (s.forgingMode === 'kg' ? r2(pos(s.forging) * weightKg(s)) : r2(pos(s.forging)));
 
-export function computeCosting(s: CostingState): { rows: ComputedRow[]; final: number; kg: number } {
+export function computeCosting(s: CostingState): { rows: ComputedRow[]; final: number; kg: number; customTotal: number; unitCost: number } {
   const gone = new Set(s.removed.filter((k) => OPTIONAL_KEYS.includes(k)));
   const kg = weightKg(s);
   const material = r2(kg * pos(s.matRate));
@@ -85,12 +95,17 @@ export function computeCosting(s: CostingState): { rows: ComputedRow[]; final: n
   const pack = gone.has('packing') ? 0 : r2(pos(s.packing));
   const before = r2(net + pack);
   const profit = gone.has('profit') ? 0 : r2((before * pos(s.profitPct)) / 100);
-  const final = r2(before + profit);
+  // the added cost rows come after the profit: each one adds exactly its amount to the Final Cost
+  const customAmounts = (s.custom ?? []).map((c) => r2(pos(c.amount)));
+  const customTotal = r2(customAmounts.reduce((t, v) => t + v, 0));
+  const final = r2(before + profit + customTotal);
 
   // "607.50 + 12.15": the calculation column shows the numbers, like the company sheet. A removed row is left out of the sentence.
   const plus = (a: number, b: number, bKey: RowKey) => (gone.has(bKey) ? f2(a) : `${f2(a)} + ${f2(b)}`);
   const row = (no: number, key: RowKey, label: string, basis: string, amount: number | null, strong = false): ComputedRow => ({ key, no, label, basis, amount, removed: gone.has(key), strong });
   const scrapLabel = s.scrapMode === 'weight' && !gone.has('scrap') ? `Scrap Recovery ${g(pos(s.scrapRate))} X ${g(pos(s.scrapG))}` : 'Scrap Recovery';
+  // the Final Cost calculation as numbers: 542.65 + 27.13, and + 500.00 when cost rows were added; a removed Profit row is left out
+  const finalBasis = [f2(before), ...(gone.has('profit') ? [] : [f2(profit)]), ...((s.custom ?? []).length ? [f2(customTotal)] : [])].join(' + ');
   const rows: ComputedRow[] = [
     row(1, 'weight', 'Input Weight', s.unit === 'g' ? `${g(pos(s.weight))} g = ${kg3(kg)} kg` : `${kg3(kg)} kg`, null),
     row(2, 'material', 'Material', `${g(pos(s.matRate))} × ${kg3(kg)} kg`, material),
@@ -105,9 +120,10 @@ export function computeCosting(s: CostingState): { rows: ComputedRow[]; final: n
     row(11, 'packing', 'Packing & Forwarding', '—', pack),
     row(12, 'before', 'Cost Before Profit', plus(net, pack, 'packing'), before, true),
     row(13, 'profit', `Profit @ ${g(pos(s.profitPct))}%`, `${f2(before)} × ${g(pos(s.profitPct))}%`, profit),
-    row(14, 'final', 'Final Cost', plus(before, profit, 'profit'), final, true),
+    ...(s.custom ?? []).map((c, i): ComputedRow => ({ key: 'custom', index: i, no: 14 + i, label: c.name.trim() || 'Custom cost', basis: 'Added cost', amount: customAmounts[i], removed: false, strong: false })),
+    row(14 + (s.custom ?? []).length, 'final', 'Final Cost', finalBasis, final, true),
   ];
-  return { rows, final, kg };
+  return { rows, final, kg, customTotal, unitCost: r2(before + customTotal) };
 }
 
 // ------------------------------------------------------------------ checking what was typed
@@ -142,23 +158,50 @@ export function costingMissing(s: CostingState): CostingErrors {
   return e;
 }
 
+/**
+ * What is wrong with each added cost row (same order as `custom`), or '' for a row that is fine.
+ * A row needs BOTH a name and an amount (0 or more); a row left completely empty is fine (it is dropped when the quotation is saved).
+ */
+export function customProblems(s: CostingState): string[] {
+  return (s.custom ?? []).map((c) => {
+    if (bad(c.amount)) return 'Cannot be negative.';
+    const hasName = c.name.trim() !== '';
+    if (hasName && c.amount == null) return 'Enter the amount.';
+    if (!hasName && c.amount != null) return 'Enter the cost name.';
+    return '';
+  });
+}
+
 /** the first problem of this table in words, or '' when it can be saved */
 export function costingProblem(s: CostingState): string {
   const all = { ...costingMissing(s), ...costingErrors(s) };
   const k = ROW_KEYS.find((x) => all[x]);
-  return k ? `${ROW_KEYS.indexOf(k) + 1}. ${computeCosting(s).rows[ROW_KEYS.indexOf(k)].label}: ${all[k]}` : '';
+  const rows = computeCosting(s).rows;
+  if (k) return `${ROW_KEYS.indexOf(k) + 1}. ${rows.find((r) => r.key === k)?.label ?? k}: ${all[k]}`;
+  const cp = customProblems(s);
+  const i = cp.findIndex((m) => m !== '');
+  return i >= 0 ? `${14 + i}. ${s.custom[i].name.trim() || 'Added cost'}: ${cp[i]}` : '';
 }
+
+/** the table without the added cost rows that were left completely empty (what gets saved) */
+export const dropBlankCustom = (s: CostingState): CostingState => ({ ...s, custom: (s.custom ?? []).filter((c) => c.name.trim() !== '' || c.amount != null) });
 
 // ------------------------------------------------------------------ saving and reading
 /** the 14 rows as they are stored (and printed): worked-out text and amount, plus what was typed */
 export function serializeCosting(s: CostingState): CostRow[] {
   const { rows } = computeCosting(s);
-  const gone = new Set(s.removed.filter((k) => OPTIONAL_KEYS.includes(k)));
-  const typed: Partial<Record<RowKey, number | null>> = {
+  const gone = new Set<string>(s.removed.filter((k) => OPTIONAL_KEYS.includes(k)));
+  const typed: Partial<Record<RowKey | 'custom', number | null>> = {
     weight: s.weight, material: s.matRate, forging: s.forging, rejection: s.rejPct, machining: s.machining,
     scrap: s.scrapRate, packing: s.packing, profit: s.profitPct,
   };
-  return rows.map((r) => ({
+  return rows.map((r): CostRow => {
+    if (r.key === 'custom') {
+      // an added cost row keeps its typed name (even blank) and amount, and its place in the list; it is numbered 14, 15 ... (the Final Cost follows)
+      const c = s.custom[r.index ?? 0];
+      return { label: r.label, basis: r.basis, amount: r.amount, bold: false, key: 'custom', no: r.no, sub: (r.index ?? 0) + 1, input: c.amount, name: c.name };
+    }
+    return {
     label: r.label,
     basis: r.basis,
     amount: gone.has(r.key) ? null : r.amount,
@@ -170,7 +213,8 @@ export function serializeCosting(s: CostingState): CostRow[] {
     ...(r.key === 'forging' ? { mode: s.forgingMode } : {}),
     ...(r.key === 'scrap' ? { mode: s.scrapMode, input2: s.scrapG, input3: s.scrap } : {}),
     ...(gone.has(r.key) ? { removed: true } : {}),
-  }));
+    };
+  });
 }
 
 /**
@@ -178,7 +222,7 @@ export function serializeCosting(s: CostingState): CostRow[] {
  * A row saved without a mode (by the first version of this table) was a plain amount, so it opens as an amount.
  */
 export function parseCosting(rows: CostRow[] | null | undefined): CostingState | null {
-  if (!rows?.length || !rows.every((r) => typeof r.key === 'string' && ROW_KEYS.includes(r.key as RowKey))) return null;
+  if (!rows?.length || !rows.every((r) => typeof r.key === 'string' && (r.key === 'custom' || ROW_KEYS.includes(r.key as RowKey)))) return null;
   const by = (k: RowKey) => rows.find((r) => r.key === k);
   const val = (k: RowKey) => {
     const v = by(k)?.input;
@@ -204,6 +248,11 @@ export function parseCosting(rows: CostRow[] | null | undefined): CostingState |
     packing: val('packing'),
     profitPct: val('profit'),
     removed: OPTIONAL_KEYS.filter((k) => by(k)?.removed),
+    // the added cost rows, in their saved order (a table saved before they existed simply has none)
+    custom: rows
+      .filter((r) => r.key === 'custom')
+      .sort((a, b) => (a.sub ?? 0) - (b.sub ?? 0))
+      .map((r) => ({ name: typeof r.name === 'string' ? r.name : r.label === 'Custom cost' ? '' : r.label, amount: num(r.input) })),
   };
 }
 
@@ -221,6 +270,22 @@ export function finalCostOf(l: Pick<QuotationLine, 'costing'>): number | null {
  * always did: margin = (Final Cost − this) ÷ Final Cost.
  */
 export const costBeforeProfit = (s: CostingState) => computeCosting(s).rows.find((r) => r.key === 'before')?.amount ?? 0;
+
+/**
+ * The cost of one piece that is saved as the product's cost: Cost Before Profit (row 12) plus any added cost rows. Added costs are real costs,
+ * not profit, so the margin the approval works out stays honest: margin = (Final Cost - this) / Final Cost.
+ */
+export const unitCostOf = (s: CostingState) => computeCosting(s).unitCost;
+
+/**
+ * The row number to print. Rows 1 to 13 keep their fixed numbers; the added cost rows follow as 14, 15 ... and the Final Cost comes last (14, or 15 with
+ * one added row, 16 with two ...). It is worked out from the rows being printed, so a table saved with older numbers still prints in sequence.
+ */
+export const rowNo = (r: Pick<CostRow, 'key' | 'no' | 'sub'>, i: number, all: Pick<CostRow, 'key'>[] = []): string => {
+  if (r.key === 'custom') return String(13 + (r.sub ?? 1));
+  if (r.key === 'final') return String(14 + all.filter((x) => x.key === 'custom').length);
+  return String(r.no ?? i + 1);
+};
 
 /** the rows to show on a printout / sheet: removed rows are left out */
 export const printableRows = (rows: CostRow[]) => rows.filter((r) => !r.removed);

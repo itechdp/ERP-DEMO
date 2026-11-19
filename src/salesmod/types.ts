@@ -71,6 +71,9 @@ export interface CostRow {
   unit?: 'kg' | 'g';
   /** an optional row the person removed: it counts for nothing and is not printed */
   removed?: boolean;
+  /** a custom cost row (key 'custom'): the typed name (the label shows "Custom cost" when it was left blank) and its position in the added rows, 1, 2, 3 ... (its number in the table is 14, 15 ... with the Final Cost after it) */
+  name?: string;
+  sub?: number;
 }
 
 export interface QuotationLine {

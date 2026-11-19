@@ -1,5 +1,6 @@
-import { Lock, RotateCcw, X } from 'lucide-react';
-import { OPTIONAL_KEYS, computeCosting, costingErrors, costingMissing, type CostingState, type ForgingMode, type RowKey, type ScrapMode, type Unit } from './costing';
+import { Fragment } from 'react';
+import { Lock, Plus, RotateCcw, X } from 'lucide-react';
+import { MAX_CUSTOM, OPTIONAL_KEYS, computeCosting, costingErrors, costingMissing, customProblems, type CostingState, type ForgingMode, type RowKey, type ScrapMode, type Unit } from './costing';
 
 const money = (v: number | null) => (v == null ? '' : v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const signed = (v: number | null) => (v == null ? '' : v < 0 ? `− ${money(-v)}` : money(v));
@@ -16,8 +17,12 @@ export function CostingTable({ state, onChange, readOnly = false, showMissing = 
   const missing = showMissing ? costingMissing(state) : {};
   const err = (k: RowKey) => errors[k] ?? missing[k];
   const gone = new Set(state.removed);
+  const cProblems = customProblems(state);
   const set = (patch: Partial<CostingState>) => onChange?.({ ...state, ...patch });
   const num = (v: string) => (v === '' ? null : Number(v));
+  const setCustom = (i: number, patch: Partial<{ name: string; amount: number | null }>) => set({ custom: state.custom.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+  const addCustom = () => set({ custom: [...state.custom, { name: '', amount: null }] });
+  const removeCustom = (i: number) => set({ custom: state.custom.filter((_, j) => j !== i) });
   const remove = (k: RowKey) => set({ removed: [...state.removed.filter((x) => x !== k), k] });
   const restore = (k: RowKey) => set({ removed: state.removed.filter((x) => x !== k) });
 
@@ -38,6 +43,40 @@ export function CostingTable({ state, onChange, readOnly = false, showMissing = 
         <span />
       </div>
       {rows.map((r) => {
+        if (r.key === 'custom') {
+          const i = r.index ?? 0;
+          const c = state.custom[i];
+          // a negative amount is shown at once; "enter the name / amount" only after a save was tried
+          const problem = cProblems[i] && (cProblems[i] === 'Cannot be negative.' || showMissing) ? cProblems[i] : '';
+          const blank = c.name === '' && c.amount == null;
+          return (
+            <div className="ct-row custom" role="row" key={`custom-${i}`}>
+              <span className="ct-no" role="cell">{r.no}</span>
+              <span className="ct-desc" role="cell">
+                {readOnly ? (
+                  r.label
+                ) : (
+                  <input className={`ct-name${problem && !c.name.trim() ? ' bad' : ''}`} value={c.name} maxLength={60} placeholder="Cost name, e.g. Surface Treatment" aria-label={`Cost name ${i + 1}`} autoFocus={blank && i === state.custom.length - 1} onChange={(e) => setCustom(i, { name: e.target.value })} />
+                )}
+                {problem && <span className="ct-err">{problem}</span>}
+              </span>
+              <span className="ct-calc" role="cell">
+                {readOnly ? (
+                  <span className="ct-basis">Added cost</span>
+                ) : (
+                  <div className="ct-input">
+                    <input type="number" min="0" step="any" inputMode="decimal" className={`right mono ${cProblems[i] === 'Cannot be negative.' || (showMissing && cProblems[i] === 'Enter the amount.') ? 'bad' : ''}`} value={c.amount ?? ''} placeholder="0" aria-label={`Cost amount ${i + 1}`} onChange={(e) => setCustom(i, { amount: num(e.target.value) })} />
+                    <span className="ct-suffix">₹</span>
+                  </div>
+                )}
+              </span>
+              <span className="ct-amt mono" role="cell">{signed(r.amount)}</span>
+              <span className="ct-act" role="cell">
+                {!readOnly && <button type="button" className="icon-btn" title="Delete this cost row" aria-label={`Delete cost row ${i + 1}`} onClick={() => removeCustom(i)}><X size={15} /></button>}
+              </span>
+            </div>
+          );
+        }
         const optional = OPTIONAL_KEYS.includes(r.key);
         const removed = r.removed;
         const cls = `ct-row${r.strong ? ' strong' : ''}${r.key === 'final' ? ' final' : ''}${removed ? ' gone' : ''}`;
@@ -101,7 +140,14 @@ export function CostingTable({ state, onChange, readOnly = false, showMissing = 
         }
         const shownAmount = r.key === 'weight' ? `${kg.toLocaleString('en-IN', { maximumFractionDigits: 4 })} kg` : signed(r.amount);
         return (
-          <div className={cls} role="row" key={r.key}>
+          <Fragment key={r.key}>
+          {r.key === 'final' && !readOnly && (
+            <div className="ct-add" role="row">
+              <button type="button" className="btn btn-sm btn-soft" onClick={addCustom} disabled={state.custom.length >= MAX_CUSTOM}><Plus size={14} /> Add Cost Row</button>
+              <span className="muted">{state.custom.length >= MAX_CUSTOM ? `Up to ${MAX_CUSTOM} added rows.` : 'Adds a cost on top of the profit, e.g. Surface Treatment or an Extra Charge. It goes straight into the Final Cost.'}</span>
+            </div>
+          )}
+          <div className={cls} role="row">
             <span className="ct-no" role="cell">{r.no}</span>
             <span className="ct-desc" role="cell">
               {r.label}
@@ -112,14 +158,15 @@ export function CostingTable({ state, onChange, readOnly = false, showMissing = 
             <span className="ct-amt mono" role="cell">{removed ? '—' : shownAmount}</span>
             <span className="ct-act" role="cell">
               {!readOnly && optional && !removed && (
-                <button type="button" className="icon-btn" title={`Remove ${r.label} (it will not be counted)`} aria-label={`Remove ${r.label}`} onClick={() => remove(r.key)}><X size={15} /></button>
+                <button type="button" className="icon-btn" title={`Remove ${r.label} (it will not be counted)`} aria-label={`Remove ${r.label}`} onClick={() => remove(r.key as RowKey)}><X size={15} /></button>
               )}
               {!readOnly && optional && removed && (
-                <button type="button" className="btn btn-sm btn-subtle" title={`Restore ${r.label}`} onClick={() => restore(r.key)}><RotateCcw size={13} /> Restore</button>
+                <button type="button" className="btn btn-sm btn-subtle" title={`Restore ${r.label}`} onClick={() => restore(r.key as RowKey)}><RotateCcw size={13} /> Restore</button>
               )}
               {!readOnly && !optional && !r.strong && <Lock size={13} className="muted" aria-label="Always included" />}
             </span>
           </div>
+          </Fragment>
         );
       })}
       {!readOnly && gone.size > 0 && <div className="ct-foot muted">{gone.size} optional row{gone.size === 1 ? '' : 's'} removed: {rows.filter((r) => r.removed).map((r) => r.label.replace(/ @.*/, '')).join(', ')}. Use Restore to bring {gone.size === 1 ? 'it' : 'them'} back.</div>}

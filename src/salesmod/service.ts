@@ -30,7 +30,7 @@ const mapLine = (r: R): QuotationLine => ({
     ? (r.costing as R[]).map((c): CostRow => ({
         label: s(c.label), basis: s(c.basis), amount: nn(c.amount), bold: !!c.bold,
         // the structured 14-row table keeps its inputs in the same list (see costing.ts); older sheets simply have none of these
-        ...(typeof c.key === 'string' ? { key: c.key, no: nn(c.no) ?? undefined, input: nn(c.input), input2: nn(c.input2), input3: nn(c.input3), mode: typeof c.mode === 'string' ? c.mode : undefined, unit: c.unit === 'g' ? ('g' as const) : c.unit === 'kg' ? ('kg' as const) : undefined, removed: !!c.removed } : {}),
+        ...(typeof c.key === 'string' ? { key: c.key, no: nn(c.no) ?? undefined, input: nn(c.input), input2: nn(c.input2), input3: nn(c.input3), sub: nn(c.sub) ?? undefined, name: typeof c.name === 'string' ? c.name : undefined, mode: typeof c.mode === 'string' ? c.mode : undefined, unit: c.unit === 'g' ? ('g' as const) : c.unit === 'kg' ? ('kg' as const) : undefined, removed: !!c.removed } : {}),
       }))
     : null,
 });

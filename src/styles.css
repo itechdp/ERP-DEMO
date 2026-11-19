@@ -1671,3 +1671,16 @@ body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacit
 @media (max-width: 640px) { .mlog-head { grid-template-columns: minmax(0, 1fr); } .mlog-save { width: 100%; } }
 .mlog-form .section-label { margin-top: 24px; }
 .mlog-hint { margin-top: 10px; font-size: 12.5px; }
+
+/* ---- added cost rows in the costing table ---- */
+.ct-row.custom { background: color-mix(in srgb, var(--primary) 3%, var(--surface)); }
+.ct-name { width: 100%; max-width: 360px; height: 38px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 10px; padding: 0 12px; background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; font-weight: 500; }
+.ct-name:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.ct-name.bad { border-color: var(--crit); }
+.ct-add { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); font-size: 12.5px; }
+@media (max-width: 720px) { .ct-name { max-width: none; } .ct-add { padding: 12px; } }
+@media (max-width: 720px) {
+  /* an added cost row: the name gets the whole first line, then the amount box and the amount */
+  .ct-row.custom { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "no desc act" "calc calc amt"; align-items: center; }
+  .ct-row.custom .ct-name { max-width: none; }
+}
