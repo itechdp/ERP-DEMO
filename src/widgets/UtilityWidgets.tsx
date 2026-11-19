@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Calculator, CalendarDays, Check, Copy, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
+import { Calculator, CalendarDays, Weight, Check, Copy, History as HistoryIcon, Pencil, Plus, Scale, Trash2, Wallet, X } from 'lucide-react';
 import { useAccess } from '../auth/access';
 import { Kpi, Modal } from '../components/ui';
 import { CalendarPanel } from '../calendar/CalendarWidget';
+import { MetalWeightCalculator } from '../metalweight/MetalWeightCalculator';
 import { fetchEvents } from '../calendar/service';
 import { isoOf, startOf, time12, type CalEvent } from '../calendar/logic';
 import { fmtDate, fmtKg, todayISO } from '../components/format';
@@ -26,7 +27,7 @@ function useRows<T>(load: () => Promise<T[]>) {
  * Standalone: nothing here touches inventory or accounting. A failed load only shows inside the pop-up.
  */
 export function UtilityWidgets() {
-  const [open, setOpen] = useState<'calc' | 'cash' | 'log' | 'cal' | null>(null);
+  const [open, setOpen] = useState<'calc' | 'cash' | 'log' | 'cal' | 'metal' | null>(null);
   const { role } = useAccess();
   const [today, setToday] = useState<CalEvent[]>([]);
   const loadToday = useCallback(async () => {
@@ -52,10 +53,12 @@ export function UtilityWidgets() {
         <Kpi label="Petty Cash Tracker" value={inr(cashTotal)} icon={Wallet} tone="green" hint={`${cash.rows.length} entr${cash.rows.length === 1 ? 'y' : 'ies'} · total amount`} onClick={() => setOpen('cash')} />
         <Kpi label="Quick Material Log" value={kgTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })} unit="KG" icon={Scale} tone="amber" hint={`${log.rows.length} unload${log.rows.length === 1 ? '' : 's'} · not added to stock`} onClick={() => setOpen('log')} />
         <Kpi label="Calendar" value={today.length} unit="events" icon={CalendarDays} tone="violet" hint={next ? `Next: ${time12(next.time)} · ${next.title}` : today.length ? 'No more events today' : 'Meetings & tasks · tap to open'} onClick={() => setOpen('cal')} />
+        <Kpi label="Tap to open" value="Metal Weight" icon={Weight} tone="teal" hint="Weight from size and material" onClick={() => setOpen('metal')} />
       </div>
 
       <Modal open={open === 'calc'} title="Calculator" icon={Calculator} onClose={close}><CalculatorTool /></Modal>
       <Modal open={open === 'cash'} title="Petty Cash Tracker" icon={Wallet} onClose={close}><PettyCashTool {...cash} total={cashTotal} /></Modal>
+      <Modal open={open === 'metal'} title="Metal Weight Calculator" subtitle="Pick the shape and material, enter the sizes, and read the weight." icon={Weight} onClose={close}><MetalWeightCalculator /></Modal>
       <Modal open={open === 'cal'} title="Calendar" subtitle="Meetings and tasks for your role. Click a day to see it or add an event." icon={CalendarDays} onClose={close}><CalendarPanel onChanged={() => void loadToday()} /></Modal>
       <Modal open={open === 'log'} title="Quick Material Log" subtitle="A scratchpad for truck unloads. It does not change stock." icon={Scale} onClose={close}><MaterialLogTool {...log} /></Modal>
     </>

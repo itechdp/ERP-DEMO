@@ -1608,3 +1608,42 @@ body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacit
 .ct-x { color: var(--text-3); font-weight: 600; }
 .ct-wrap > .ct-input { flex: 1 1 90px; min-width: 90px; }
 .ct-x { white-space: nowrap; font-size: 13px; }
+
+/* ---- Metal Weight Calculator page ---- */
+.mw { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 28px; align-items: start; }
+.mw-block { margin-bottom: 22px; }
+.mw-title { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin-bottom: 10px; }
+.mw-shapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.mw-shape { text-align: left; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; padding: 11px 13px; cursor: pointer; font: inherit; color: var(--text); display: flex; flex-direction: column; gap: 2px; transition: border-color .12s, background .12s; }
+.mw-shape:hover { border-color: var(--primary-100); background: var(--surface-2); }
+.mw-shape span { font-size: 12px; color: var(--text-3); }
+.mw-shape.on { border-color: var(--primary); background: var(--primary-50); box-shadow: 0 0 0 1px var(--primary) inset; }
+.mw-shape.on b { color: var(--primary); }
+.mw-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 12px; align-items: start; }
+.mw-units { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 12px; }
+.mw-units label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.mw .field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+.mw-row { position: relative; display: flex; align-items: center; gap: 8px; }
+.mw .field input, .mw .field select, .mw-unit { width: 100%; height: 42px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 11px; padding: 0 12px; background: var(--surface); color: var(--text); font-family: inherit; font-size: 14px; }
+.mw .field input { padding-right: 46px; font-variant-numeric: tabular-nums; }
+.mw .field input.bad { border-color: var(--crit); }
+.mw .field input:focus, .mw .field select:focus, .mw-unit:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50); }
+.mw-unit { width: auto !important; height: 36px !important; }
+.mw-suffix { position: absolute; right: 12px; font-size: 12px; color: var(--text-3); pointer-events: none; }
+.mw-err { color: var(--crit); font-size: 12px; font-weight: 600; margin-top: 5px; }
+.mw-hint { color: var(--text-3); font-size: 12px; margin-top: 5px; }
+.mw-result { position: sticky; top: 90px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 18px; padding: 20px; }
+.mw-label { font-size: 13px; font-weight: 600; color: var(--text-3); }
+.mw-big { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-top: 4px; font-variant-numeric: tabular-nums; word-break: break-all; }
+.mw-big small { font-size: 18px; font-weight: 600; color: var(--text-3); letter-spacing: 0; }
+.mw-alt { display: flex; gap: 14px; margin-top: 6px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.mw-one { margin-top: 10px; font-size: 14px; color: var(--text-2); }
+.mw-facts { margin: 16px 0; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: grid; gap: 8px; }
+.mw-facts div { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+.mw-facts dt { color: var(--text-3); } .mw-facts dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mw-steps { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+.mw-steps .mw-title { margin-bottom: 6px; }
+.mw-empty p { margin: 10px 0 18px; color: var(--text-2); }
+@media (max-width: 1000px) { .mw { grid-template-columns: minmax(0, 1fr); } .mw-result { position: static; } }
+.mw .field input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+.mw .field input[type="number"]::-webkit-inner-spin-button, .mw .field input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
