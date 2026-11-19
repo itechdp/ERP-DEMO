@@ -17,7 +17,8 @@ export type ResourceSection =
   | 'Purchase & Procurement'
   | 'Workflow'
   | 'Die Management'
-  | 'Reports & Masters';
+  | 'Reports & Masters'
+  | 'Accounting';
 
 export interface AppResourceDefinition {
   /** Database/permission resource key (e.g. 'purchase_dashboard') */
@@ -469,6 +470,45 @@ const BASE_RESOURCES: AppResourceDefinition[] = [
     sort: 180,
     writable: true,
     defaultLevels: { accounts: 'write', qc: 'read', operator: 'read', viewer: 'read' },
+  },
+
+  // -------------------------------------------------------- Accounting ---
+  // (migration 79; QC, Operator and Viewer get no access until a Director grants it)
+  {
+    key: 'accounting_dashboard',
+    route: 'accounting-dashboard',
+    label: 'Accounting Dashboard',
+    section: 'Accounting',
+    sort: 200,
+    writable: false,
+    defaultLevels: { accounts: 'read', qc: 'hidden', operator: 'hidden', viewer: 'hidden' },
+  },
+  {
+    key: 'account_vouchers',
+    route: 'account-vouchers',
+    label: 'Account Vouchers',
+    section: 'Accounting',
+    sort: 201,
+    writable: true,
+    defaultLevels: { accounts: 'write', qc: 'hidden', operator: 'hidden', viewer: 'hidden' },
+  },
+  {
+    key: 'voucher_approvals',
+    route: 'voucher-approvals',
+    label: 'Voucher Approvals',
+    section: 'Accounting',
+    sort: 202,
+    writable: true,
+    defaultLevels: { accounts: 'write', qc: 'hidden', operator: 'hidden', viewer: 'hidden' },
+  },
+  {
+    key: 'accounting_report',
+    route: 'accounting-report',
+    label: 'Accounting Report',
+    section: 'Accounting',
+    sort: 203,
+    writable: false,
+    defaultLevels: { accounts: 'read', qc: 'hidden', operator: 'hidden', viewer: 'hidden' },
   },
 ];
 

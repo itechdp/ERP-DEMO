@@ -59,6 +59,9 @@ import { PurchaseInvoicePage } from './purchase/pages/PurchaseInvoicePage';
 import { PurchasePaymentsPage } from './purchase/pages/PurchasePaymentsPage';
 import { SupplierPayablesPage } from './purchase/pages/SupplierPayablesPage';
 import { PurchaseReportsPage } from './purchase/pages/PurchaseReportsPage';
+import { AccountingDashboardPage } from './accounting/pages/DashboardPage';
+import { AccountVouchersRouter, AccountingReportRouter } from './accounting/pages/Routers';
+import { VoucherApprovalsPage } from './accounting/pages/ApprovalsPage';
 import './dies/dies.css';
 
 /** Minimal hash router: #/route?query — survives refresh, no server config needed. */
@@ -146,6 +149,10 @@ function Page({ route, query, navigate }: { route: string; query: URLSearchParam
   if (route === 'purchase-reports') return <PurchaseReportsPage query={query} navigate={navigate} />;
   if (route === 'purchase-orders') return <PurchaseOrderRouter query={query} navigate={navigate} />;
   if (route === 'suppliers') return <SupplierMasterPage />;
+  if (route === 'accounting-dashboard') return <AccountingDashboardPage />;
+  if (route === 'account-vouchers') return <AccountVouchersRouter query={query} />;
+  if (route === 'voucher-approvals') return <VoucherApprovalsPage />;
+  if (route === 'accounting-report') return <AccountingReportRouter query={query} />;
   if (SALES_PAGES.some((p) => p.route === route)) return <SalesListPage route={route} query={query} />;
   switch (route) {
     case 'raw-inventory':

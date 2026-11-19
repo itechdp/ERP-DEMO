@@ -11,6 +11,7 @@
     "test:calendar": "vite-node scripts/calendar-test.ts",
     "test:costing": "vite-node scripts/costing-test.ts",
     "test:metalweight": "vite-node scripts/metalweight-test.ts",
+    "test:accounting": "vite-node scripts/accounting-test.ts",
     "check:resources": "vite-node scripts/check-resource-drift.ts"
   },
   "dependencies": {

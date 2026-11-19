@@ -47,6 +47,9 @@ import {
   ShieldCheck,
   Activity,
   ListChecks,
+  BadgeIndianRupee,
+  ClipboardCheck,
+  PieChart,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobSummary, STAGE_LABEL } from '../store/engine';
@@ -85,6 +88,12 @@ const PURCHASE_NAV: NavItem[] = [
   { route: 'supplier-performance', label: 'Supplier Performance', icon: Gauge },
   { route: 'purchase-reports', label: 'Purchase Reports', icon: FileBarChart },
 ];
+const ACCOUNTING_NAV: NavItem[] = [
+  { route: 'accounting-dashboard', label: 'Accounting Dashboard', icon: BadgeIndianRupee },
+  { route: 'account-vouchers', label: 'Account Vouchers', icon: BookOpen },
+  { route: 'voucher-approvals', label: 'Voucher Approvals', icon: ClipboardCheck },
+  { route: 'accounting-report', label: 'Accounting Report', icon: PieChart },
+];
 const REPORT_NAV: NavItem[] = [
   { route: 'traceability', label: 'Job Traceability', icon: Waypoints },
   { route: 'ledger', label: 'Quantity Ledger', icon: ScrollText },
@@ -120,6 +129,7 @@ const SECTIONS: { id: string; title: string; icon: Icon; items: NavItem[] }[] = 
   { id: 'main', title: 'Main Menu', icon: LayoutGrid, items: [ALL_NAV[0], { route: 'workflow-overview', label: 'Workflow Overview', icon: Activity }, { route: 'work-hub-group', label: 'Work Hub', icon: ClipboardList, children: [{ route: 'work-hub', label: 'Overview & My Tasks', icon: ClipboardList }, { route: 'task-assignment', label: 'Task Assignment', icon: ListChecks }] }, ...WORKFLOW_NAV.filter((n) => n.route === 'raw-inventory'), { route: 'follow-ups', label: 'Follow-ups', icon: BellRing }] },
   { id: 'sales', title: 'Sales & Orders', icon: Briefcase, items: SALES_NAV },
   { id: 'purchase', title: 'Purchase & Procurement', icon: ShoppingBag, items: PURCHASE_NAV },
+  { id: 'accounting', title: 'Accounting', icon: BookOpen, items: ACCOUNTING_NAV },
   { id: 'flow', title: 'Workflow', icon: Workflow, items: workflowItems() },
   { id: 'dies', title: 'Die Management', icon: Cog, items: DIE_NAV },
   { id: 'reports', title: 'Reports & Masters', icon: BarChart3, items: REPORT_NAV },
