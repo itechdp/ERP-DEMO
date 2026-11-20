@@ -556,10 +556,23 @@ export const WRITABLE_PAGES: Set<string> = new Set(
   APP_RESOURCES.filter((r) => r.writable).map((r) => r.key)
 );
 
+/** Sections the Supervisor role can never open (enforced in the database; mirrored here so the screens agree). */
+const SUPERVISOR_LOCKED_SECTIONS: ResourceSection[] = ['Sales & Orders', 'Purchase & Procurement', 'Accounting'];
+
+/** true for a page (or a "page__tab" key) that is permanently Hidden for the Supervisor */
+export function isSupervisorLocked(key: string): boolean {
+  const base = key.split('__')[0];
+  const def = APP_RESOURCES.find((r) => r.key === base);
+  return !!def && SUPERVISOR_LOCKED_SECTIONS.includes(def.section);
+}
+
 /** Get the default access level for a role on a given resource key */
 export function getDefaultPageLevel(role: Role, key: string): Level {
   const def = APP_RESOURCES.find((r) => r.key === key);
   if (!def) return 'hidden';
+
+  // Supervisor: Sales, Purchase and Accounting are locked; everything else follows the general rules below
+  if (role === 'supervisor' && isSupervisorLocked(key)) return 'hidden';
 
   // Director always has full write (or read if page is view-only)
   if (role === 'director') return def.writable ? 'write' : 'read';

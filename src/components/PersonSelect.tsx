@@ -16,6 +16,7 @@ const ROLE_TONE: Record<string, string> = {
   operator: 'b-amber',
   qc: 'b-green',
   viewer: 'b-neutral',
+  supervisor: 'b-teal',
 };
 
 export function RoleTag({ role }: { role: string }) {

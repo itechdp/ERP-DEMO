@@ -21,5 +21,6 @@ export const DEMO_USERS: DemoUser[] = [
   { role: 'qc', email: 'qc@forgeflow.local', password: 'Qc@12345', name: 'QC Inspector', tab: 'QC' },
   { role: 'operator', email: 'operator@forgeflow.local', password: 'Op@12345', name: 'Operator', tab: 'Operator' },
   { role: 'viewer', email: 'viewer@forgeflow.local', password: 'View@12345', name: 'Viewer', tab: 'Viewer' },
+  { role: 'supervisor', email: 'supervisor@forgeflow.local', password: 'Super@12345', name: 'Supervisor', tab: 'Supervisor' },
 ];
 

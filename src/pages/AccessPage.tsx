@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Eye, EyeOff, KeyRound, Lock, Pencil, Plus, RotateCcw, Save, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
-import { useAccess, ROLES, type Level, type Role } from '../auth/access';
+import { useAccess, ROLES, isSupervisorLocked, type Level, type Role } from '../auth/access';
 import { loadAccessMatrix, type AccessMatrix } from '../db/load';
 import * as api from '../db/api';
 import { dbMessage } from '../db/client';
@@ -124,7 +124,7 @@ export function AccessPage() {
 
   const setAllPages = (level: Level) =>
     edit((d) => {
-      for (const r of matrix.resources) d.pages[r.key] = level === 'write' && !r.writable ? 'read' : level;
+      for (const r of matrix.resources) d.pages[r.key] = role === 'supervisor' && isSupervisorLocked(r.key) ? 'hidden' : level === 'write' && !r.writable ? 'read' : level;
     });
 
   const save = async () => {
@@ -181,6 +181,15 @@ export function AccessPage() {
           </span>
         </div>
 
+        {role === 'supervisor' && (
+          <div className="acc-fixed">
+            <Lock size={15} />
+            <span>
+              <b>Supervisor</b> is locked out of Sales &amp; Orders, Purchase &amp; Procurement and Accounting, and never sees party names or other sensitive information. These limits are enforced by the database and cannot be changed here.
+            </span>
+          </div>
+        )}
+
         <div className="toolbar" style={{ paddingBottom: 10 }}>
           <Tabs value={role} onChange={setRole} items={ROLES.filter((r) => r.editable).map((r) => ({ value: r.value, label: r.label, tone: 'blue' as const }))} />
         </div>
@@ -224,7 +233,7 @@ export function AccessPage() {
                     <Seg
                       label={`${r.label} access for ${roleLabel(role)}`}
                       value={cur.pages[r.key] ?? 'hidden'}
-                      options={LEVELS.filter((l) => r.writable || l.value !== 'write')}
+                      options={LEVELS.filter((l) => (r.writable || l.value !== 'write') && !(role === 'supervisor' && isSupervisorLocked(r.key) && l.value !== 'hidden'))}
                       onChange={(v) => edit((d) => void (d.pages[r.key] = v))}
                     />
                   </div>
@@ -256,7 +265,7 @@ export function AccessPage() {
                       value={cur.fields[g.key] ? 'write' : 'hidden'}
                       options={[
                         { value: 'hidden', label: 'Hidden', icon: EyeOff, hint: 'Not shown anywhere to this role' },
-                        { value: 'write', label: 'Visible', icon: Eye, hint: 'Shown to this role' },
+                        ...(role === 'supervisor' ? [] : [{ value: 'write', label: 'Visible', icon: Eye, hint: 'Shown to this role' }]),
                       ]}
                       onChange={(v) => edit((d) => void (d.fields[g.key] = v === 'write'))}
                     />
@@ -282,7 +291,7 @@ export function AccessPage() {
                       value={cur.fields[g.key] ? 'write' : 'hidden'}
                       options={[
                         { value: 'hidden', label: 'Hidden', icon: EyeOff, hint: 'Not shown anywhere to this role' },
-                        { value: 'write', label: 'Visible', icon: Eye, hint: 'Shown to this role' },
+                        ...(role === 'supervisor' ? [] : [{ value: 'write', label: 'Visible', icon: Eye, hint: 'Shown to this role' }]),
                       ]}
                       onChange={(v) => edit((d) => void (d.fields[g.key] = v === 'write'))}
                     />

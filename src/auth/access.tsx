@@ -14,7 +14,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { supabase, dbConfigured, dbMessage } from '../db/client';
 import { resetUnits } from '../units/useUnits';
 
-export type Role = 'director' | 'plant_head' | 'accounts' | 'qc' | 'operator' | 'viewer';
+export type Role = 'director' | 'plant_head' | 'accounts' | 'qc' | 'operator' | 'viewer' | 'supervisor';
 
 export const ROLES: { value: Role; label: string; hint: string; editable: boolean }[] = [
   { value: 'director', label: 'Director', hint: 'Full access', editable: false },
@@ -23,6 +23,7 @@ export const ROLES: { value: Role; label: string; hint: string; editable: boolea
   { value: 'qc', label: 'QC Inspector', hint: 'Configurable', editable: true },
   { value: 'operator', label: 'Operator', hint: 'Configurable', editable: true },
   { value: 'viewer', label: 'Viewer', hint: 'Configurable', editable: true },
+  { value: 'supervisor', label: 'Supervisor', hint: 'Shop floor only — no Sales, Purchase, Accounts or party data (locked)', editable: true },
 ];
 
 export type Level = 'hidden' | 'read' | 'write';
@@ -35,12 +36,14 @@ export {
   getAllDefaultPagesForRole,
   getDefaultPageLevel,
   getPageOverrides,
+  isSupervisorLocked,
 } from './appResources';
 import {
   APP_RESOURCES,
   ROUTE_RESOURCE,
   getAllDefaultPagesForRole,
   getPageOverrides,
+  isSupervisorLocked,
 } from './appResources';
 
 export interface Session {
@@ -112,9 +115,14 @@ async function loadSession(): Promise<Session | null> {
     const dbPages = (access.data.pages as Record<string, Level>) || {};
     const mergedPages: Record<string, Level> = {
       ...defaults,
-      ...overrides,
+      // browser-stored overrides are a convenience for admins; they never apply to the Supervisor, whose limits come from the database
+      ...(role === 'supervisor' ? {} : overrides),
       ...dbPages,
     };
+    // the Supervisor lock is also applied here so a page the database does not list (e.g. a tab) can never fall back open
+    if (role === 'supervisor') {
+      for (const r of APP_RESOURCES) if (isSupervisorLocked(r.key)) mergedPages[r.key] = 'hidden';
+    }
     if (role === 'director') {
       for (const r of APP_RESOURCES) {
         mergedPages[r.key] = r.writable ? 'write' : 'read';
@@ -124,7 +132,7 @@ async function loadSession(): Promise<Session | null> {
       ...base,
       role,
       pages: mergedPages,
-      fields: (access.data.fields as Record<string, boolean>) || {},
+      fields: role === 'supervisor' ? {} : (access.data.fields as Record<string, boolean>) || {},
       canManageAccess: !!access.data.can_manage_access || role === 'director' || role === 'plant_head',
       legacy: false,
     };

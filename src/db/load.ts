@@ -22,7 +22,7 @@ import type {
   StageRecord,
   JobWork,
 } from '../store/types';
-import { ROLES, type Level } from '../auth/access';
+import { ROLES, isSupervisorLocked, type Level } from '../auth/access';
 import { applyBarSizes, applyMaterialMaster } from '../store/materials';
 import { defaultsOf } from '../masters/optionLists';
 import type { Customer, MasterRow } from '../masters/types';
@@ -498,5 +498,9 @@ export async function loadAccessMatrix(): Promise<AccessMatrix> {
   for (const f of fields) {
     (m.fields[f.role] ??= {})[f.field_group] = !!f.visible;
   }
+  // Supervisor limits are locked in the database; show them as they really are
+  const sup = (m.pages['supervisor'] ??= {});
+  for (const k of Object.keys(sup)) if (isSupervisorLocked(k)) sup[k] = 'hidden';
+  m.fields['supervisor'] = Object.fromEntries(Object.keys(m.fields['supervisor'] ?? {}).map((k) => [k, false]));
   return m;
 }
