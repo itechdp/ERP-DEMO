@@ -19,7 +19,7 @@ const EYEBROW: Record<string, string> = {
   hardness: 'Workflow · Quality Control',
   dispatch: 'Workflow · Dispatch',
 };
-const stageEyebrow = (s: string) => `Workflow · ${s === 'heatTreatment' ? 'Heat Treatment' : s[0].toUpperCase() + s.slice(1)}`;
+const stageEyebrow = (s: string) => `Workflow · ${s === 'heatTreatment' ? 'Heat Treatment' : s === 'cnc' || s === 'vmc' ? s.toUpperCase() : s[0].toUpperCase() + s.slice(1)}`;
 
 /**
  * Renders the shop-floor form that the address (or a pop-up request) asks for.

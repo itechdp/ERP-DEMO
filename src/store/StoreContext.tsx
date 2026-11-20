@@ -35,7 +35,7 @@ export function actionPage(a: Action): { key: string; label: string } | null {
     case 'inward':
       return { key: 'raw_inventory', label: 'Raw Inventory' };
     case 'stage':
-      return a.stage === 'heatTreatment' ? { key: 'heat_treatment', label: 'Heat Treatment' } : { key: a.stage, label: a.stage[0].toUpperCase() + a.stage.slice(1) };
+      return a.stage === 'heatTreatment' ? { key: 'heat_treatment', label: 'Heat Treatment' } : a.stage === 'cnc' || a.stage === 'vmc' ? { key: a.stage, label: a.stage.toUpperCase() } : { key: a.stage, label: a.stage[0].toUpperCase() + a.stage.slice(1) };
     case 'qc':
     case 'hardness':
       return { key: 'qc', label: 'Quality Control' };

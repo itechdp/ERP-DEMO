@@ -49,7 +49,7 @@ export function routeCardHtml(s: ERPState, jobNo: string) {
     return `<tr><td class="n">${i}</td><td class="p">${label}</td><td>${dmy(r?.receivedAt)}</td><td>${r ? r.input : ''}</td><td>${done ? r!.output : ''}</td><td>${done ? r!.loss : ''}</td><td>${done && colOk('stage.operator') ? esc(r!.operator) : ''}</td></tr>`;
   };
   const qcDone = qc && qc.status !== 'QC Pending';
-  const qcRow = `<tr><td class="n">5</td><td class="p">QC Inspection</td><td>${dmy(qc?.receivedAt)}</td><td>${qc ? qc.input : ''}</td><td>${qcDone ? qc!.accepted : ''}</td><td>${qcDone ? qc!.rejected : ''}</td><td>${qcDone && colOk('qc.inspector') ? esc(qc!.inspector) : ''}</td></tr>`;
+  const qcRow = `<tr><td class="n">7</td><td class="p">QC Inspection</td><td>${dmy(qc?.receivedAt)}</td><td>${qc ? qc.input : ''}</td><td>${qcDone ? qc!.accepted : ''}</td><td>${qcDone ? qc!.rejected : ''}</td><td>${qcDone && colOk('qc.inspector') ? esc(qc!.inspector) : ''}</td></tr>`;
 
   // ---- bag weights: two columns of bags, as on the paper card (bags 1-12 | 13-24 …)
   const perCol = Math.max(12, Math.ceil(bags.length / 2));
@@ -89,7 +89,7 @@ export function routeCardHtml(s: ERPState, jobNo: string) {
   </table>
   <table class="pt">
     <tr><th style="width:34px">Sr. No.</th><th>Process</th><th>Inward Date</th><th>Received Qty.</th><th>OK Qty.</th><th>Rejection Qty.</th><th>Checked By</th></tr>
-    ${stageRow(1, STAGE_LABEL.cutting, 'cutting')}${stageRow(2, STAGE_LABEL.forging, 'forging')}${stageRow(3, STAGE_LABEL.trimming, 'trimming')}${stageRow(4, STAGE_LABEL.heatTreatment, 'heatTreatment')}${qcRow}
+    ${stageRow(1, STAGE_LABEL.cutting, 'cutting')}${stageRow(2, STAGE_LABEL.forging, 'forging')}${stageRow(3, STAGE_LABEL.trimming, 'trimming')}${stageRow(4, STAGE_LABEL.heatTreatment, 'heatTreatment')}${stageRow(5, STAGE_LABEL.cnc, 'cnc')}${stageRow(6, STAGE_LABEL.vmc, 'vmc')}${qcRow}
   </table>
   <table class="bg">
     <tr><th>Sr.</th><th>Bag Weight (KG)</th><th>Bag Weight (KG)</th><th style="width:30%">Packing / Dispatch</th></tr>

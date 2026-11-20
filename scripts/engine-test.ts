@@ -36,7 +36,7 @@ const EN8 = materialKey('EN8 Steel Round Bar', 50);
 
 console.log('\nStarting data');
 t('no jobs, stage entries, QC, finished goods or dispatches', () => {
-  const n = s.jobs.length + s.cutting.length + s.forging.length + s.trimming.length + s.heatTreatment.length + s.qc.length + s.finishedGoods.length + s.dispatches.length;
+  const n = s.jobs.length + s.cutting.length + s.forging.length + s.trimming.length + s.heatTreatment.length + s.cnc.length + s.vmc.length + s.qc.length + s.finishedGoods.length + s.dispatches.length;
   assert.equal(n, 0);
 });
 t('no raw material stock, no inward records, no activity', () => {
@@ -105,7 +105,15 @@ t('Trimming 680 − 5 = 675 → Heat Treatment input @ 850°C', () => {
   assert.equal(s.heatTreatment[0].params.temperature, 850);
 });
 completeStage(s, 'heatTreatment', jobNo, { loss: 3 }, ts());
-t('Heat Treatment 675 − 3 = 672 → QC input', () => assert.equal(s.qc[0].input, 672));
+t('Heat Treatment 675 − 3 = 672 → CNC input (CNC comes next, not QC)', () => {
+  assert.equal(s.cnc[0].input, 672);
+  assert.equal(s.qc.length, 0);
+});
+t('CNC cannot be skipped over: VMC has no open order yet', () => throws(() => completeStage(s, 'vmc', jobNo, { loss: 0 }, ts()), /no open VMC/));
+completeStage(s, 'cnc', jobNo, { loss: 0 }, ts());
+t('CNC 672 − 0 = 672 → VMC input', () => assert.equal(s.vmc[0].input, 672));
+completeStage(s, 'vmc', jobNo, { loss: 0 }, ts());
+t('VMC 672 − 0 = 672 → QC input', () => assert.equal(s.qc[0].input, 672));
 t('QC accepted + rejected must equal input', () =>
   throws(() => completeQC(s, jobNo, { accepted: 670, rejected: 1, inspector: 'QA', rejectionReason: 'x', checks }, ts()), /must equal/));
 completeQC(s, jobNo, { accepted: 668, rejected: 4, inspector: 'QA', rejectionReason: 'Crack', checks }, ts());

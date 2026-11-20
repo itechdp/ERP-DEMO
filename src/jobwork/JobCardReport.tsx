@@ -7,14 +7,14 @@ import { FORM_FORMATS, downloadFormSheet, type SheetSpec } from '../export/xlsxS
 import { printSpec } from '../export/docOutput';
 import { STAGE_LABEL } from '../store/engine';
 import { useStore } from '../store/StoreContext';
-import type { ERPState, JobWork, ProcessStage, StageRecord } from '../store/types';
+import type { ERPState, JobWork, JobWorkStage, StageRecord } from '../store/types';
 
-const ORDER: ProcessStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment'];
+const ORDER: JobWorkStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment'];
 const COUNT_LABEL = ['', 'Single process', 'Dual process', 'Triple process', 'Four processes'];
 
 type StepState = 'done' | 'running' | 'waiting';
 interface Step {
-  stage: ProcessStage;
+  stage: JobWorkStage;
   state: StepState;
   rec?: StageRecord;
   text: string;

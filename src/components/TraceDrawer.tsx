@@ -68,7 +68,7 @@ function reconcile(j: JobSummary) {
   if (j.processLoss) parts.push(`${j.processLoss} process loss`);
   if (j.qcRejected) parts.push(`${j.qcRejected} QC rejected`);
   let wip = 0;
-  if (j.flowIndex >= 1 && j.flowIndex <= 5) {
+  if (j.flowIndex >= 1 && j.flowIndex <= 6) {
     wip = j.currentQty;
     parts.push(`${wip} WIP at ${STAGE_LABEL[j.job.currentStage]}`);
   }
@@ -101,7 +101,7 @@ export function TraceDrawer() {
       // stages that have records are done; nothing current
       return 'upcoming';
     }
-    if (i === 7 && cur === 7) return 'final';
+    if (i === 9 && cur === 9) return 'final';
     if (i < cur) return 'done';
     if (i === cur) return 'current';
     return 'upcoming';
@@ -334,8 +334,8 @@ export function TraceDrawer() {
 
             {/* 6 · QC */}
             <Node
-              step={5}
-              state={j.qc ? (j.qc.status === 'QC Pending' ? 'current' : 'done') : nodeState(5)}
+              step={7}
+              state={j.qc ? (j.qc.status === 'QC Pending' ? 'current' : 'done') : nodeState(7)}
               title="Quality Control"
               badge={j.qc ? <Badge status={j.qc.status} /> : undefined}
               when={j.qc ? fmtDateTime(j.qc.inspectedAt ?? j.qc.receivedAt) : undefined}
@@ -369,8 +369,8 @@ export function TraceDrawer() {
 
             {/* 7 · FINISHED GOODS */}
             <Node
-              step={6}
-              state={j.fg.length ? (cur === 6 ? 'current' : 'done') : nodeState(6)}
+              step={8}
+              state={j.fg.length ? (cur === 8 ? 'current' : 'done') : nodeState(8)}
               title="Finished Goods"
               badge={j.fg[0] ? <Badge status={fgStatus(j.fg[0])} /> : undefined}
               when={j.fg[0] ? fmtDateTime(j.fg[0].receivedAt) : undefined}
@@ -398,8 +398,8 @@ export function TraceDrawer() {
 
             {/* 8 · DISPATCH */}
             <Node
-              step={7}
-              state={j.dispatches.length ? (cur === 7 ? 'final' : 'current') : nodeState(7)}
+              step={9}
+              state={j.dispatches.length ? (cur === 9 ? 'final' : 'current') : nodeState(9)}
               title="Dispatch"
               badge={j.dispatchedQty ? <span className="badge b-teal">{fmtNum(j.dispatchedQty)} PCS dispatched</span> : undefined}
             >

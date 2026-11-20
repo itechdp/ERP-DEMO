@@ -20,7 +20,7 @@ export interface NextStep {
 export function nextStep(s: ERPState, jobNo: string): NextStep | null {
   const job = getJob(s, jobNo);
   const st = job.currentStage;
-  if (st === 'cutting' || st === 'forging' || st === 'trimming' || st === 'heatTreatment') {
+  if (st === 'cutting' || st === 'forging' || st === 'trimming' || st === 'heatTreatment' || st === 'cnc' || st === 'vmc') {
     const r = stageRecords(s, st).find((x) => x.jobNo === jobNo && x.status !== 'Completed');
     if (!r) return null;
     return {

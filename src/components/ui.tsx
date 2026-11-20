@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Boxes,
+  Cog,
+  Cpu,
   Eye,
   Crop,
   Flame,
@@ -36,6 +38,8 @@ export const FLOW_STEPS: { key: string; label: string; short: string; icon: Icon
   { key: 'forging', label: 'Forging', short: 'Forging', icon: Hammer, route: 'forging' },
   { key: 'trimming', label: 'Trimming', short: 'Trimming', icon: Crop, route: 'trimming' },
   { key: 'heatTreatment', label: 'Heat Treatment', short: 'Heat Treat.', icon: Flame, route: 'heat-treatment' },
+  { key: 'cnc', label: 'CNC', short: 'CNC', icon: Cpu, route: 'cnc' },
+  { key: 'vmc', label: 'VMC', short: 'VMC', icon: Cog, route: 'vmc' },
   { key: 'qc', label: 'Quality Control', short: 'Quality Control', icon: ShieldCheck, route: 'qc' },
   { key: 'finishedGoods', label: 'Finished Goods', short: 'Finished Goods', icon: PackageCheck, route: 'finished-goods' },
   { key: 'dispatched', label: 'Dispatch', short: 'Dispatch', icon: Truck, route: 'dispatch' },
@@ -347,12 +351,12 @@ export function InlineQty({ input, loss, output }: { input: number; loss: number
 }
 
 // -------------------------------------------------------------- Stepper ---
-/** 8-segment progress bar along Raw → Dispatch */
+/** progress bar along Raw → Dispatch */
 export function Stepper({ index }: { index: number }) {
   return (
-    <span className="stepper" title={index >= 0 ? `Stage ${index + 1} of 8: ${FLOW_STEPS[index]?.label}` : 'Rejected'}>
+    <span className="stepper" title={index >= 0 ? `Stage ${index + 1} of ${FLOW_STEPS.length}: ${FLOW_STEPS[index]?.label}` : 'Rejected'}>
       {FLOW_STEPS.map((s, i) => (
-        <i key={s.key} className={index === 7 && i === 7 ? 'end' : i < index ? 'done' : i === index ? 'cur' : ''} />
+        <i key={s.key} className={index === FLOW_STEPS.length - 1 && i === index ? 'end' : i < index ? 'done' : i === index ? 'cur' : ''} />
       ))}
     </span>
   );

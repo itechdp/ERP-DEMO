@@ -37,6 +37,8 @@ export function emptyState(): ERPState {
     forging: [],
     trimming: [],
     heatTreatment: [],
+    cnc: [],
+    vmc: [],
     qc: [],
     jobWork: [],
     hardnessReports: [],

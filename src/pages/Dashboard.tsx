@@ -26,7 +26,7 @@ import type { Activity } from '../store/types';
 import { Badge, Empty, FLOW_STEPS, go, JobLink, Kpi, PageHeader, Priority, rowTone, Stepper } from '../components/ui';
 import { nextStep, pendingSteps } from '../components/workflow';
 import { useFollowups } from '../followups/useFollowups';
-import { BellRing } from 'lucide-react';
+import { BellRing, Cog, Cpu } from 'lucide-react';
 import { AnimatedNum } from '../components/motion';
 import { UtilityWidgets } from '../widgets/UtilityWidgets';
 import { fmtKg, fmtNum, plural, timeAgo, todayISO } from '../components/format';
@@ -164,11 +164,13 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
         <Kpi label="Follow-ups Due" value={followLoading ? 0 : followDue.length} icon={BellRing} tone={followDue.some((f) => f.due && f.due < todayISO()) ? 'red' : 'violet'} hint="tomorrow, today or overdue" onClick={() => navigate('follow-ups')} />
         <Kpi label="Today's Dispatch" value={d.todayQty} unit="PCS" hint={`${d.todayCount} dispatch${d.todayCount === 1 ? '' : 'es'} today`} icon={Truck} tone="teal" onClick={() => navigate('dispatch')} />
       </div>
-      <div className="kpis k5">
+      <div className="kpis k5 k7">
         <Kpi label="At Cutting" value={d.stage.cutting.jobs} unit="jobs" hint={`${fmtNum(d.stage.cutting.wip)} PCS`} icon={Scissors} tone="amber" onClick={() => navigate('cutting')} />
         <Kpi label="At Forging" value={d.stage.forging.jobs} unit="jobs" hint={`${fmtNum(d.stage.forging.wip)} PCS`} icon={Hammer} tone="amber" onClick={() => navigate('forging')} />
         <Kpi label="At Trimming" value={d.stage.trimming.jobs} unit="jobs" hint={`${fmtNum(d.stage.trimming.wip)} PCS`} icon={Crop} tone="amber" onClick={() => navigate('trimming')} />
         <Kpi label="At Heat Treatment" value={d.stage.heatTreatment.jobs} unit="jobs" hint={`${fmtNum(d.stage.heatTreatment.wip)} PCS`} icon={Flame} tone="amber" onClick={() => navigate('heat-treatment')} />
+        <Kpi label="At CNC" value={d.stage.cnc.jobs} unit="jobs" hint={`${fmtNum(d.stage.cnc.wip)} PCS`} icon={Cpu} tone="amber" onClick={() => navigate('cnc')} />
+        <Kpi label="At VMC" value={d.stage.vmc.jobs} unit="jobs" hint={`${fmtNum(d.stage.vmc.wip)} PCS`} icon={Cog} tone="amber" onClick={() => navigate('vmc')} />
         <Kpi label="QC Pending" value={d.qc.jobs} unit="jobs" hint={`${fmtNum(d.qc.wip)} PCS to inspect`} icon={ShieldCheck} tone="amber" onClick={() => navigate('qc')} />
       </div>
       {/* standalone utility cards: calculator, petty cash, quick material log */}
@@ -190,7 +192,7 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
             const I = s.icon;
             const has = n.jobs > 0;
             return (
-              <button key={s.key} className={`flow-node ${has || i === 0 ? 'has' : ''} ${i >= 6 ? 'end' : ''} ${has ? 'flowing' : ''}`} onClick={() => navigate(s.route)} title={`Open ${s.label}`}>
+              <button key={s.key} className={`flow-node ${has || i === 0 ? 'has' : ''} ${i >= 8 ? 'end' : ''} ${has ? 'flowing' : ''}`} onClick={() => navigate(s.route)} title={`Open ${s.label}`}>
                 <div className="flow-ic">
                   <I size={24} />
                   {has && <span className="badge-n">{n.jobs}</span>}

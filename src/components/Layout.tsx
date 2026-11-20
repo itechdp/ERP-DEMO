@@ -107,7 +107,7 @@ const DIE_NAV: NavItem[] = [
 ];
 // Machinery sits inside Workflow as its own sub-menu: CNC, VMC and QC (QC is the same page as before, listed here instead of in the main list)
 const MACHINERY_ITEMS: NavItem[] = [{ route: 'cnc', label: 'CNC', icon: Cpu }, { route: 'vmc', label: 'VMC', icon: Cog }, { route: 'qc', label: 'QC', icon: ShieldCheck }];
-export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, MACHINERY_ITEMS[0], MACHINERY_ITEMS[1], ...REPORT_NAV];
+export const ALL_NAV: NavItem[] = [{ route: 'dashboard', label: 'Dashboard', icon: LayoutGrid }, ...WORKFLOW_NAV, ...REPORT_NAV];
 
 // The Workflow list: the process steps, with Heat Treatment (its planning and furnaces), Machinery and Job Work as sub-menus
 const workflowItems = (): NavItem[] => {

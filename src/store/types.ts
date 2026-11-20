@@ -3,8 +3,10 @@
 // These shapes are filled from Supabase by src/db/load.ts; changes go through src/db/api.ts.
 // ---------------------------------------------------------------------------
 
-/** The four quantity-transforming process stages handled by the generic stage engine. */
-export type ProcessStage = 'cutting' | 'forging' | 'trimming' | 'heatTreatment';
+/** The quantity-transforming process stages handled by the generic stage engine (Cutting → … → Heat Treatment → CNC → VMC). */
+export type ProcessStage = 'cutting' | 'forging' | 'trimming' | 'heatTreatment' | 'cnc' | 'vmc';
+/** The four processes a job-work batch can tick (CNC / VMC follow the product's own settings). */
+export type JobWorkStage = 'cutting' | 'forging' | 'trimming' | 'heatTreatment';
 
 /** Where a job currently sits in the plant. */
 export type JobStage = ProcessStage | 'qc' | 'finishedGoods' | 'dispatched' | 'scrapped';
@@ -43,7 +45,7 @@ export interface JobWork {
   /** whose material: the customer's (our stock is not used) or ours (Cutting issues from raw inventory) */
   materialSource: 'customer' | 'own';
   /** which processes this batch goes through — the others are skipped */
-  processes: Record<ProcessStage, boolean>;
+  processes: Record<JobWorkStage, boolean>;
   qcRequired: boolean;
   chargeBasis: 'none' | 'piece' | 'kg' | 'process';
   rate?: number; // CONFIDENTIAL — ₹ per piece or per kg
@@ -258,6 +260,8 @@ export interface ERPState {
   forging: StageRecord[];
   trimming: StageRecord[];
   heatTreatment: StageRecord[];
+  cnc: StageRecord[];
+  vmc: StageRecord[];
   qc: QCRecord[];
   hardnessReports: HardnessReport[];
   finishedGoods: FinishedGood[];

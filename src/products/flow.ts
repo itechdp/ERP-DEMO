@@ -9,6 +9,9 @@ export interface ProductFlow {
   forging: boolean;
   trimming: boolean;
   heatTreatment: boolean;
+  /** CNC and VMC machining after Heat Treatment (before QC) */
+  cnc: boolean;
+  vmc: boolean;
   hardnessRequired: boolean;
   hardnessMin?: number;
   hardnessMax?: number;
@@ -16,13 +19,13 @@ export interface ProductFlow {
 }
 
 /** a product with nothing saved yet does every process and needs no hardness check */
-export const DEFAULT_FLOW: ProductFlow = { cutting: true, forging: true, trimming: true, heatTreatment: true, hardnessRequired: false, hardnessScale: 'HRB' };
+export const DEFAULT_FLOW: ProductFlow = { cutting: true, forging: true, trimming: true, heatTreatment: true, cnc: true, vmc: true, hardnessRequired: false, hardnessScale: 'HRB' };
 
 const notSetUp = (m: string) => /v_product_flow|set_product_flow|schema cache|does not exist/i.test(m);
 
 export async function fetchProductFlows(): Promise<Record<string, ProductFlow>> {
   const { data, error } = await supabase.from('v_product_flow').select('*');
-  if (error) throw new Error(notSetUp(error.message) ? 'Run migration 51 in the Supabase SQL editor.' : dbMessage(error as never));
+  if (error) throw new Error(notSetUp(error.message) ? 'Run migrations 51 and 83 in the Supabase SQL editor.' : dbMessage(error as never));
   return Object.fromEntries(
     (data ?? []).map((r) => [
       r.id as string,
@@ -31,6 +34,8 @@ export async function fetchProductFlows(): Promise<Record<string, ProductFlow>> 
         forging: !!r.do_forging,
         trimming: !!r.do_trimming,
         heatTreatment: !!r.do_heat_treatment,
+        cnc: r.do_cnc == null ? true : !!r.do_cnc,
+        vmc: r.do_vmc == null ? true : !!r.do_vmc,
         hardnessRequired: !!r.hardness_required,
         hardnessMin: r.hardness_min == null ? undefined : Number(r.hardness_min),
         hardnessMax: r.hardness_max == null ? undefined : Number(r.hardness_max),
@@ -43,7 +48,7 @@ export async function fetchProductFlows(): Promise<Record<string, ProductFlow>> 
 export async function saveProductFlow(id: string, f: ProductFlow) {
   const { error } = await supabase.rpc('set_product_flow', {
     p_id: id,
-    p_payload: { do_cutting: f.cutting, do_forging: f.forging, do_trimming: f.trimming, do_heat_treatment: f.heatTreatment, hardness_required: f.hardnessRequired, hardness_min: f.hardnessMin ?? null, hardness_max: f.hardnessMax ?? null, hardness_scale: f.hardnessScale },
+    p_payload: { do_cutting: f.cutting, do_forging: f.forging, do_trimming: f.trimming, do_heat_treatment: f.heatTreatment, do_cnc: f.cnc, do_vmc: f.vmc, hardness_required: f.hardnessRequired, hardness_min: f.hardnessMin ?? null, hardness_max: f.hardnessMax ?? null, hardness_scale: f.hardnessScale },
   });
   if (error) throw new Error(notSetUp(error.message) ? 'Run migration 51 in the Supabase SQL editor to save the work to be done and hardness settings.' : dbMessage(error as never));
 }

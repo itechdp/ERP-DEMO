@@ -1,4 +1,19 @@
+import { useState } from 'react';
 import { MachinePage } from '../machining/MachinePage';
+import { StagePage } from './StagePage';
+import { Tabs } from '../components/ui';
 
-/** Workflow → Machinery → CNC: the machines and the jobs run on them (see machining/MachinePage). */
-export const CncPage = () => <MachinePage kind="cnc" />;
+type Tab = 'jobs' | 'machines';
+
+/** Workflow → Machinery → CNC. Step 5 of the job flow (after Heat Treatment, before VMC): the job orders that arrive here, and the machines and runs. */
+export function CncPage() {
+  const [tab, setTab] = useState<Tab>('jobs');
+  return (
+    <>
+      <div style={{ marginBottom: 14 }}>
+        <Tabs value={tab} onChange={setTab} items={[{ value: 'jobs', label: 'Job Orders' }, { value: 'machines', label: 'Machines & Runs' }]} />
+      </div>
+      {tab === 'jobs' ? <StagePage stage="cnc" /> : <MachinePage kind="cnc" />}
+    </>
+  );
+}

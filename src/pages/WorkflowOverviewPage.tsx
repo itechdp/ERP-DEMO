@@ -17,7 +17,7 @@ import { Search } from '../components/ui';
 
 type View = 'jobs' | 'orders' | 'stock' | 'rework';
 
-const BOARD = ['cutting', 'forging', 'trimming', 'heatTreatment', 'qc', 'finishedGoods'] as const;
+const BOARD = ['cutting', 'forging', 'trimming', 'heatTreatment', 'cnc', 'vmc', 'qc', 'finishedGoods'] as const;
 
 /**
  * Main Menu → Workflow Overview. The whole workflow reflected on one page, for the owner: what has been won and not started, what is in
@@ -346,7 +346,7 @@ type Row = {
   due: string;
   jw: boolean;
 };
-const PROCESS = ['cutting', 'forging', 'trimming', 'heatTreatment'] as const;
+const PROCESS = ['cutting', 'forging', 'trimming', 'heatTreatment', 'cnc', 'vmc'] as const;
 const STATUS_LABEL: Record<string, string> = { Pending: 'Waiting', 'In Progress': 'In progress', Completed: 'Finished' };
 
 /** everything that is in one stage (or has been through it): each process record with its machine, operator, status, urgency and due date */

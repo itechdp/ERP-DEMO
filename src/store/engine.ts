@@ -35,7 +35,7 @@ const fail = (msg: string): never => {
   throw new ERPError(msg);
 };
 
-export const PROCESS_STAGES: ProcessStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment'];
+export const PROCESS_STAGES: ProcessStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment', 'cnc', 'vmc'];
 
 export const STAGE_LABEL: Record<JobStage | 'raw', string> = {
   raw: 'Raw Inventory',
@@ -43,6 +43,8 @@ export const STAGE_LABEL: Record<JobStage | 'raw', string> = {
   forging: 'Forging',
   trimming: 'Trimming',
   heatTreatment: 'Heat Treatment',
+  cnc: 'CNC',
+  vmc: 'VMC',
   qc: 'QC',
   finishedGoods: 'Finished Goods',
   dispatched: 'Dispatch',
@@ -53,18 +55,22 @@ const NEXT_STAGE: Record<ProcessStage, JobStage> = {
   cutting: 'forging',
   forging: 'trimming',
   trimming: 'heatTreatment',
-  heatTreatment: 'qc',
+  heatTreatment: 'cnc',
+  cnc: 'vmc',
+  vmc: 'qc',
 };
 
-/** Position of each stage on the 8-step flow (Raw → Dispatch). */
+/** Position of each stage on the 10-step flow (Raw → Dispatch). */
 export const FLOW_INDEX: Record<JobStage, number> = {
   cutting: 1,
   forging: 2,
   trimming: 3,
   heatTreatment: 4,
-  qc: 5,
-  finishedGoods: 6,
-  dispatched: 7,
+  cnc: 5,
+  vmc: 6,
+  qc: 7,
+  finishedGoods: 8,
+  dispatched: 9,
   scrapped: -1,
 };
 
@@ -627,7 +633,7 @@ export function jobSummary(s: ERPState, jobNo: string): JobSummary {
   let currentQty = 0;
   let status: JobStatusLabel = 'Pending';
   const st = job.currentStage;
-  if (st === 'cutting' || st === 'forging' || st === 'trimming' || st === 'heatTreatment') {
+  if (st === 'cutting' || st === 'forging' || st === 'trimming' || st === 'heatTreatment' || st === 'cnc' || st === 'vmc') {
     const r = records[st]!;
     currentQty = r.input;
     status = r.status === 'In Progress' ? 'In Progress' : 'Pending';

@@ -38,6 +38,16 @@ const CFG: Record<ProcessStage, { title: string; from: string; to: string }> = {
   heatTreatment: {
     title: 'Heat Treatment',
     from: 'Trimming',
+    to: 'CNC',
+  },
+  cnc: {
+    title: 'CNC Machining',
+    from: 'Heat Treatment',
+    to: 'VMC',
+  },
+  vmc: {
+    title: 'VMC Machining',
+    from: 'CNC',
     to: 'QC',
   },
 };
@@ -91,12 +101,12 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
     .filter((j) => PROCESS_STAGES.indexOf(j.currentStage as ProcessStage) > -1 && PROCESS_STAGES.indexOf(j.currentStage as ProcessStage) < idx)
     .filter((j) => !batchSkips(state.forging, j.jobNo, stage))
     // a product that does not tick this process never reaches it (Product Master → Work to be done)
-    .filter((j) => !((stage === 'trimming' && !pflow.of(j.productId).trimming) || (stage === 'heatTreatment' && !pflow.of(j.productId).heatTreatment)));
+    .filter((j) => !((stage === 'trimming' && !pflow.of(j.productId).trimming) || (stage === 'heatTreatment' && !pflow.of(j.productId).heatTreatment) || (stage === 'cnc' && !pflow.of(j.productId).cnc) || (stage === 'vmc' && !pflow.of(j.productId).vmc)));
 
   return (
     <>
       <PageHeader
-        eyebrow={`Workflow · Step ${FLOW_STEPS.indexOf(step) + 1} of 8`}
+        eyebrow={`Workflow · Step ${FLOW_STEPS.indexOf(step) + 1} of ${FLOW_STEPS.length}`}
         title={cfg.title}
         flow={stage}
         actions={

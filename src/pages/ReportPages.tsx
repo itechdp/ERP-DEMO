@@ -30,7 +30,7 @@ export function TraceabilityPage() {
   const [stageF, setStageF] = useState('all');
   const rows = state.jobs
     .map((j) => jobSummary(state, j.jobNo))
-    .filter((s) => (f === 'all' ? true : f === 'wip' ? s.flowIndex >= 1 && s.flowIndex <= 6 : s.flowIndex === 7))
+    .filter((s) => (f === 'all' ? true : f === 'wip' ? s.flowIndex >= 1 && s.flowIndex <= 8 : s.flowIndex === 9))
     .filter((s) => productF === 'all' || s.product.id === productF)
     .filter((s) => stageF === 'all' || s.job.currentStage === stageF)
     .filter((s) => matches(q, s.job.jobNo, s.product.name, searchable(s.job.customer), STAGE_LABEL[s.job.currentStage]))
@@ -557,7 +557,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       </div>
       <div className="section-label">Work to be done</div>
       <div className="check-row">
-        {([['cutting', 'Cutting'], ['forging', 'Forging'], ['trimming', 'Trimming'], ['heatTreatment', 'Heat Treatment']] as const).map(([k, label]) => (
+        {([['cutting', 'Cutting'], ['forging', 'Forging'], ['trimming', 'Trimming'], ['heatTreatment', 'Heat Treatment'], ['cnc', 'CNC'], ['vmc', 'VMC']] as const).map(([k, label]) => (
           <label key={k} className={`check ${flow[k] ? 'on' : ''}`}>
             <input type="checkbox" checked={flow[k]} onChange={(e) => setFlow((x) => ({ ...x, [k]: e.target.checked }))} />
             {label}
@@ -566,7 +566,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       </div>
       <div className="text-xs muted" style={{ marginTop: 6 }}>
         A job of this product passes over any process left unticked and <b>starts at the first ticked one</b>. Starting at Cutting uses raw bar from Raw Inventory; starting at Forging, Trimming or Heat Treatment uses our own stock of
-        parts that are already cut / forged (add them under Stock below). Job work on the customer's material never uses our stock.
+        parts that are already cut / forged (add them under Stock below). Job work on the customer's material never uses our stock. After Heat Treatment a ticked job goes to <b>CNC</b>, then <b>VMC</b>, then QC.
       </div>
       {!(flow.cutting || flow.forging || flow.trimming || flow.heatTreatment) && <div className="text-xs text-red" style={{ marginTop: 6 }}>Tick at least one process.</div>}
       <div className="section-label">Hardness</div>

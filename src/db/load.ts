@@ -62,7 +62,7 @@ export interface Masters {
   /** party lists are confidential: empty for roles without access */
   suppliers: string[];
   customers: string[];
-  machines: Record<'cutting' | 'forging' | 'trimming' | 'heatTreatment', string[]>;
+  machines: Record<'cutting' | 'forging' | 'trimming' | 'heatTreatment' | 'cnc' | 'vmc', string[]>;
   operators: string[];
   inspectors: string[];
   /** the customer master with all details (empty for roles without access to party names) */
@@ -96,7 +96,7 @@ export async function loadMasters(): Promise<Masters> {
   return {
     suppliers: suppliers.filter((r) => r.active !== false).map((r) => str(r.name)),
     customers: customers.filter((r) => r.active !== false).map((r) => str(r.name)),
-    machines: { cutting: byStage('cutting'), forging: byStage('forging'), trimming: byStage('trimming'), heatTreatment: byStage('heatTreatment') },
+    machines: { cutting: byStage('cutting'), forging: byStage('forging'), trimming: byStage('trimming'), heatTreatment: byStage('heatTreatment'), cnc: byStage('cnc'), vmc: byStage('vmc') },
     operators: operators.filter((r) => r.active !== false).map((r) => str(r.name)),
     inspectors: inspectors.filter((r) => r.active !== false).map((r) => str(r.name)),
     customerList: customers.map(
@@ -286,6 +286,8 @@ export async function loadERPState(): Promise<ERPState> {
     forging: [],
     trimming: [],
     heatTreatment: [],
+    cnc: [],
+    vmc: [],
     qc: qc.map(toQC),
     hardnessReports: hardness.map(toHardness),
     finishedGoods: fg.map(

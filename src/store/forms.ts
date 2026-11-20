@@ -8,8 +8,8 @@ import type { ProcessStage } from './types';
 import type { DieUI } from '../dies/DieContext';
 import type { DieKind } from '../dies/types';
 
-const STAGES: ProcessStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment'];
-const STAGE_ROUTE: Record<ProcessStage, string> = { cutting: 'cutting', forging: 'forging', trimming: 'trimming', heatTreatment: 'heat-treatment' };
+const STAGES: ProcessStage[] = ['cutting', 'forging', 'trimming', 'heatTreatment', 'cnc', 'vmc'];
+const STAGE_ROUTE: Record<ProcessStage, string> = { cutting: 'cutting', forging: 'forging', trimming: 'trimming', heatTreatment: 'heat-treatment', cnc: 'cnc', vmc: 'vmc' };
 
 const qs = (o: Record<string, string | number | undefined>) => {
   const p = new URLSearchParams();
