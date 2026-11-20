@@ -12,7 +12,8 @@ import { entryStage, useProductFlows } from '../products/flow';
 import { useStock } from '../stock/service';
 import type { ERPState } from '../store/types';
 import { findMaterial, pieceWeightKg } from '../store/materials';
-import { Field, Modal, NumInput, go } from './ui';
+import { Field, Modal, NumInput } from './ui';
+import { leaveForm } from '../store/forms';
 import { fmtNum, todayISO } from './format';
 
 /** FIFO allocation preview (read-only) */
@@ -75,7 +76,7 @@ export function NewJobModal({ open, onClose }: { open: boolean; onClose: () => v
             <button className="btn" onClick={onClose}>
               Close
             </button>
-            <button className="btn btn-primary" onClick={() => (onClose(), (window.location.hash = '/products'))}>
+            <button className="btn btn-primary" onClick={() => leaveForm('products')}>
               Go to Product Master
             </button>
           </>
@@ -282,7 +283,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
             {product.name} starts at <b>{STAGE_LABEL[entry]}</b>, so the pieces come from our stock of parts: <b>{fmtNum(partsAvail)} PCS</b> ready for {STAGE_LABEL[entry]}.
             {partsAvail === 0 && ' Add the stock on this product in Product Master first.'}
           </div>
-          <button className="btn btn-sm btn-primary" onClick={() => { onClose(); go('products'); }}>
+          <button className="btn btn-sm btn-primary" onClick={() => leaveForm('products')}>
             Product Master
           </button>
         </div>

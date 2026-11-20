@@ -91,7 +91,7 @@ export function RawInventoryPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Workflow · Step 1 of 8"
+        eyebrow="Workflow · Step 1 of 10"
         title="Raw Inventory"
         flow="raw"
         actions={

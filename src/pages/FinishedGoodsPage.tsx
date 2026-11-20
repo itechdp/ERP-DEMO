@@ -55,7 +55,7 @@ export function FinishedGoodsPage(_props: { navigate: (r: string) => void }) {
   return (
     <>
       <PageHeader
-        eyebrow="Workflow · Step 7 of 8"
+        eyebrow="Workflow · Step 9 of 10"
         title="Finished Goods"
         flow="finishedGoods"
         actions={

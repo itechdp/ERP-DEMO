@@ -3,7 +3,7 @@ import { dbMessage } from '../db/client';
 import { loadERPState, loadMasters, type Masters } from '../db/load';
 import { useAccess } from '../auth/access';
 import type { ERPState, ProcessStage } from './types';
-import { actionParent, actionToHash, closeForm, hashToAction, openForm } from './forms';
+import { actionParent, actionToHash, closeForm, hashToAction, leaveForm, openForm } from './forms';
 
 /** A shop-floor action that opens its form wherever the user is (page, dashboard, drawer, bell menu). */
 export type Action =
@@ -186,6 +186,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
+      // no product yet: a job card cannot be made, so skip the empty form page and go straight to where the product is added
+      if (a && a.kind === 'newJob' && data && data.state.products.length === 0) {
+        toast({ kind: 'info', title: 'Add a product first', message: 'A job card is made for a product. Add it in Product Master.' });
+        leaveForm(canWrite('products') ? actionToHash({ kind: 'product' }) ?? 'products' : 'products');
+        return;
+      }
       if (!a) {
         if (hashAction) closeForm(actionParent(hashAction));
         else setOverlay(null);
@@ -195,7 +201,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (to) openForm(to);
       else setOverlay(a);
     },
-    [canWrite, canRead, toast, hashAction],
+    [canWrite, canRead, toast, hashAction, data],
   );
 
   const value = useMemo(

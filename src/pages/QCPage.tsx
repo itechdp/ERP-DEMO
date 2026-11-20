@@ -57,7 +57,7 @@ export function QCPage() {
     <>
       {rework && <ReworkModal rec={rework} onClose={() => setRework(null)} />}
       <PageHeader
-        eyebrow="Workflow · Step 6 of 8"
+        eyebrow="Workflow · Step 8 of 10"
         title="Quality Control"
         flow="qc"
         actions={

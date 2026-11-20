@@ -139,6 +139,13 @@ export function openForm(hash: string) {
   window.scrollTo({ top: 0 });
 }
 
+/** leave a form for some OTHER page (not its list): no browser "back" step, which would land after the new address and cancel it */
+export function leaveForm(route: string) {
+  openedInApp = false;
+  window.location.hash = `/${route}`;
+  window.scrollTo({ top: 0 });
+}
+
 export function closeForm(parent: string) {
   if (openedInApp) {
     openedInApp = false;

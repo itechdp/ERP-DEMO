@@ -51,7 +51,7 @@ export function DispatchPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Workflow · Step 8 of 8"
+        eyebrow="Workflow · Step 10 of 10"
         title="Dispatch"
         flow="dispatched"
         actions={
