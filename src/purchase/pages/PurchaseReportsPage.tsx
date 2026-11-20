@@ -186,7 +186,7 @@ export function PurchaseReportsPage({ query, navigate }: { query?: URLSearchPara
               const first = offered.find((r) => r.group === g);
               if (first) setReportId(first.id);
             }}
-            items={REPORT_GROUPS.filter((g) => offered.some((r) => r.group === g)).map((g) => ({ value: g, label: g, count: offered.filter((r) => r.group === g).length }))}
+            items={REPORT_GROUPS.filter((g) => offered.some((r) => r.group === g)).map((g) => ({ value: g, label: g }))}
           />
           <div className="rp-pills">
             {offered

@@ -191,7 +191,7 @@ export function SalesReportsPage({ query }: { query?: URLSearchParams }) {
       />
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-body" style={{ padding: '16px 22px 18px' }}>
-          <Tabs value={def.group} onChange={pick} items={REPORT_GROUPS.filter((g) => offered.some((r) => r.group === g)).map((g) => ({ value: g, label: g, count: offered.filter((r) => r.group === g).length }))} />
+          <Tabs value={def.group} onChange={pick} items={REPORT_GROUPS.filter((g) => offered.some((r) => r.group === g)).map((g) => ({ value: g, label: g }))} />
           <div className="rp-pills">
             {offered.filter((r) => r.group === def.group).map((r) => (
               <button key={r.id} className={`btn btn-sm ${r.id === reportId ? 'btn-primary' : 'btn-subtle'}`} onClick={() => { setReportId(r.id); setQ(''); }}>{r.title}</button>
