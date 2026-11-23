@@ -1685,3 +1685,13 @@ body[data-busy] .tbl .icon-btn, body[data-busy] .icon-actions .icon-btn { opacit
   .ct-row.custom { grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-areas: "no desc act" "calc calc amt"; align-items: center; }
   .ct-row.custom .ct-name { max-width: none; }
 }
+
+/* ---- searchable multi-pick of staff (Manpower / Forger) ---- */
+.multi-box { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 42px; height: auto; padding: 6px 10px; cursor: text; }
+.multi-box input { flex: 1; min-width: 90px; border: 0; outline: 0; background: transparent; font: inherit; color: inherit; padding: 2px 0; }
+.multi-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 7px; font-size: 12.5px; font-weight: 600; background: var(--primary-50); color: var(--text-1, inherit); }
+.multi-chip button { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; opacity: 0.7; }
+.multi-chip button:hover { opacity: 1; background: var(--surface-3); }
+.multi-count { margin-left: auto; font-size: 11.5px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+.field .multi-box input:not([type="checkbox"]):not([type="radio"]), .field .multi-box input:not([type="checkbox"]):not([type="radio"]):focus { flex: 1; width: auto; min-width: 90px; height: auto; min-height: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.multi-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-50); }

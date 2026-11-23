@@ -49,7 +49,10 @@ function stageParams(r: StageRecord) {
   }
   if (r.machine && colOk('stage.machine')) items.push(['Machine', r.machine]);
   if (r.operator && colOk('stage.operator')) items.push(['Checked by', r.operator]);
-  if (p.manpower && colOk('stage.operator')) items.push(['Manpower / Forger', p.manpower]);
+  if (p.manpower && colOk('stage.operator')) {
+    const n = String(p.manpower).split(',').filter((x) => x.trim()).length;
+    items.push([`${r.stage === 'forging' ? 'Forger' : 'Manpower'}${n > 1 ? ` (${n})` : ''}`, p.manpower]);
+  }
   return items;
 }
 

@@ -14,6 +14,7 @@ import { usePlan } from '../planning/usePlan';
 import { useFurnaces } from '../furnaces/service';
 import { useProductFlows } from '../products/flow';
 import { usePaged } from '../components/Pager';
+import { joinNames, splitNames, StaffMultiSelect } from '../components/StaffMultiSelect';
 
 /** why a waiting Heat Treatment batch cannot start: not approved yet, or no furnace assigned (when the plant has furnaces) */
 export type Block = 'approval' | 'furnace' | null;
@@ -89,7 +90,7 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
       .filter((r) => {
         const job = getJob(state, r.jobNo);
         const p = getProduct(state, job.productId);
-        return (productF === 'all' || p.id === productF) && matches(q, r.jobNo, p.name, searchable(job.customer), searchableCol(r.machine, 'stage.machine'), searchableCol(r.operator, 'stage.operator'));
+        return (productF === 'all' || p.id === productF) && matches(q, r.jobNo, p.name, searchable(job.customer), searchableCol(r.machine, 'stage.machine'), searchableCol(r.operator, 'stage.operator'), searchableCol(String(r.params.manpower ?? ''), 'stage.operator'));
       })
       .sort((a, b) => order[a.status] - order[b.status] || (plan.find(a.jobNo, stage)?.rank ?? 1e9) - (plan.find(b.jobNo, stage)?.rank ?? 1e9) || (b.completedAt ?? b.receivedAt).localeCompare(a.completedAt ?? a.receivedAt));
   }, [recs, filter, q, productF, state, plan, stage]);
@@ -135,7 +136,7 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
           )}
         </div>
         <div className="toolbar">
-          <Search value={q} onChange={setQ} placeholder={canSee('party_names') ? 'Search job, product, customer, machine…' : 'Search job, product, machine…'} />
+          <Search value={q} onChange={setQ} placeholder={canSee('party_names') ? 'Search job, product, customer, machine, worker…' : 'Search job, product, machine, worker…'} />
           <FilterMenu
             groups={[
               {
@@ -338,9 +339,12 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
   const [okTyped, setOkTyped] = useState(String((edit ? rec?.output : rec?.input) ?? 0));
   const [bars, setBars] = useState(rec?.params.barsPlanned !== undefined ? String(rec.params.barsPlanned) : '');
   const [weightTyped, setWeightTyped] = useState<string | null>(null);
-  const [checkedBy, setCheckedBy] = useState(rec?.operator ?? '');
-  // the forger / operator(s) who did the work — a name from Settings → Drop-down Lists → Plant Staff, saved with the stage record
-  const [manpower, setManpower] = useState(String(rec?.params.manpower ?? ''));
+  // Checked By: one or more supervisors, picked the same way as Manpower; saved as "Name, Name" (optional)
+  const [checkedBy, setCheckedBy] = useState<string[]>(() => splitNames(rec?.operator));
+  // who did the work (Cutting / Trimming: "Manpower", Forging: "Forger") — any number of names from Settings → Plant Staff, picked by
+  // hand for each stage on its own; saved with the stage record as "Name, Name". Optional, like Checked By.
+  const crew = stage === 'cutting' || stage === 'forging' || stage === 'trimming';
+  const [manpower, setManpower] = useState<string[]>(() => splitNames(rec?.params.manpower));
   const [date, setDate] = useState(edit && rec?.completedAt ? rec.completedAt.slice(0, 10) : todayISO());
   // T1–T4: the four temperatures recorded when a batch is heat-treated (each starts at the item's standard, or the saved value)
   const [temps, setTemps] = useState<string[]>(() => ['t1', 't2', 't3', 't4'].map((k) => String(rec?.params[k] ?? rec?.params.temperature ?? (p.htTemperature || ''))));
@@ -390,10 +394,10 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
       // corrected fields only; an emptied Manpower or temperature is cleared (sent as null)
       const t = htParams(temps) as Record<string, number | undefined>;
       const params: Record<string, string | number | null> = {
-        manpower: manpower || null,
+        manpower: manpower.length ? joinNames(manpower) : null,
         ...(stage === 'heatTreatment' ? { t1: t.t1 ?? null, t2: t.t2 ?? null, t3: t.t3 ?? null, t4: t.t4 ?? null, temperature: t.temperature ?? null } : {}),
       };
-      const saved = await run((now) => api.editStage(stage, jobNo, { loss: rejN, inputQty: stage === 'cutting' ? inN : undefined, operator: checkedBy, params }, tsFor(date, now)), {
+      const saved = await run((now) => api.editStage(stage, jobNo, { loss: rejN, inputQty: stage === 'cutting' ? inN : undefined, operator: joinNames(checkedBy), params }, tsFor(date, now)), {
         title: `${STAGE_LABEL[stage]} corrected`,
         message: ok !== rec.output ? `${jobNo}: OK ${fmtNum(rec.output)} → ${fmtNum(ok)} PCS — passed on to the next stage.` : jobNo,
       });
@@ -403,7 +407,7 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
     const stageParams: Record<string, string | number> = {
       ...(issuing ? { barsConsumed: barsN, weightKg: wN } : {}),
       ...(stage === 'forging' ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : stage === 'heatTreatment' ? htParams(temps) : {}),
-      ...(manpower ? { manpower } : {}),
+      ...(manpower.length ? { manpower: joinNames(manpower) } : {}),
     };
     const done = await run(
       (now) =>
@@ -413,7 +417,7 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
           {
             inputQty: editableInput ? inN : undefined,
             loss: rejN,
-            operator: checkedBy,
+            operator: joinNames(checkedBy),
             params: Object.keys(stageParams).length ? stageParams : undefined,
           },
           tsFor(date, now),
@@ -517,12 +521,14 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
             </Field>
           </>
         )}
-        <Field label="Checked By">
-          <StaffSelect value={checkedBy} onChange={setCheckedBy} staff={masters.staff} />
+        <Field label="Checked By" hint="Optional — supervisor · type to search, pick one or more">
+          <StaffMultiSelect value={checkedBy} onChange={setCheckedBy} staff={masters.staff} placeholder="Type a supervisor’s name…" />
         </Field>
-        <Field label="Manpower / Forger">
-          <StaffSelect value={manpower} onChange={setManpower} staff={masters.staff} />
-        </Field>
+        {crew && (
+          <Field label={stage === 'forging' ? 'Forger' : 'Manpower'} hint="Optional — type to search, pick one or more">
+            <StaffMultiSelect value={manpower} onChange={setManpower} staff={masters.staff} placeholder={stage === 'forging' ? 'Type a forger’s name…' : 'Type a worker’s name…'} />
+          </Field>
+        )}
         {stage === 'heatTreatment' &&
           temps.map((t, i) => (
             <Field key={i} label={`T${i + 1} (optional)`} error={tempErr(t)} hint={i === 0 ? (p.htTemperature ? `${p.name} standard: ${p.htTemperature}°C` : `${p.name}: no standard temperature set`) : undefined}>
@@ -541,23 +547,6 @@ export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: Pro
 
 /** Jobs still at an earlier stage — shows why they are not here yet and lets the user finish that step. */
 /** Heat-treatment temperatures that were entered: T1–T4, empty ones left out (the first one entered is also the single "temperature"). */
-/** A name from the plant staff list (Settings → Drop-down Lists → Plant Staff), shown with the designation.
- *  A saved name that has since been removed from the list is kept and shown as it is. */
-function StaffSelect({ value, onChange, staff }: { value: string; onChange: (v: string) => void; staff: { name: string; designation: string }[] }) {
-  const missing = value !== '' && !staff.some((s) => s.name === value);
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{staff.length ? 'Select…' : 'No names yet — add them in Settings → Drop-down Lists → Plant Staff'}</option>
-      {missing && <option value={value}>{value}</option>}
-      {staff.map((s) => (
-        <option key={s.name} value={s.name}>
-          {s.name} ({s.designation})
-        </option>
-      ))}
-    </select>
-  );
-}
-
 function htParams(temps: string[]) {
   const out: Record<string, number> = {};
   temps.forEach((v, i) => {
