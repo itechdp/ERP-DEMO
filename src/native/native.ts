@@ -28,7 +28,7 @@ const toBase64 = (blob: Blob) =>
     r.readAsDataURL(blob);
   });
 
-/** a file name that is safe on every system: document numbers like EAF/2026-0001 contain "/", which would mean a folder */
+/** a file name that is safe on every system: a document number typed with "/", which would mean a folder */
 export const safeFileName = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-');
 
 /** save a file: a normal download in the browser; in the app it is written to the phone and the share sheet opens (Save to Drive / WhatsApp / Open with…) */
