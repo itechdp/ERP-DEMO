@@ -185,7 +185,8 @@ const toStage = (r: Row): StageRecord => ({
   machine: str(r.machine),
   operator: str(r.operator),
   remarks: str(r.remarks),
-  params: (r.params ?? {}) as Record<string, string | number>,
+  // a key whose value is null (e.g. the temperature of a product without heat-treatment settings) counts as not set
+  params: Object.fromEntries(Object.entries((r.params ?? {}) as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined)) as Record<string, string | number>,
 });
 
 const toQC = (r: Row): QCRecord => ({

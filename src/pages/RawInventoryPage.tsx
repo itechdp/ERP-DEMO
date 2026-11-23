@@ -9,7 +9,7 @@ import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { lotAvailableWeight, lotIssuedQty, lotStatus, materialKey } from '../store/engine';
 import { ADD_NEW, useAddMaterial, useAddOption } from '../masters/AddItem';
-import { findMaterial, MATERIAL_FAMILIES, MATERIAL_MASTER, pieceWeightKg, STANDARD_OD_MM } from '../store/materials';
+import { findMaterial, MATERIAL_FAMILIES, MATERIAL_MASTER, STANDARD_OD_MM } from '../store/materials';
 import { Badge, Empty, Field, JobLink, Modal, NumInput, PageHeader, rowTone, Search, SummaryLine, Tabs, FilterMenu, Confirm } from '../components/ui';
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, matches, todayISO } from '../components/format';
 import { InwardPoSection } from '../purchase/components/InwardPoSection';
@@ -440,8 +440,8 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
   const [heatNo, setHeatNo] = useState(lot?.heatNo ?? '');
   const doc = useDocNo('inward', !lot);
   const [qty, setQty] = useState(lot ? String(lot.inwardQty) : '');
-  const [pieceLength, setPieceLength] = useState('');
-  const [weightOverride, setWeightOverride] = useState<string | null>(lot ? String(lot.inwardWeight) : null);
+  // the total weight is typed as weighed (no piece length / theoretical weight any more)
+  const [weight, setWeight] = useState(lot ? String(lot.inwardWeight) : '');
   // booking the receipt against a purchase order line (optional)
   const [poId, setPoId] = useState<number | null>(null);
   const [poItemId, setPoItemId] = useState<number | null>(null);
@@ -451,10 +451,6 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
   const spec = findMaterial(material) ?? first;
   const qN = Number(qty);
   const odN = Number(od);
-  const lenN = Number(pieceLength);
-  const perPiece = odN > 0 && lenN > 0 ? pieceWeightKg(odN, lenN, spec.density) : 0;
-  const theoretical = perPiece && qN > 0 ? Math.round(perPiece * qN * 1000) / 1000 : 0;
-  const weight = weightOverride ?? (theoretical ? String(theoretical) : '');
   const wN = Number(weight);
 
   const errQty = qty !== '' && (!(qN > 0) || !Number.isInteger(qN)) ? 'Enter a whole number of pieces' : qty !== '' && qN < issued + blocked ? `At least ${fmtNum(issued + blocked)} PCS — ${fmtNum(issued)} are issued to production${blocked ? ` and ${fmtNum(blocked)} were rejected at QC` : ''}` : null;
@@ -465,14 +461,10 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
     setMaterial(m);
     const next = findMaterial(m);
     if (next) setOd(String(next.defaultOd));
-    setWeightOverride(null);
   };
 
   const addMaterial = useAddMaterial((n) => pickMaterial(n));
-  const addSize = useAddOption('od_size', (v) => {
-    setOd(v);
-    setWeightOverride(null);
-  });
+  const addSize = useAddOption('od_size', (v) => setOd(v));
 
   // PO fields sent with the receipt. New lot: only when a line is chosen. Editing: untouched unless the link is changed; null removes it.
   const poFields = (): { poId?: number | null; poItemId?: number | null } => {
@@ -547,7 +539,6 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
             onChange={(e) => {
               if (e.target.value === ADD_NEW) return addSize.open();
               setOd(e.target.value);
-              setWeightOverride(null);
             }}
           >
             {[...new Set([...STANDARD_OD_MM, Number(od)])].sort((x, y) => x - y).map((d) => (
@@ -618,24 +609,11 @@ export function InwardModal({ preset, onClose }: { preset?: { material?: string;
 
       <div className="section-label">Quantity &amp; weight</div>
       <div className="form-grid three">
-        <Field label="Quantity" required error={errQty}>
-          <NumInput value={qty} onChange={(v) => { setQty(v); if (!lot || lenN > 0) setWeightOverride(null); }} bad={!!errQty} autoFocus />
+        <Field label="Quantity" required error={errQty} hint="Pieces / bars">
+          <NumInput value={qty} onChange={setQty} bad={!!errQty} autoFocus />
         </Field>
-        <Field label="Piece Length" hint="Length of each bar / billet — used to calculate weight">
-          <NumInput value={pieceLength} onChange={(v) => { setPieceLength(v); setWeightOverride(null); }} suffix="mm" step="any" />
-        </Field>
-        <Field
-          label="Total Weight"
-          required
-          hint={
-            theoretical
-              ? weightOverride != null && Number(weightOverride) !== theoretical
-                ? `Theoretical ${theoretical} KG — using entered weight`
-                : `Auto: ${perPiece.toFixed(3)} kg/pc × ${qN} PCS`
-              : 'Enter piece length to auto-calculate, or type the weighed weight'
-          }
-        >
-          <NumInput value={weight} onChange={setWeightOverride} suffix="KG" step="any" />
+        <Field label="Total Weight" required hint={qN > 0 && wN > 0 ? `${(wN / qN).toFixed(3)} kg per piece` : 'The weighed weight of the whole lot'}>
+          <NumInput value={weight} onChange={setWeight} suffix="KG" step="any" />
         </Field>
       </div>
 

@@ -135,9 +135,18 @@ export const saveHardnessReport = (i: HardnessInput, ts?: string, id?: string) =
     p_ts: ts,
   });
 
-/** New products get an id from their code; an id that is already taken is never reused (the function would overwrite it). */
+/** The next free automatic product code: PRD-0001, PRD-0002 … (the Product Code field is no longer typed in). */
+export function nextProductCode(existing: Product[]): string {
+  const used = new Set(existing.map((p) => p.code.toUpperCase()));
+  let n = existing.reduce((m, p) => Math.max(m, Number(/^PRD-(\d+)$/i.exec(p.code)?.[1] ?? 0)), 0) + 1;
+  while (used.has(`PRD-${String(n).padStart(4, '0')}`)) n++;
+  return `PRD-${String(n).padStart(4, '0')}`;
+}
+
+/** New products get an id from their code; an id that is already taken is never reused (the function would overwrite it).
+ *  A product saved without a code (new products) is given the next automatic code. Heat treatment is optional: 0 / empty is sent as null. */
 export const saveProduct = (i: Omit<Product, 'id'>, existing: Product[], id?: string) => {
-  const code = i.code.trim();
+  const code = i.code.trim() || nextProductCode(existing);
   if (existing.some((p) => p.code.toLowerCase() === code.toLowerCase() && p.id !== id)) throw new Error(`Product code ${code} already belongs to ${existing.find((p) => p.code.toLowerCase() === code.toLowerCase())!.name}.`);
   let pid = id;
   if (!pid) {
@@ -153,8 +162,8 @@ export const saveProduct = (i: Omit<Product, 'id'>, existing: Product[], id?: st
       od: i.od,
       cutting_length: i.cuttingLength,
       finished_weight: i.finishedWeight,
-      ht_temperature: i.htTemperature,
-      ht_soak_minutes: i.htSoakMinutes,
+      ht_temperature: i.htTemperature > 0 ? i.htTemperature : null,
+      ht_soak_minutes: i.htSoakMinutes > 0 ? i.htSoakMinutes : null,
       ht_process: i.htProcess.trim(),
       ht_quench: i.htQuench.trim(),
       die_no: i.dieNo.trim(),

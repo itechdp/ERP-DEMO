@@ -597,10 +597,11 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
   const lineErr = (l: FormLine): string | null => {
     const q = Number(l.qty);
     if (!(q > 0)) return 'Enter a quantity';
-    if (q > l.billable + 0.0005 && l.billable >= 0) return `Only ${fmtNum(l.billable)} ${l.uom} can be invoiced`;
     if (!(Number(l.rate) >= 0) || l.rate === '') return 'Enter a rate';
     return null;
   };
+  // any quantity may be invoiced (migration 86); a quantity above "Can bill" is only pointed out, never refused
+  const qtyNote = (l: FormLine): string | null => (Number(l.qty) > l.billable + 0.0005 ? `More than the ${fmtNum(Math.max(l.billable, 0))} ${l.uom} left to bill — allowed` : null);
   const rateOff = (l: FormLine) => l.poRate > 0 ? Math.abs(Number(l.rate) - l.poRate) / l.poRate * 100 > INVOICE_RATE_TOLERANCE_PCT : Number(l.rate) > 0;
   const needsNote = used.some(rateOff);
   const taxable = used.reduce((a, l) => a + round2(Number(l.qty) * Number(l.rate)), 0);
@@ -715,7 +716,7 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
                       return (
                         <tr key={l.poItemId} style={l.include ? undefined : { opacity: 0.55 }}>
                           <td className="center">
-                            <input type="checkbox" checked={l.include} disabled={l.billable <= 0 && !l.include} onChange={(ev) => upd(i, { include: ev.target.checked, qty: ev.target.checked && !l.qty ? String(l.billable) : l.qty })} aria-label={`Bill line ${l.lineNo}`} />
+                            <input type="checkbox" checked={l.include} onChange={(ev) => upd(i, { include: ev.target.checked, qty: ev.target.checked && !l.qty ? (l.billable > 0 ? String(l.billable) : '') : l.qty })} aria-label={`Bill line ${l.lineNo}`} />
                           </td>
                           <td>
                             <div className="strong">{l.item}</div>
@@ -729,7 +730,7 @@ function InvoiceForm({ editId, initialPoId, navigate }: { editId: number | null;
                           <td className="r num">{fmtNum(l.invoiced)}</td>
                           <td className="r num strong">{fmtNum(l.billable)}</td>
                           <td>
-                            <input type="number" min="0" step="any" className="right" value={l.qty} disabled={!l.include} onChange={(ev) => upd(i, { qty: ev.target.value })} title={e ?? undefined} style={e ? { borderColor: 'var(--crit)' } : undefined} />
+                            <input type="number" min="0" step="any" className="right" value={l.qty} disabled={!l.include} onChange={(ev) => upd(i, { qty: ev.target.value })} title={e ?? (l.include ? qtyNote(l) : null) ?? undefined} style={e ? { borderColor: 'var(--crit)' } : l.include && qtyNote(l) ? { borderColor: 'var(--warn)' } : undefined} />
                           </td>
                           <td>
                             <input type="number" min="0" step="any" className="right" value={l.rate} disabled={!l.include} onChange={(ev) => upd(i, { rate: ev.target.value })} style={l.include && rateOff(l) ? { borderColor: 'var(--warn)' } : undefined} />

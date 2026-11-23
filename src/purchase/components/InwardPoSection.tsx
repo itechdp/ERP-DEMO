@@ -5,8 +5,6 @@ import { fmtKg } from '../../components/format';
 import { fetchReceivablePOs } from '../services/receiptService';
 import type { ReceivablePO, ReceivablePOItem } from '../types';
 
-/** Receipts may exceed an ordered line by this much before the database refuses (see po_receipt_tolerance_pct() in migration 32). */
-const TOLERANCE_PCT = 5;
 
 /**
  * "Against Purchase Order" part of the inward form. Optional: with nothing chosen the receipt is booked without a PO exactly as before.
@@ -73,7 +71,8 @@ export function InwardPoSection({
   if (pos == null || pos.length === 0) return null;
 
   const pending = item ? Math.max(item.qty - item.receivedQty, 0) : 0;
-  const over = item && weight > 0 && item.receivedQty + weight > item.qty * (1 + TOLERANCE_PCT / 100);
+  // any weight may be received against the line — more or less than ordered (migration 86); the totals are shown for information only
+  const after = item ? item.receivedQty + (weight > 0 ? weight : 0) : 0;
 
   return (
     <>
@@ -109,11 +108,11 @@ export function InwardPoSection({
         </Field>
       </div>
       {item && (
-        <div className={`callout ${over ? 'warn' : 'info'}`}>
+        <div className="callout info">
           <Link2 size={16} />
           <div>
             Ordered <b>{fmtKg(item.qty)}</b> · already received <b>{fmtKg(item.receivedQty)}</b> · pending <b>{fmtKg(pending)}</b>.
-            {over && ` This receipt is more than ${TOLERANCE_PCT}% above the order, so it will be refused.`}
+            {weight > 0 && after !== item.qty && ` With this lot: ${fmtKg(after)} received, ${after > item.qty ? `${fmtKg(after - item.qty)} more` : `${fmtKg(item.qty - after)} less`} than ordered.`}
           </div>
         </div>
       )}

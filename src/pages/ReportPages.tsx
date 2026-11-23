@@ -308,13 +308,13 @@ export function ProductsPage() {
   );
   return (
     <>
-      <PageHeader eyebrow="Masters" title="Product Master" actions={<>{state.products.length > 0 && <ListButtons doc={() => ({ filename: 'Product-Master', title: 'Product Master', form: FORM_FORMATS.report, rows: state.products.map((p) => ({ code: p.code, name: p.name, material: p.material, od: p.od, cut: p.cuttingLength, wt: p.finishedWeight, die: colOk('product.die_no') ? p.dieNo : '', temp: p.htTemperature, process: p.htProcess })), cols: [{ label: 'Code', key: 'code' }, { label: 'Product', key: 'name', width: 26 }, { label: 'Raw Material', key: 'material', width: 28 }, { label: 'Bar OD (mm)', key: 'od', kind: 'num' }, { label: 'Cut Length (mm)', key: 'cut', kind: 'num' }, { label: 'Finished Wt. (kg)', key: 'wt', kind: 'num' }, { label: 'Forging Die', key: 'die' }, { label: 'HT Temp. (°C)', key: 'temp', kind: 'num' }, { label: 'HT Process', key: 'process' }] })} />}{mgmt && state.products.length > 0 ? add : null}</>} />
+      <PageHeader eyebrow="Masters" title="Product Master" actions={<>{state.products.length > 0 && <ListButtons doc={() => ({ filename: 'Product-Master', title: 'Product Master', form: FORM_FORMATS.report, rows: state.products.map((p) => ({ code: p.code, name: p.name, material: p.material, od: p.od, cut: p.cuttingLength, wt: p.finishedWeight, die: colOk('product.die_no') ? p.dieNo : '', temp: p.htTemperature || '', process: p.htProcess })), cols: [{ label: 'Code', key: 'code' }, { label: 'Product', key: 'name', width: 26 }, { label: 'Raw Material', key: 'material', width: 28 }, { label: 'Bar OD (mm)', key: 'od', kind: 'num' }, { label: 'Cut Length (mm)', key: 'cut', kind: 'num' }, { label: 'Finished Wt. (kg)', key: 'wt', kind: 'num' }, { label: 'Forging Die', key: 'die' }, { label: 'HT Temp. (°C)', key: 'temp', kind: 'num' }, { label: 'HT Process', key: 'process' }] })} />}{mgmt && state.products.length > 0 ? add : null}</>} />
       <div className="card">
         {state.products.length === 0 ? (
           <Empty
             icon={Package}
             title="No products yet"
-            text={mgmt ? 'Add the components you forge — code, raw material, cutting length, finished weight and heat-treatment settings. Job cards are created from these.' : 'The Director or Plant Head adds products here. Job cards are created from them.'}
+            text={mgmt ? 'Add the components you forge — name, raw material, cutting length, finished weight and (if needed) heat-treatment settings. Job cards are created from these.' : 'The Director or Plant Head adds products here. Job cards are created from them.'}
             action={mgmt ? add : undefined}
           />
         ) : (
@@ -355,12 +355,12 @@ export function ProductsPage() {
                   <Conf col="product.die_no">
                     <td className="mono">{p.dieNo}</td>
                   </Conf>
-                  <td className="r strong nowrap">{p.htTemperature}°C</td>
+                  <td className="r strong nowrap">{p.htTemperature ? `${p.htTemperature}°C` : <span className="muted">—</span>}</td>
                   <td>
-                    {p.htProcess}
-                    <div className="sub">
-                      {p.htSoakMinutes} min · {p.htQuench}
-                    </div>
+                    {p.htProcess || (!p.htSoakMinutes ? <span className="muted">—</span> : null)}
+                    {(p.htSoakMinutes > 0 || p.htQuench) && (
+                      <div className="sub">{[p.htSoakMinutes > 0 ? `${p.htSoakMinutes} min` : '', p.htQuench].filter(Boolean).join(' · ')}</div>
+                    )}
                   </td>
                   <Conf g="party_names">
                     <td>{p.defaultCustomer || '—'}</td>
@@ -418,8 +418,10 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
     cuttingLength: cur ? String(cur.cuttingLength) : '',
     finishedWeight: cur ? String(cur.finishedWeight) : '',
     dieNo: cur?.dieNo ?? '',
-    htTemperature: cur ? String(cur.htTemperature) : '',
-    htSoakMinutes: cur ? String(cur.htSoakMinutes) : '',
+    // heat treatment is optional: a product without it (e.g. Brass) has 0 here, shown as an empty box
+    htTemperature: cur?.htTemperature ? String(cur.htTemperature) : '',
+    htSoakMinutes: cur?.htSoakMinutes ? String(cur.htSoakMinutes) : '',
+    // no longer on the form; an existing product keeps what was saved before
     htProcess: cur?.htProcess ?? '',
     htQuench: cur?.htQuench ?? '',
     defaultCustomer: cur?.defaultCustomer ?? '',
@@ -454,7 +456,9 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
   const pickMaterial = (m: string) => setF((x) => ({ ...x, material: m, od: x.od || String(findMaterial(m)?.defaultOd ?? '') }));
   const addMaterial = useAddMaterial((n) => pickMaterial(n));
-  const valid = f.code.trim() && f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && Number(f.htTemperature) > 0 && Number(f.htSoakMinutes) > 0 && hardnessOk && (flow.cutting || flow.forging || flow.trimming || flow.heatTreatment) && (addQty === '' || (Number(addQty) > 0 && Number.isInteger(Number(addQty))));
+  // heat treatment is optional, but a value that is typed must be above zero
+  const htBad = (v: string) => v.trim() !== '' && !(Number(v) > 0);
+  const valid = f.name.trim() && f.material && Number(f.od) > 0 && Number(f.cuttingLength) > 0 && Number(f.finishedWeight) > 0 && !htBad(f.htTemperature) && !htBad(f.htSoakMinutes) && hardnessOk && (flow.cutting || flow.forging || flow.trimming || flow.heatTreatment) && (addQty === '' || (Number(addQty) > 0 && Number.isInteger(Number(addQty))));
   const submit = async () => {
     const input: Omit<Product, 'id'> = {
       code: f.code,
@@ -464,8 +468,8 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       cuttingLength: Number(f.cuttingLength),
       finishedWeight: Number(f.finishedWeight),
       dieNo: f.dieNo,
-      htTemperature: Number(f.htTemperature),
-      htSoakMinutes: Number(f.htSoakMinutes),
+      htTemperature: Number(f.htTemperature) > 0 ? Number(f.htTemperature) : 0,
+      htSoakMinutes: Number(f.htSoakMinutes) > 0 ? Number(f.htSoakMinutes) : 0,
       htProcess: f.htProcess,
       htQuench: f.htQuench,
       defaultCustomer: f.defaultCustomer,
@@ -479,7 +483,7 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
       if (fromParts && Number(addQty) > 0) await addSemiStock(pid, entry, Number(addQty), '', 'Added from Product Master', currentUserName());
       if (minDraft !== null && minDraft !== String(currentMin || '')) await setStockMin(fromParts ? semiKey(pid, entry) : rawKey(f.material, Number(f.od)), Math.max(0, Math.floor(Number(minDraft)) || 0));
       return pid;
-    }, { title: id ? 'Product updated' : 'Product added', message: `${f.code.trim()} · ${f.name.trim()}` })) onClose();
+    }, { title: id ? 'Product updated' : 'Product added', message: f.code.trim() ? `${f.code.trim()} · ${f.name.trim()}` : f.name.trim() })) onClose();
   };
   return (
     <Modal
@@ -503,11 +507,8 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
     >
       <div className="section-label">Product</div>
       <div className="form-grid three">
-        <Field label="Product Code" required>
-          <input className="input mono" value={f.code} onChange={(e) => set('code', e.target.value)} placeholder="e.g. BB-45" autoFocus />
-        </Field>
         <Field label="Product Name" required>
-          <input className="input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Brass Bush" />
+          <input className="input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Brass Bush" autoFocus />
         </Field>
         <Conf col="product.die_no">
           <Field label="Forging Die No.">
@@ -540,19 +541,13 @@ export function ProductModal({ id, viewOnly, onClose }: { id?: string; viewOnly?
           <NumInput value={f.finishedWeight} onChange={(v) => set('finishedWeight', v)} suffix="kg" step="any" />
         </Field>
       </div>
-      <div className="section-label">Heat treatment</div>
+      <div className="section-label">Heat treatment (optional)</div>
       <div className="form-grid three">
-        <Field label="Temperature" required>
-          <NumInput value={f.htTemperature} onChange={(v) => set('htTemperature', v)} suffix="°C" />
+        <Field label="Temperature" hint="Leave empty if not heat-treated" error={htBad(f.htTemperature) ? 'Enter a temperature above 0, or leave it empty' : null}>
+          <NumInput value={f.htTemperature} onChange={(v) => set('htTemperature', v)} suffix="°C" bad={htBad(f.htTemperature)} />
         </Field>
-        <Field label="Soak Time" required>
-          <NumInput value={f.htSoakMinutes} onChange={(v) => set('htSoakMinutes', v)} suffix="min" />
-        </Field>
-        <Field label="Process">
-          <input className="input" value={f.htProcess} onChange={(e) => set('htProcess', e.target.value)} placeholder="e.g. Normalising" />
-        </Field>
-        <Field label="Quench">
-          <input className="input" value={f.htQuench} onChange={(e) => set('htQuench', e.target.value)} placeholder="e.g. Still air" />
+        <Field label="Soak Time" hint="Leave empty if not heat-treated" error={htBad(f.htSoakMinutes) ? 'Enter a time above 0, or leave it empty' : null}>
+          <NumInput value={f.htSoakMinutes} onChange={(v) => set('htSoakMinutes', v)} suffix="min" bad={htBad(f.htSoakMinutes)} />
         </Field>
       </div>
       <div className="section-label">Work to be done</div>

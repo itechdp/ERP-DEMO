@@ -319,7 +319,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const [manpower, setManpower] = useState(String(rec?.params.manpower ?? ''));
   const [date, setDate] = useState(todayISO());
   // T1–T4: the four temperatures recorded when a batch is heat-treated (each starts at the item's standard, or the saved value)
-  const [temps, setTemps] = useState<string[]>(() => ['t1', 't2', 't3', 't4'].map((k) => String(rec?.params[k] ?? rec?.params.temperature ?? p.htTemperature)));
+  const [temps, setTemps] = useState<string[]>(() => ['t1', 't2', 't3', 't4'].map((k) => String(rec?.params[k] ?? rec?.params.temperature ?? (p.htTemperature || ''))));
   const setTemp = (i: number, v: string) => setTemps((t) => t.map((x, j) => (j === i ? v : x)));
   // Forging only: send the batch past Trimming and / or Heat Treatment
   const [skipTrim, setSkipTrim] = useState(false);
@@ -442,7 +442,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
         </Field>
         {stage === 'heatTreatment' &&
           temps.map((t, i) => (
-            <Field key={i} label={`T${i + 1} (optional)`} error={tempErr(t)} hint={i === 0 ? `${p.name} standard: ${p.htTemperature}°C` : undefined}>
+            <Field key={i} label={`T${i + 1} (optional)`} error={tempErr(t)} hint={i === 0 ? (p.htTemperature ? `${p.name} standard: ${p.htTemperature}°C` : `${p.name}: no standard temperature set`) : undefined}>
               <NumInput value={t} onChange={(v) => setTemp(i, v)} suffix="°C" />
             </Field>
           ))}
