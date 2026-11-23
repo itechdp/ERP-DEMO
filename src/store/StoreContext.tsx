@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { dbMessage } from '../db/client';
+import { announceChange, onRemoteChange, onWindowBack } from '../db/sync';
 import { loadERPState, loadMasters, type Masters } from '../db/load';
 import { useAccess } from '../auth/access';
 import type { ERPState, ProcessStage } from './types';
@@ -105,16 +106,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setLoadedAt(loadedRef.current);
   }, []);
 
-  // other people work in the system too: when this tab is looked at again after 2 minutes, what is on screen is read again
+  // other people work in the system too: when this tab is looked at again (tab switch, tablet woken up, window focused) and the data
+  // is more than 15 s old, what is on screen is read again
+  useEffect(
+    () =>
+      onWindowBack(() => {
+        if (!runningRef.current && loadedRef.current && Date.now() - loadedRef.current > 15_000) void fetchAll().catch(() => undefined);
+      }),
+    [fetchAll],
+  );
+
+  // ...and when another device saves something (Realtime broadcast, see db/sync.ts) it is read again straight away. Several saves in a
+  // row are folded into one read; while this device is saving its own action the read waits (that action re-reads anyway).
   useEffect(() => {
-    const back = () => {
-      if (document.visibilityState === 'visible' && !runningRef.current && loadedRef.current && Date.now() - loadedRef.current > 120_000) void fetchAll().catch(() => undefined);
+    let timer: number | undefined;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (runningRef.current) return schedule();
+        void fetchAll().catch(() => undefined);
+      }, 600);
     };
-    document.addEventListener('visibilitychange', back);
-    window.addEventListener('focus', back);
+    const off = onRemoteChange((scope) => {
+      if (scope === 'erp') schedule();
+    });
     return () => {
-      document.removeEventListener('visibilitychange', back);
-      window.removeEventListener('focus', back);
+      off();
+      window.clearTimeout(timer);
     };
   }, [fetchAll]);
 
@@ -158,6 +176,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           toast({ kind: 'error', title: 'Action not allowed', message: dbMessage(e) });
           return false;
         }
+        // saved (the database has committed it): tell the other open devices to read it again
+        announceChange('erp');
         try {
           await fetchAll();
         } catch (e) {

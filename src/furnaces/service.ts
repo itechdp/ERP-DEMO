@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { dbMessage, supabase } from '../db/client';
 import { useStore } from '../store/StoreContext';
+import { announceChange, onRemoteChange, onWindowBack } from '../db/sync';
 
 export interface Furnace {
   id: number;
@@ -45,25 +46,32 @@ export async function fetchFurnaces(): Promise<{ furnaces: Furnace[]; loads: Fur
   };
 }
 
+/** Each furnace change is one database function call, committed when it returns; the other open devices are then told to re-read. */
+const saved = (e: { message: string } | null) => {
+  fail(e);
+  announceChange('furnaces');
+};
+
 export async function saveFurnace(id: number | null, name: string, active: boolean) {
-  fail((await supabase.rpc('save_furnace', { p_id: id, p_name: name, p_active: active })).error);
+  saved((await supabase.rpc('save_furnace', { p_id: id, p_name: name, p_active: active })).error);
 }
 export async function deleteFurnace(id: number) {
-  fail((await supabase.rpc('delete_furnace', { p_id: id })).error);
+  saved((await supabase.rpc('delete_furnace', { p_id: id })).error);
 }
 export async function assignFurnace(jobNo: string, furnaceId: number, shift: string, minutes: number, cycleNo: string, user: string) {
-  fail((await supabase.rpc('assign_furnace', { p_job_no: jobNo, p_furnace_id: furnaceId, p_shift: shift, p_minutes: minutes, p_cycle_no: cycleNo, p_user: user })).error);
+  saved((await supabase.rpc('assign_furnace', { p_job_no: jobNo, p_furnace_id: furnaceId, p_shift: shift, p_minutes: minutes, p_cycle_no: cycleNo, p_user: user })).error);
 }
 export async function setFurnaceTimer(loadId: number, minutesFromNow: number) {
-  fail((await supabase.rpc('set_furnace_timer', { p_load_id: loadId, p_minutes_from_now: minutesFromNow })).error);
+  saved((await supabase.rpc('set_furnace_timer', { p_load_id: loadId, p_minutes_from_now: minutesFromNow })).error);
 }
 export async function releaseFurnaceLoad(id: number) {
-  fail((await supabase.rpc('release_furnace_load', { p_load_id: id })).error);
+  saved((await supabase.rpc('release_furnace_load', { p_load_id: id })).error);
 }
 
 /**
  * The furnaces and what is loaded in them. A load whose timer has run out counts as free (it is released for good the next time a
- * batch is loaded or Heat Treatment is completed). Re-read on every store reload and once a minute so the timers stay current.
+ * batch is loaded or Heat Treatment is completed). Re-read on every store reload, as soon as another device changes a furnace
+ * (Realtime broadcast), whenever this window is looked at again, and once a minute so the timers stay current.
  */
 export function useFurnaces() {
   const { state } = useStore();
@@ -84,6 +92,8 @@ export function useFurnaces() {
     const t = window.setInterval(() => void refresh(), 60_000);
     return () => window.clearInterval(t);
   }, [refresh]);
+  useEffect(() => onRemoteChange((scope) => scope === 'furnaces' && void refresh()), [refresh]);
+  useEffect(() => onWindowBack(() => void refresh()), [refresh]);
 
   const active = data.furnaces.filter((f) => f.active);
   /** the load that is still running in a furnace (null = free) */

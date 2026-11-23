@@ -168,7 +168,9 @@ export function Layout({ route, children }: { route: string; children: ReactNode
   const [mobileOpen, setMobileOpen] = useState(false);
   useResponsiveTables();
   const [mini, setMini] = useState(() => readLS('forgeflow.sidebar') === 'mini');
-  const [closed, setClosed] = useState<Record<string, boolean>>({});
+  // Every menu group (and sub-group) starts CLOSED — on login and on every page refresh — and opens only when its heading is clicked.
+  // Kept in memory only (not saved), so a refresh always comes back with everything collapsed.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [theme, setTheme] = useState(() => document.documentElement.getAttribute('data-theme') ?? 'light');
 
   useEffect(() => {
@@ -234,12 +236,12 @@ export function Layout({ route, children }: { route: string; children: ReactNode
             ...SECTIONS.map((sec) => ({ ...sec, items: visible(sec.items) })).filter((sec) => sec.items.length > 0),
             ...(canManageAccess ? [SETTINGS_SECTION] : []),
           ].map((sec) => {
-            const isClosed = !mini && closed[sec.id];
+            const isClosed = !mini && !openGroups[sec.id];
             return (
               <div className="nav-sec" key={sec.id}>
                 <button
                   className={`nav-head ${isClosed ? 'closed' : ''}`}
-                  onClick={() => setClosed((c) => ({ ...c, [sec.id]: !c[sec.id] }))}
+                  onClick={() => setOpenGroups((o) => ({ ...o, [sec.id]: !o[sec.id] }))}
                   title={sec.title}
                   aria-expanded={!isClosed}
                 >
@@ -251,25 +253,26 @@ export function Layout({ route, children }: { route: string; children: ReactNode
                 </button>
                 {!isClosed && (
                   <div className="nav-children">
-                    {sec.items.map((n) =>
-                      n.children ? (
+                    {sec.items.map((n) => {
+                      if (!n.children) return leaf(n);
+                      const subKey = `sub:${n.route}`;
+                      const subClosed = !openGroups[subKey];
+                      return (
                         <div className="nav-sub" key={n.route}>
                           <button
-                            className={`nav-item nav-sub-head ${closed[`sub:${n.route}`] ? 'closed' : ''}`}
+                            className={`nav-item nav-sub-head ${subClosed ? 'closed' : ''}`}
                             title={n.label}
-                            aria-expanded={!closed[`sub:${n.route}`]}
-                            onClick={() => setClosed((c) => ({ ...c, [`sub:${n.route}`]: !c[`sub:${n.route}`] }))}
+                            aria-expanded={!subClosed}
+                            onClick={() => setOpenGroups((o) => ({ ...o, [subKey]: !o[subKey] }))}
                           >
                             <n.icon size={18} />
                             <span className="lbl">{n.label}</span>
                             <ChevronDown size={14} className="chev" />
                           </button>
-                          {!closed[`sub:${n.route}`] && <div className="nav-sub-children">{n.children.map(leaf)}</div>}
+                          {!subClosed && <div className="nav-sub-children">{n.children.map(leaf)}</div>}
                         </div>
-                      ) : (
-                        leaf(n)
-                      ),
-                    )}
+                      );
+                    })}
                   </div>
                 )}
               </div>

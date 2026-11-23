@@ -7,6 +7,7 @@ import { MetalWeightCalculator } from '../metalweight/MetalWeightCalculator';
 import { fetchEvents } from '../calendar/service';
 import { isoOf, startOf, time12, type CalEvent } from '../calendar/logic';
 import { fmtDate, todayISO } from '../components/format';
+import { onRemoteChange, onWindowBack } from '../db/sync';
 import { addMaterialLog, addPettyCash, deleteMaterialLog, deletePettyCash, fetchMaterialLog, fetchPettyCash, updateMaterialLog, updatePettyCash, type MaterialLogRow, type PettyCashRow } from './service';
 
 const inr = (v: number) => `₹ ${v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -40,8 +41,15 @@ export function UtilityWidgets() {
     return () => window.clearInterval(id);
   }, [loadToday]);
   const next = today.find((e) => startOf(e).getTime() >= Date.now());
-  const cash = useRows<PettyCashRow>(fetchPettyCash);
+  // petty cash is per role: only this role's entries (and so this role's total) are loaded
+  const loadCash = useCallback(() => fetchPettyCash(role), [role]);
+  const cash = useRows<PettyCashRow>(loadCash);
   const log = useRows<MaterialLogRow>(fetchMaterialLog);
+  // another device saved an entry, or this window is looked at again: read the cards again so the totals stay current
+  const { reload: reloadCash } = cash;
+  const { reload: reloadLog } = log;
+  useEffect(() => onRemoteChange((scope) => { if (scope === 'petty') void reloadCash(); else if (scope === 'material') void reloadLog(); }), [reloadCash, reloadLog]);
+  useEffect(() => onWindowBack(() => { void reloadCash(); void reloadLog(); }), [reloadCash, reloadLog]);
   const cashTotal = cash.rows.reduce((t, r) => t + r.amount, 0);
   const kgTotal = log.rows.reduce((t, r) => t + r.weightKg, 0);
   const close = () => { setOpen(null); void loadToday(); };
