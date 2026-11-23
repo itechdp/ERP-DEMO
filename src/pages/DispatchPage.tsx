@@ -8,6 +8,7 @@ import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { dispatchDeleteReason } from '../store/deletable';
 import { fgAvailable, getProduct, isToday, round3 } from '../store/engine';
+import { useProductFlows } from '../products/flow';
 import type { Dispatch } from '../store/types';
 import { Badge, Empty, Field, JobLink, Modal, PageHeader, rowTone, Search, SummaryLine, FilterMenu, Confirm } from '../components/ui';
 import { tsFor } from '../components/NewJobModal';
@@ -25,6 +26,9 @@ type Filter = 'all' | 'Ready for Dispatch' | 'Dispatched' | 'today';
 
 export function DispatchPage() {
   const { state, openTrace, openAction, run } = useStore();
+  const pflow = useProductFlows();
+  // the route card lists only the processes the job's product goes through
+  const flowOfJob = (jobNo: string) => pflow.of(state.jobs.find((x) => x.jobNo === jobNo)?.productId ?? '');
   const soOf = (jobNo: string) => state.jobs.find((j) => j.jobNo === jobNo)?.salesOrderNo ?? '';
   const [deleting, setDeleting] = useState<Dispatch | null>(null);
   const { can } = useAccess();
@@ -160,7 +164,7 @@ export function DispatchPage() {
                             <Truck size={13} /> Dispatch
                           </button>
                         )}
-                        <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle', marginLeft: 4 }} title="Print process route card" onClick={() => printRouteCard(state, d.jobNo)}>
+                        <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle', marginLeft: 4 }} title="Print process route card" onClick={() => printRouteCard(state, d.jobNo, flowOfJob(d.jobNo))}>
                           <ClipboardList size={16} />
                         </button>
                         {(() => {
@@ -373,6 +377,9 @@ function ShipModal({ d, onClose }: { d: Dispatch; onClose: () => void }) {
 
 function PackingList({ d, onClose }: { d: Dispatch; onClose: () => void }) {
   const { state, toast } = useStore();
+  const pflow = useProductFlows();
+  // the route card lists only the processes the job's product goes through
+  const flowOfJob = (jobNo: string) => pflow.of(state.jobs.find((x) => x.jobNo === jobNo)?.productId ?? '');
   const p = getProduct(state, d.productId);
   return (
     <Modal
@@ -383,8 +390,8 @@ function PackingList({ d, onClose }: { d: Dispatch; onClose: () => void }) {
       subtitle={canSee('party_names') ? `${d.customer} · ${fmtDate(d.date)}` : fmtDate(d.date)}
       footer={
         <>
-          <DocButtons only="excel" build={(u) => docs.routeCardSpec(state, d.jobNo, u)} />
-          <button className="btn" onClick={() => printRouteCard(state, d.jobNo)}>
+          <DocButtons only="excel" build={(u) => docs.routeCardSpec(state, d.jobNo, u, flowOfJob(d.jobNo))} />
+          <button className="btn" onClick={() => printRouteCard(state, d.jobNo, flowOfJob(d.jobNo))}>
             <ClipboardList size={15} /> Print Route Card
           </button>
           <button className="btn" onClick={() => void exportPackingListXlsx(state, d, currentUserName()).catch((e) => toast({ kind: 'error', title: 'Could not export', message: e instanceof Error ? e.message : String(e) }))}>

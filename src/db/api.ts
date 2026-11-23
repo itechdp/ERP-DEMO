@@ -65,6 +65,10 @@ export const createJob = async (i: JobInput, ts?: string) => {
 /** the bars / pieces a new job card plans to use for Cutting (migration 87); the Cutting form starts with them */
 export const setCuttingBars = (jobNo: string, bars: number) => call<void>('set_cutting_bars', { p_job_no: jobNo, p_bars: bars });
 
+/** correct a stage entry that was already saved (migration 90): the OK quantity is passed on to the later stages / QC still waiting */
+export const editStage = (stage: ProcessStage, jobNo: string, i: { loss: number; inputQty?: number; operator: string; params: Record<string, string | number | null> }, ts?: string) =>
+  call<void>('edit_stage', { p_stage: stage, p_job_no: jobNo, p_loss: i.loss, p_input_qty: i.inputQty ?? null, p_operator: i.operator, p_params: i.params, p_ts: ts ?? null });
+
 export const startStage = (stage: ProcessStage, jobNo: string, i: StartInput, ts?: string) =>
   call<void>('start_stage', { p_stage: stage, p_job_no: jobNo, p_input_qty: i.inputQty, p_machine: i.machine, p_operator: i.operator, p_params: i.params, p_ts: ts });
 

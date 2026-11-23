@@ -1,7 +1,7 @@
 import * as api from '../db/api';
 import { searchable, canSee, Write, Conf, searchableCol } from '../auth/access';
 import { useMemo, useState } from 'react';
-import { CheckCircle2, Eye, Play, Plus, Waypoints, Trash2 } from 'lucide-react';
+import { CheckCircle2, Eye, Pencil, Play, Plus, Waypoints, Trash2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { jobDeleteReason } from '../store/deletable';
 import { getJob, getProduct, parseMaterialKey, PROCESS_STAGES, STAGE_LABEL, stageRecords } from '../store/engine';
@@ -183,7 +183,7 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
               </thead>
               <tbody>
                 {pg.rows.map((r) => (
-                  <Row key={r.id} r={r} approval={plan.find(r.jobNo, stage)} block={r.status === 'Pending' ? blockOf(r.jobNo, stage) : null} onProcess={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo })} deleteReason={jobDeleteReason(state, r.jobNo)} onDelete={() => setDeleting(r.jobNo)} />
+                  <Row key={r.id} r={r} approval={plan.find(r.jobNo, stage)} block={r.status === 'Pending' ? blockOf(r.jobNo, stage) : null} onProcess={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo })} onEdit={() => openAction({ kind: 'stage', stage, jobNo: r.jobNo, edit: true })} deleteReason={jobDeleteReason(state, r.jobNo)} onDelete={() => setDeleting(r.jobNo)} />
                 ))}
               </tbody>
             </table>
@@ -207,7 +207,10 @@ export function StagePage({ stage }: { stage: ProcessStage }) {
   );
 }
 
-function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: StageRecord; approval?: { rank: number }; block: Block; onProcess: () => void; deleteReason: string | null; onDelete: () => void }) {
+/** the page whose Write access a stage needs */
+const STAGE_RES: Record<ProcessStage, string> = { cutting: 'cutting', forging: 'forging', trimming: 'trimming', heatTreatment: 'heat_treatment', cnc: 'cnc', vmc: 'vmc' };
+
+function Row({ r, approval, block, onProcess, onEdit, deleteReason, onDelete }: { r: StageRecord; approval?: { rank: number }; block: Block; onProcess: () => void; onEdit: () => void; deleteReason: string | null; onDelete: () => void }) {
   const { state, openTrace, toast } = useStore();
   const job = getJob(state, r.jobNo);
   const p = getProduct(state, job.productId);
@@ -216,7 +219,9 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
   // Cutting only: is there enough of our own bar for this job card? (customer's material never uses our stock)
   const ownBar = (state.jobWork.find((w) => w.jobNo === r.jobNo)?.materialSource ?? 'own') === 'own';
   const barLeft = state.rawMaterials.filter((l) => `${l.material}|${l.od}` === job.materialKey).reduce((t, l) => t + l.availableQty, 0);
-  const stockChip = r.stage === 'cutting' && r.status === 'Pending' && ownBar ? (barLeft <= 0 ? ['chip chip-hot', 'Not in stock'] : barLeft < r.input ? ['chip chip-wait', `Low in stock (${fmtNum(barLeft)} PCS)`] : null) : null;
+  // bars are counted on their own (migration 87): compare with the bars this job card plans to use, not with the pieces to cut
+  const barsNeeded = r.params.barsPlanned !== undefined ? Number(r.params.barsPlanned) : 0;
+  const stockChip = r.stage === 'cutting' && r.status === 'Pending' && ownBar ? (barLeft <= 0 ? ['chip chip-hot', 'Not in stock'] : barLeft < barsNeeded ? ['chip chip-wait', `Low in stock (${fmtNum(barLeft)} bars)`] : null) : null;
   const act = () => {
     if (!canAct) return;
     if (block) return toast({ kind: 'info', title: block === 'approval' ? 'Not approved to start yet' : 'No furnace yet', message: block === 'approval' ? `${r.jobNo} must be approved in Heat Treatment Planning (with its rank) before ${STAGE_LABEL[r.stage]} can start.` : `${r.jobNo} needs a furnace: assign one in Heat Treatment Planning (on hold until one is free).` });
@@ -281,6 +286,21 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
           >
             <Eye size={16} />
           </button>
+          {r.status === 'Completed' && !r.params.skipped && r.output > 0 && (
+            <Write res={STAGE_RES[r.stage]}>
+              <button
+                className="icon-btn"
+                title="Edit — correct this entry"
+                aria-label={`Edit ${r.jobNo}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+              >
+                <Pencil size={16} />
+              </button>
+            </Write>
+          )}
           <Write res="cutting">
             <button
               className="icon-btn danger"
@@ -303,24 +323,25 @@ function Row({ r, approval, block, onProcess, deleteReason, onDelete }: { r: Sta
 
 // ---------------------------------------------------------------------------
 /** One row of the route card: Inward Date, Received Qty, Rejection Qty, OK Qty, Checked By. */
-export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; jobNo: string; onClose: () => void }) {
+export function StageModal({ stage, jobNo, edit = false, onClose }: { stage: ProcessStage; jobNo: string; edit?: boolean; onClose: () => void }) {
   const { state, run, masters, busy } = useStore();
   const plan = usePlan();
   const fu = useFurnaces();
-  const rec = stageRecords(state, stage).find((r) => r.jobNo === jobNo && r.status !== 'Completed');
+  // a new entry works on the record still waiting; a correction (edit) on the one already saved
+  const rec = stageRecords(state, stage).find((r) => r.jobNo === jobNo && (edit ? r.status === 'Completed' && !r.params.skipped : r.status !== 'Completed'));
   const job = getJob(state, jobNo);
   const p = getProduct(state, job.productId);
   const cfg = CFG[stage];
 
-  const [rejection, setRejection] = useState('0');
+  const [rejection, setRejection] = useState(edit && rec ? String(rec.loss) : '0');
   // Cutting: the OK quantity is typed freely (more or less than the job card's quantity); bars and weight are entered on their own
-  const [okTyped, setOkTyped] = useState(String(rec?.input ?? 0));
+  const [okTyped, setOkTyped] = useState(String((edit ? rec?.output : rec?.input) ?? 0));
   const [bars, setBars] = useState(rec?.params.barsPlanned !== undefined ? String(rec.params.barsPlanned) : '');
   const [weightTyped, setWeightTyped] = useState<string | null>(null);
   const [checkedBy, setCheckedBy] = useState(rec?.operator ?? '');
   // the forger / operator(s) who did the work — a name from Settings → Drop-down Lists → Plant Staff, saved with the stage record
   const [manpower, setManpower] = useState(String(rec?.params.manpower ?? ''));
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(edit && rec?.completedAt ? rec.completedAt.slice(0, 10) : todayISO());
   // T1–T4: the four temperatures recorded when a batch is heat-treated (each starts at the item's standard, or the saved value)
   const [temps, setTemps] = useState<string[]>(() => ['t1', 't2', 't3', 't4'].map((k) => String(rec?.params[k] ?? rec?.params.temperature ?? (p.htTemperature || ''))));
   const setTemp = (i: number, v: string) => setTemps((t) => t.map((x, j) => (j === i ? v : x)));
@@ -329,8 +350,8 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const [skipHT, setSkipHT] = useState(false);
 
   if (!rec) return null;
-  // Cutting that has not been issued yet: OK and Rejection are typed, the total cut is OK + Rejection (no limit against the job card)
-  const editableInput = stage === 'cutting' && rec.status === 'Pending';
+  // Cutting (not issued yet, or being corrected): OK and Rejection are typed, the total cut is OK + Rejection (no limit against the job card)
+  const editableInput = stage === 'cutting' && (rec.status === 'Pending' || edit);
   // Heat Treatment: nothing is mandatory — an empty rejection simply means none rejected
   const optional = stage === 'heatTreatment';
   const rejN = optional && rejection.trim() === '' ? 0 : Number(rejection);
@@ -341,7 +362,8 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const ownStock = (state.jobWork.find((w) => w.jobNo === jobNo)?.materialSource ?? 'own') === 'own';
   const raw = rawStockOf(state, job.materialKey);
   // raw stock taken by this cutting: the bars / pieces consumed (typed) and the weight cut (pieces × weight per piece, can be typed over)
-  const issuing = editableInput && ownStock;
+  // (a correction never changes what was taken from raw stock)
+  const issuing = editableInput && ownStock && !edit;
   const barsN = Number(bars);
   const autoKg = job.pieceWeightG && inN > 0 ? Math.round(inN * job.pieceWeightG) / 1000 : 0;
   const weight = weightTyped ?? (autoKg ? String(autoKg) : '');
@@ -364,6 +386,20 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
 
   const save = async () => {
     if (invalid) return;
+    if (edit) {
+      // corrected fields only; an emptied Manpower or temperature is cleared (sent as null)
+      const t = htParams(temps) as Record<string, number | undefined>;
+      const params: Record<string, string | number | null> = {
+        manpower: manpower || null,
+        ...(stage === 'heatTreatment' ? { t1: t.t1 ?? null, t2: t.t2 ?? null, t3: t.t3 ?? null, t4: t.t4 ?? null, temperature: t.temperature ?? null } : {}),
+      };
+      const saved = await run((now) => api.editStage(stage, jobNo, { loss: rejN, inputQty: stage === 'cutting' ? inN : undefined, operator: checkedBy, params }, tsFor(date, now)), {
+        title: `${STAGE_LABEL[stage]} corrected`,
+        message: ok !== rec.output ? `${jobNo}: OK ${fmtNum(rec.output)} → ${fmtNum(ok)} PCS — passed on to the next stage.` : jobNo,
+      });
+      if (saved) onClose();
+      return;
+    }
     const stageParams: Record<string, string | number> = {
       ...(issuing ? { barsConsumed: barsN, weightKg: wN } : {}),
       ...(stage === 'forging' ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : stage === 'heatTreatment' ? htParams(temps) : {}),
@@ -396,7 +432,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
       onClose={onClose}
       size="lg"
       icon={FLOW_STEPS.find((f) => f.key === stage)!.icon}
-      title={`${STAGE_LABEL[stage]} — ${jobNo}`}
+      title={`${edit ? 'Edit ' : ''}${STAGE_LABEL[stage]} — ${jobNo}`}
       subtitle={`${p.name} · ${parseMaterialKey(job.materialKey).material} Ø${parseMaterialKey(job.materialKey).od}`}
       footer={
         <>
@@ -404,7 +440,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
             Cancel
           </button>
           <button className="btn btn-success" disabled={invalid || busy} onClick={save}>
-            <CheckCircle2 size={15} /> Save &amp; send {ok > 0 ? `${fmtNum(ok)} PCS ` : ''}to {to}
+            <CheckCircle2 size={15} /> {edit ? 'Save Changes' : <>Save &amp; send {ok > 0 ? `${fmtNum(ok)} PCS ` : ''}to {to}</>}
           </button>
         </>
       }
@@ -423,7 +459,14 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
           </div>
         </div>
       )}
-      {stage === 'forging' && (
+      {edit && (
+        <div className="callout info" style={{ marginBottom: 16 }}>
+          <div>
+            Correcting a saved entry. A changed OK quantity is passed on to the later stages{stage === 'cutting' ? '; the bars and weight taken from raw stock stay as they were' : ''}. Once QC has inspected the batch only the names, date and temperatures can change.
+          </div>
+        </div>
+      )}
+      {stage === 'forging' && !edit && (
         <div className="check-row" style={{ marginBottom: 16 }}>
           <label className={`check ${skipTrim ? 'on' : ''}`}>
             <input type="checkbox" checked={skipTrim} onChange={(e) => setSkipTrim(e.target.checked)} />

@@ -2,6 +2,8 @@
 import { canSee, colOk } from '../auth/access';
 import { getJob, getProduct, round3, STAGE_LABEL } from '../store/engine';
 import type { ERPState, ProcessStage } from '../store/types';
+import type { ProductFlow } from '../products/flow';
+import { jobStages } from '../products/jobStages';
 import { printHtml } from './printHtml';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -28,7 +30,7 @@ body{margin:0;font-family:-apple-system,'Segoe UI','Noto Sans Gujarati','Shruti'
 /** the Process Route Card stylesheet — the Sales printouts reuse it so every printed form looks the same */
 export const ROUTE_CARD_CSS = CSS;
 
-export function routeCardHtml(s: ERPState, jobNo: string) {
+export function routeCardHtml(s: ERPState, jobNo: string, flow?: ProductFlow) {
   const job = getJob(s, jobNo);
   const p = getProduct(s, job.productId);
   const lot = s.rawMaterials.find((l) => l.id === job.issues[0]?.lotId);
@@ -45,11 +47,12 @@ export function routeCardHtml(s: ERPState, jobNo: string) {
   const stageRow = (i: number, label: string, st: ProcessStage) => {
     const r = rec(st);
     const done = r?.status === 'Completed';
-    if (r?.params.skipped) return `<tr><td class="n">${i}</td><td class="p">${label}</td><td>${dmy(r.receivedAt)}</td><td colspan="4" class="skip">Not required — skipped</td></tr>`;
     return `<tr><td class="n">${i}</td><td class="p">${label}</td><td>${dmy(r?.receivedAt)}</td><td>${r ? r.input : ''}</td><td>${done ? r!.output : ''}</td><td>${done ? r!.loss : ''}</td><td>${done && colOk('stage.operator') ? esc(r!.operator) : ''}</td></tr>`;
   };
   const qcDone = qc && qc.status !== 'QC Pending';
-  const qcRow = `<tr><td class="n">7</td><td class="p">QC Inspection</td><td>${dmy(qc?.receivedAt)}</td><td>${qc ? qc.input : ''}</td><td>${qcDone ? qc!.accepted : ''}</td><td>${qcDone ? qc!.rejected : ''}</td><td>${qcDone && colOk('qc.inspector') ? esc(qc!.inspector) : ''}</td></tr>`;
+  // only the processes this job goes through, numbered 1, 2, 3 … (a skipped or unticked process is left out)
+  const stages = jobStages(s, jobNo, flow);
+  const qcRow = `<tr><td class="n">${stages.length + 1}</td><td class="p">QC Inspection</td><td>${dmy(qc?.receivedAt)}</td><td>${qc ? qc.input : ''}</td><td>${qcDone ? qc!.accepted : ''}</td><td>${qcDone ? qc!.rejected : ''}</td><td>${qcDone && colOk('qc.inspector') ? esc(qc!.inspector) : ''}</td></tr>`;
 
   // ---- bag weights: two columns of bags, as on the paper card (bags 1-12 | 13-24 …)
   const perCol = Math.max(12, Math.ceil(bags.length / 2));
@@ -89,7 +92,7 @@ export function routeCardHtml(s: ERPState, jobNo: string) {
   </table>
   <table class="pt">
     <tr><th style="width:34px">Sr. No.</th><th>Process</th><th>Inward Date</th><th>Received Qty.</th><th>OK Qty.</th><th>Rejection Qty.</th><th>Checked By</th></tr>
-    ${stageRow(1, STAGE_LABEL.cutting, 'cutting')}${stageRow(2, STAGE_LABEL.forging, 'forging')}${stageRow(3, STAGE_LABEL.trimming, 'trimming')}${stageRow(4, STAGE_LABEL.heatTreatment, 'heatTreatment')}${stageRow(5, STAGE_LABEL.cnc, 'cnc')}${stageRow(6, STAGE_LABEL.vmc, 'vmc')}${qcRow}
+    ${stages.map((st, k) => stageRow(k + 1, STAGE_LABEL[st], st)).join('')}${qcRow}
   </table>
   <table class="bg">
     <tr><th>Sr.</th><th>Bag Weight (KG)</th><th>Bag Weight (KG)</th><th style="width:30%">Packing / Dispatch</th></tr>
@@ -100,4 +103,4 @@ export function routeCardHtml(s: ERPState, jobNo: string) {
 </div>`;
 }
 
-export const printRouteCard = (s: ERPState, jobNo: string) => printHtml(`Process Route Card ${jobNo}`, routeCardHtml(s, jobNo), CSS);
+export const printRouteCard = (s: ERPState, jobNo: string, flow?: ProductFlow) => printHtml(`Process Route Card ${jobNo}`, routeCardHtml(s, jobNo, flow), CSS);

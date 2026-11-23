@@ -3,7 +3,9 @@
 // sales rates, purchase rates.
 import { canSee } from '../auth/access';
 import { dmy } from '../sales/print';
-import { getJob, getProduct, hardnessVerdict, jobSummary, readingResult, requiredText, STAGE_LABEL, PROCESS_STAGES } from '../store/engine';
+import { getJob, getProduct, hardnessVerdict, jobSummary, readingResult, requiredText, STAGE_LABEL } from '../store/engine';
+import type { ProductFlow } from '../products/flow';
+import { jobStages } from '../products/jobStages';
 import type { Dispatch, ERPState, HardnessReport, JobWork, QCRecord, RawMaterialLot } from '../store/types';
 import type { InvoiceDetail, PRDetail, PurchasePayment, RFQDetail, SQDetail, ComparisonMatrix, SupplierPayable } from '../purchase/types';
 import type { OrderLine, OrderRow } from '../salesmod/types';
@@ -328,7 +330,7 @@ export function qcRecordSpec(s: ERPState, q: QCRecord, user: string): SheetSpec 
 }
 
 /** the Process Route Card as a sheet */
-export function routeCardSpec(s: ERPState, jobNo: string, user: string): SheetSpec {
+export function routeCardSpec(s: ERPState, jobNo: string, user: string, flow?: ProductFlow): SheetSpec {
   const j = jobSummary(s, jobNo);
   const job = j.job;
   const bags = j.dispatches.flatMap((x) => x.bags.map((b) => ({ x, b })));
@@ -349,12 +351,12 @@ export function routeCardSpec(s: ERPState, jobNo: string, user: string): SheetSp
         headers: ['Sr. No.', 'Process', 'Inward Date', 'Received Qty', 'OK Qty', 'Rejection Qty', 'Checked By'],
         align: ['center', 'left', 'center', 'right', 'right', 'right', 'left'],
         rows: [
-          ...PROCESS_STAGES.map((st, i) => {
+          // only the processes this job goes through (a skipped or unticked process is left out)
+          ...jobStages(s, jobNo, flow).map((st, i) => {
             const r = j.records[st];
-            const skipped = !!r?.params.skipped;
-            return { cells: [i + 1, STAGE_LABEL[st], r ? d(r.receivedAt) : '', skipped ? 'Not required — skipped' : r?.input ?? '', skipped ? '' : r?.status === 'Completed' ? r.output : '', skipped ? '' : r?.status === 'Completed' ? r.loss : '', r?.operator ?? ''] as SheetValue[] };
+            return { cells: [i + 1, STAGE_LABEL[st], r ? d(r.receivedAt) : '', r?.input ?? '', r?.status === 'Completed' ? r.output : '', r?.status === 'Completed' ? r.loss : '', r?.operator ?? ''] as SheetValue[] };
           }),
-          { cells: [PROCESS_STAGES.length + 1, 'QC Inspection', j.qc ? d(j.qc.receivedAt) : '', j.qc?.input ?? '', j.qc && j.qc.status !== 'QC Pending' ? j.qc.accepted : '', j.qc && j.qc.status !== 'QC Pending' ? j.qc.rejected : '', j.qc?.inspector ?? ''] as SheetValue[] },
+          { cells: [jobStages(s, jobNo, flow).length + 1, 'QC Inspection', j.qc ? d(j.qc.receivedAt) : '', j.qc?.input ?? '', j.qc && j.qc.status !== 'QC Pending' ? j.qc.accepted : '', j.qc && j.qc.status !== 'QC Pending' ? j.qc.rejected : '', j.qc?.inspector ?? ''] as SheetValue[] },
         ],
       },
       ...(bags.length

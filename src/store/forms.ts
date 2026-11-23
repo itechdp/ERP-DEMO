@@ -30,7 +30,7 @@ export function actionToHash(a: Action): string {
     case 'inward':
       return 'form/inward' + qs({ material: a.material, od: a.od, id: a.id, view: a.view ? 1 : undefined });
     case 'stage':
-      return 'form/stage' + qs({ job: a.jobNo, stage: a.stage });
+      return 'form/stage' + qs({ job: a.jobNo, stage: a.stage, edit: a.edit ? 1 : undefined });
     case 'qc':
       return 'form/qc' + qs({ job: a.jobNo });
     case 'hardness':
@@ -57,7 +57,7 @@ export function hashToAction(route: string, q: URLSearchParams): Action | null {
     case 'form/stage': {
       const stage = q.get('stage') as ProcessStage | null;
       const job = q.get('job');
-      return stage && job && STAGES.includes(stage) ? { kind: 'stage', stage, jobNo: job } : null;
+      return stage && job && STAGES.includes(stage) ? { kind: 'stage', stage, jobNo: job, edit: q.get('edit') === '1' } : null;
     }
     case 'form/qc':
       return q.get('job') ? { kind: 'qc', jobNo: q.get('job')! } : null;

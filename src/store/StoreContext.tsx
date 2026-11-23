@@ -12,7 +12,7 @@ export type Action =
   | { kind: 'jobWork' }
   | { kind: 'product'; id?: string; /** show the record read-only (same form, nothing editable) */ view?: boolean }
   | { kind: 'inward'; material?: string; od?: number; /** a lot to correct (edit) instead of a new inward */ id?: string; view?: boolean }
-  | { kind: 'stage'; stage: ProcessStage; jobNo: string }
+  | { kind: 'stage'; stage: ProcessStage; jobNo: string; /** correct an entry that was already saved (Completed) */ edit?: boolean }
   | { kind: 'qc'; jobNo: string }
   | { kind: 'hardness'; id?: string; jobNo?: string; view?: boolean }
   | { kind: 'dispatch'; fgId: string };

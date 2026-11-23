@@ -9,6 +9,8 @@ import { nextStep } from './workflow';
 import { fmtDate, fmtDateTime, fmtKg, fmtNum, heatTempText } from './format';
 import { printPage } from '../native/native';
 import { TraceExtras } from './TraceExtras';
+import { useProductFlows } from '../products/flow';
+import { jobStages } from '../products/jobStages';
 
 type NodeState = 'done' | 'current' | 'upcoming' | 'final';
 
@@ -86,6 +88,7 @@ function reconcile(j: JobSummary) {
 export function TraceDrawer() {
   const { state, traceJob, openTrace, openAction } = useStore();
   const { can } = useAccess();
+  const pflow = useProductFlows();
 
   useEffect(() => {
     if (!traceJob) return;
@@ -288,10 +291,10 @@ export function TraceDrawer() {
               )}
             </Node>
 
-            {/* 2-5 · PROCESS STAGES */}
-            {PROCESS_STAGES.map((st: ProcessStage, idx) => {
+            {/* 2-7 · PROCESS STAGES — only the ones this job goes through (unticked / skipped processes are left out) */}
+            {jobStages(state, job.jobNo, pflow.of(job.productId)).map((st: ProcessStage) => {
               const r = j.records[st];
-              const i = idx + 1;
+              const i = PROCESS_STAGES.indexOf(st) + 1;
               const s = r ? (r.status === 'Completed' ? 'done' : 'current') : nodeState(i);
               return (
                 <Node

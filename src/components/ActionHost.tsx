@@ -45,7 +45,7 @@ export function ActionHost({ page }: { page?: boolean }) {
       body = <InwardModal preset={action} onClose={close} />;
       break;
     case 'stage':
-      body = <StageModal key={action.jobNo + action.stage} stage={action.stage} jobNo={action.jobNo} onClose={close} />;
+      body = <StageModal key={action.jobNo + action.stage + (action.edit ? ':edit' : '')} stage={action.stage} jobNo={action.jobNo} edit={!!action.edit} onClose={close} />;
       break;
     case 'qc':
       body = <InspectModal key={action.jobNo} jobNo={action.jobNo} onClose={close} />;
