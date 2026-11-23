@@ -67,7 +67,9 @@ export interface RawMaterialLot {
   invoiceNo: string;
   inwardQty: number; // PCS
   inwardWeight: number; // KG
-  availableQty: number; // PCS — reduces as material is issued to Cutting
+  availableQty: number;
+  /** KG left (migration 87: Cutting takes weight and bars separately); absent on older databases — then it follows the bars */
+  availableWeight?: number; // PCS — reduces as material is issued to Cutting
   purchaseRate?: number; // CONFIDENTIAL — ₹ per KG
   unit: 'PCS';
   /** PCS rejected at incoming QC: not usable, and not counted as issued (database migration 32; undefined before it is installed) */

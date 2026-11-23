@@ -35,6 +35,8 @@ function stageParams(r: StageRecord) {
   const p = r.params;
   const items: [string, ReactNode][] = [];
   if (r.stage === 'cutting' && p.cuttingLength) items.push(['Cutting length', `${p.cuttingLength} mm`]);
+  if (r.stage === 'cutting' && p.barsConsumed !== undefined) items.push(['Bars consumed', `${p.barsConsumed}`]);
+  if (r.stage === 'cutting' && p.weightKg !== undefined) items.push(['Weight cut', `${p.weightKg} KG`]);
   if (r.stage === 'forging' && p.dieNo && colOk('product.die_no')) items.push(['Die', p.dieNo]);
   if (r.stage === 'trimming' && p.trimDie) items.push(['Trim die', p.trimDie]);
   if (r.stage === 'heatTreatment') {

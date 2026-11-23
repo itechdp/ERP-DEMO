@@ -7,9 +7,9 @@ import { jobDeleteReason } from '../store/deletable';
 import { getJob, getProduct, parseMaterialKey, PROCESS_STAGES, STAGE_LABEL, stageRecords } from '../store/engine';
 import type { ProcessStage, StageRecord } from '../store/types';
 import { Badge, Empty, Field, FLOW_STEPS, InlineQty, JobLink, Modal, NumInput, PageHeader, QtyFlow, rowTone, Search, SummaryLine, FilterMenu, Confirm } from '../components/ui';
-import { FifoPreview, tsFor } from '../components/NewJobModal';
+import { FifoPreview, rawStockOf, tsFor } from '../components/NewJobModal';
 import { nextStep } from '../components/workflow';
-import { fmtNum, heatTempText, matches, todayISO } from '../components/format';
+import { fmtKg, fmtNum, heatTempText, matches, todayISO } from '../components/format';
 import { usePlan } from '../planning/usePlan';
 import { useFurnaces } from '../furnaces/service';
 import { useProductFlows } from '../products/flow';
@@ -312,8 +312,11 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const p = getProduct(state, job.productId);
   const cfg = CFG[stage];
 
-  const [received, setReceived] = useState(String(rec?.input ?? 0));
   const [rejection, setRejection] = useState('0');
+  // Cutting: the OK quantity is typed freely (more or less than the job card's quantity); bars and weight are entered on their own
+  const [okTyped, setOkTyped] = useState(String(rec?.input ?? 0));
+  const [bars, setBars] = useState(rec?.params.barsPlanned !== undefined ? String(rec.params.barsPlanned) : '');
+  const [weightTyped, setWeightTyped] = useState<string | null>(null);
   const [checkedBy, setCheckedBy] = useState(rec?.operator ?? '');
   // the forger / operator(s) who did the work — a name from Settings → Drop-down Lists → Plant Staff, saved with the stage record
   const [manpower, setManpower] = useState(String(rec?.params.manpower ?? ''));
@@ -326,19 +329,29 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const [skipHT, setSkipHT] = useState(false);
 
   if (!rec) return null;
-  // Cutting: the received qty is the cut qty, issued from raw stock (editable until issued)
+  // Cutting that has not been issued yet: OK and Rejection are typed, the total cut is OK + Rejection (no limit against the job card)
   const editableInput = stage === 'cutting' && rec.status === 'Pending';
-  const inN = editableInput ? Number(received) : rec.input;
   // Heat Treatment: nothing is mandatory — an empty rejection simply means none rejected
   const optional = stage === 'heatTreatment';
   const rejN = optional && rejection.trim() === '' ? 0 : Number(rejection);
-  const ok = inN - rejN;
+  const okN = Number(okTyped);
+  const inN = editableInput ? okN + (Number.isFinite(rejN) ? rejN : 0) : rec.input;
+  const ok = editableInput ? okN : inN - rejN;
   // job work on the customer's material never touches our raw inventory
   const ownStock = (state.jobWork.find((w) => w.jobNo === jobNo)?.materialSource ?? 'own') === 'own';
-  const rawAvail = state.rawMaterials.filter((l) => `${l.material}|${l.od}` === job.materialKey).reduce((t, l) => t + l.availableQty, 0);
+  const raw = rawStockOf(state, job.materialKey);
+  // raw stock taken by this cutting: the bars / pieces consumed (typed) and the weight cut (pieces × weight per piece, can be typed over)
+  const issuing = editableInput && ownStock;
+  const barsN = Number(bars);
+  const autoKg = job.pieceWeightG && inN > 0 ? Math.round(inN * job.pieceWeightG) / 1000 : 0;
+  const weight = weightTyped ?? (autoKg ? String(autoKg) : '');
+  const wN = Number(weight);
+  const errBars = !issuing ? null : bars.trim() === '' ? 'Enter the bars used (0 if none)' : !(barsN >= 0) || !Number.isInteger(barsN) ? 'Whole number' : barsN > raw.bars ? `Only ${fmtNum(raw.bars)} bars in stock` : null;
+  const errW = !issuing ? null : !(wN > 0) ? 'Enter the weight cut' : wN > raw.kg + 0.0005 ? `Only ${fmtKg(raw.kg)} in stock` : null;
 
-  const errIn = editableInput ? (!(inN > 0) || !Number.isInteger(inN) ? 'Enter a whole quantity' : ownStock && inN > rawAvail ? `Only ${rawAvail} PCS in raw stock` : null) : null;
-  const errRej = (!optional && rejection === '') || rejN < 0 || !Number.isInteger(rejN) ? 'Whole number' : rejN > inN ? `Cannot exceed ${inN}` : null;
+  const errOk = editableInput ? (okTyped.trim() === '' || !(okN >= 0) || !Number.isInteger(okN) ? 'Enter a whole quantity' : !(inN > 0) ? 'Enter the OK or rejected pieces' : null) : null;
+  const errIn = editableInput ? errOk || errBars || errW : null;
+  const errRej = (!optional && rejection === '') || rejN < 0 || !Number.isInteger(rejN) ? 'Whole number' : !editableInput && rejN > inN ? `Cannot exceed ${inN}` : null;
   // T1–T4 are optional: leave one empty and it is simply not recorded; a value that is typed must be a positive number
   const tempErr = (v: string) => (stage === 'heatTreatment' && v.trim() !== '' && !(Number(v) > 0) ? 'Enter a positive temperature' : null);
   const errTemp = temps.some((v) => tempErr(v));
@@ -352,6 +365,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const save = async () => {
     if (invalid) return;
     const stageParams: Record<string, string | number> = {
+      ...(issuing ? { barsConsumed: barsN, weightKg: wN } : {}),
       ...(stage === 'forging' ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : stage === 'heatTreatment' ? htParams(temps) : {}),
       ...(manpower ? { manpower } : {}),
     };
@@ -425,15 +439,41 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
         <Field label="Inward Date">
           <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
         </Field>
-        <Field label="Received Qty" required={!optional} error={errIn} hint={editableInput ? (ownStock ? `Cut qty · ${fmtNum(rawAvail)} PCS in raw stock` : "Customer's material · not taken from our stock") : `OK qty from ${cfg.from}`}>
-          <NumInput value={editableInput ? received : rec.input} onChange={setReceived} readOnly={!editableInput} bad={!!errIn} />
-        </Field>
-        <Field label="Rejection Qty" required={!optional} error={errRej}>
-          <NumInput value={rejection} onChange={setRejection} bad={!!errRej} autoFocus={!editableInput} />
-        </Field>
-        <Field label="OK Qty" hint="Received − Rejection">
-          <NumInput value={Number.isFinite(ok) && ok >= 0 ? ok : ''} readOnly />
-        </Field>
+        {editableInput ? (
+          <>
+            <Field label="OK Qty" required error={errOk} hint={`Job card: ${fmtNum(rec.input)} PCS — more or fewer is fine`}>
+              <NumInput value={okTyped} onChange={setOkTyped} bad={!!errOk} autoFocus />
+            </Field>
+            <Field label="Rejection Qty" required error={errRej}>
+              <NumInput value={rejection} onChange={setRejection} bad={!!errRej} />
+            </Field>
+            <Field label="Total Cut" hint={ownStock ? 'OK + Rejection' : "Customer's material · not taken from our stock"}>
+              <NumInput value={Number.isFinite(inN) && inN >= 0 ? inN : ''} readOnly />
+            </Field>
+            {issuing && (
+              <>
+                <Field label="Bars / Pieces Consumed" required error={errBars} hint={`${fmtNum(raw.bars)} bars in stock`}>
+                  <NumInput value={bars} onChange={setBars} bad={!!errBars} suffix="bars" />
+                </Field>
+                <Field label="Weight Cut" required error={errW} hint={autoKg && weightTyped === null ? `${fmtNum(inN)} × ${job.pieceWeightG} g · ${fmtKg(raw.kg)} in stock` : `${fmtKg(raw.kg)} in stock`}>
+                  <NumInput value={weight} onChange={setWeightTyped} bad={!!errW} suffix="KG" step="any" />
+                </Field>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            <Field label="Received Qty" required={!optional} hint={`OK qty from ${cfg.from}`}>
+              <NumInput value={rec.input} onChange={() => undefined} readOnly />
+            </Field>
+            <Field label="Rejection Qty" required={!optional} error={errRej}>
+              <NumInput value={rejection} onChange={setRejection} bad={!!errRej} autoFocus />
+            </Field>
+            <Field label="OK Qty" hint="Received − Rejection">
+              <NumInput value={Number.isFinite(ok) && ok >= 0 ? ok : ''} readOnly />
+            </Field>
+          </>
+        )}
         <Field label="Checked By">
           <StaffSelect value={checkedBy} onChange={setCheckedBy} staff={masters.staff} />
         </Field>
@@ -451,7 +491,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
       <div style={{ marginTop: 18 }}>
         <QtyFlow input={Number.isFinite(inN) ? inN : 0} loss={Number.isFinite(rejN) ? rejN : 0} output={Number.isFinite(ok) && ok >= 0 ? ok : '—'} />
       </div>
-      {editableInput && ownStock && <FifoPreview keyId={job.materialKey} qty={inN} />}
+      {issuing && <FifoPreview keyId={job.materialKey} bars={Number.isFinite(barsN) ? barsN : 0} kg={Number.isFinite(wN) ? wN : 0} />}
     </Modal>
   );
 }

@@ -3,7 +3,7 @@
 // To add a new sheet, build a SheetSpec and call downloadFormSheet(); the header and footer come for free.
 import writeExcelFile from 'write-excel-file/browser';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { isNative, saveFile } from '../native/native';
+import { isNative, safeFileName, saveFile } from '../native/native';
 
 /** Form number and revision printed on top of each sheet — change them here, in one place.
  *  Confirmed from the company's sheet: qcFinalInspection (Dimension Report) = F QC 01, 00 / 01.10.25. The others are working numbers until the real ones are given. */
@@ -159,7 +159,7 @@ export async function downloadFormSheet(spec: SheetSpec) {
     sheet: spec.sheet.slice(0, 31),
     ...(img ? { images: [{ content: img.content, contentType: 'image/png', width: img.width, height: img.height, dpi: 96, anchor: { row: 1, column: 1 }, offsetX: 6, offsetY: 5 }] } : {}),
   } as never);
-  const name = spec.filename.endsWith('.xlsx') ? spec.filename : spec.filename + '.xlsx';
+  const name = safeFileName(spec.filename.endsWith('.xlsx') ? spec.filename : spec.filename + '.xlsx');
   if (isNative()) await saveFile(name, await file.toBlob());
   else await file.toFile(name);
 }
@@ -230,7 +230,7 @@ export async function saveSheet(data: Cell[][], widths: number[], sheet: string,
     ...(page ? { orientation: page.orientation } : {}),
     ...(img ? { images: [{ content: img.content, contentType: 'image/png', width: img.width, height: img.height, dpi: 96, anchor: { row: 1, column: 1 }, offsetX: 6, offsetY: 5 }] } : {}),
   } as never);
-  const name = filename.endsWith('.xlsx') ? filename : filename + '.xlsx';
+  const name = safeFileName(filename.endsWith('.xlsx') ? filename : filename + '.xlsx');
   let blob: Blob = await file.toBlob();
   if (page) blob = new Blob([applyPageSetup(new Uint8Array(await blob.arrayBuffer()), sheet, page) as BlobPart], { type: blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   if (isNative()) return saveFile(name, blob);

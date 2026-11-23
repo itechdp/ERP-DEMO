@@ -113,7 +113,8 @@ export function getJob(s: ERPState, jobNo: string): Job {
   return s.jobs.find((j) => j.jobNo === jobNo) ?? fail(`Job ${jobNo} not found.`);
 }
 export const lotWeightPerPc = (lot: RawMaterialLot) => (lot.inwardQty ? lot.inwardWeight / lot.inwardQty : 0);
-export const lotAvailableWeight = (lot: RawMaterialLot) => round3(lot.availableQty * lotWeightPerPc(lot));
+/** the KG left in a lot: the database's own figure when it has one (migration 87), otherwise bars left × KG per bar */
+export const lotAvailableWeight = (lot: RawMaterialLot) => (lot.availableWeight !== undefined ? round3(lot.availableWeight) : round3(lot.availableQty * lotWeightPerPc(lot)));
 
 /** Lots of one material/OD with stock, oldest first (FIFO). */
 export function fifoLots(s: ERPState, key: string): RawMaterialLot[] {

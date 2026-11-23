@@ -145,6 +145,7 @@ const toLot = (r: Row): RawMaterialLot => ({
   inwardQty: num0(r.inward_qty),
   inwardWeight: num0(r.inward_weight),
   availableQty: num0(r.available_qty),
+  availableWeight: r.available_weight == null ? undefined : num0(r.available_weight),
   purchaseRate: num(r.purchase_rate),
   unit: 'PCS',
   // purchase-order link and incoming QC (migration 32): absent until it is installed

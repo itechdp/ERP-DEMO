@@ -62,6 +62,9 @@ export const createJob = async (i: JobInput, ts?: string) => {
   return jobNo;
 };
 
+/** the bars / pieces a new job card plans to use for Cutting (migration 87); the Cutting form starts with them */
+export const setCuttingBars = (jobNo: string, bars: number) => call<void>('set_cutting_bars', { p_job_no: jobNo, p_bars: bars });
+
 export const startStage = (stage: ProcessStage, jobNo: string, i: StartInput, ts?: string) =>
   call<void>('start_stage', { p_stage: stage, p_job_no: jobNo, p_input_qty: i.inputQty, p_machine: i.machine, p_operator: i.operator, p_params: i.params, p_ts: ts });
 

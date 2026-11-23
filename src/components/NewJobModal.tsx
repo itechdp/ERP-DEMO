@@ -7,44 +7,65 @@ import { useOrders } from '../salesmod/hooks';
 import { useDies } from '../dies/DieContext';
 import { withDocNo } from '../db/client';
 import { DocNoField, useDocNo } from '../components/DocNoField';
-import { fifoLots, materialKey, parseMaterialKey, STAGE_LABEL } from '../store/engine';
+import { lotAvailableWeight, materialKey, parseMaterialKey, STAGE_LABEL } from '../store/engine';
 import { entryStage, useProductFlows } from '../products/flow';
 import { useStock } from '../stock/service';
 import type { ERPState } from '../store/types';
 import { findMaterial, pieceWeightKg } from '../store/materials';
 import { Field, Modal, NumInput } from './ui';
 import { leaveForm } from '../store/forms';
-import { fmtNum, todayISO } from './format';
+import { fmtKg, fmtNum, todayISO } from './format';
 
-/** FIFO allocation preview (read-only) */
-export function fifoPreview(s: ERPState, key: string, qty: number) {
-  let left = qty;
-  const rows: { lotId: string; inwardDate: string; take: number; available: number }[] = [];
-  for (const l of fifoLots(s, key)) {
-    if (left <= 0) break;
-    const take = Math.min(l.availableQty, left);
-    rows.push({ lotId: l.id, inwardDate: l.inwardDate, take, available: l.availableQty });
-    left -= take;
-  }
-  return { rows, short: Math.max(0, left) };
+/** raw stock of one material / OD: bars (pieces) and the real weight left */
+export function rawStockOf(s: ERPState, key: string) {
+  const lots = s.rawMaterials.filter((l) => materialKey(l.material, l.od) === key);
+  return { bars: lots.reduce((t, l) => t + l.availableQty, 0), kg: Math.round(lots.reduce((t, l) => t + lotAvailableWeight(l), 0) * 1000) / 1000 };
 }
 
-export function FifoPreview({ keyId, qty }: { keyId: string; qty: number }) {
+/**
+ * FIFO issue preview (read-only), the same rule as the database (migration 87): the WEIGHT cut and the BARS / PIECES consumed are each
+ * taken from the oldest lot first. The number of pieces cut does not use up bars.
+ */
+export function fifoPreview(s: ERPState, key: string, bars: number, kg: number) {
+  let leftB = Math.max(0, bars);
+  let leftW = Math.max(0, kg);
+  const rows: { lotId: string; inwardDate: string; bars: number; kg: number }[] = [];
+  const lots = s.rawMaterials
+    .filter((l) => materialKey(l.material, l.od) === key && (l.availableQty > 0 || lotAvailableWeight(l) > 0))
+    .sort((a, b) => a.inwardDate.localeCompare(b.inwardDate) || a.id.localeCompare(b.id));
+  for (const l of lots) {
+    if (leftB <= 0 && leftW <= 0.0005) break;
+    const b = Math.min(l.availableQty, leftB);
+    const w = Math.round(Math.min(lotAvailableWeight(l), leftW) * 1000) / 1000;
+    if (b <= 0 && w <= 0) continue;
+    rows.push({ lotId: l.id, inwardDate: l.inwardDate, bars: b, kg: w });
+    leftB -= b;
+    leftW -= w;
+  }
+  return { rows, shortBars: Math.max(0, leftB), shortKg: leftW > 0.0005 ? Math.round(leftW * 1000) / 1000 : 0 };
+}
+
+export function FifoPreview({ keyId, bars, kg }: { keyId: string; bars: number; kg: number }) {
   const { state } = useStore();
-  if (!keyId || !(qty > 0)) return null;
-  const { rows, short } = fifoPreview(state, keyId, qty);
+  if (!keyId || !(bars > 0 || kg > 0)) return null;
+  const { rows, shortBars, shortKg } = fifoPreview(state, keyId, bars || 0, kg || 0);
+  const short = shortBars > 0 || shortKg > 0;
   return (
     <div className={`callout ${short ? 'err' : 'info'}`}>
       <Layers size={16} />
       <div>
-        <b>FIFO issue plan:</b>{' '}
+        <b>Taken from raw stock (oldest lot first):</b>{' '}
         {rows.map((r, i) => (
           <span key={r.lotId}>
             {i > 0 && ' + '}
-            <span className="mono">{r.lotId}</span> ({r.take} of {r.available} PCS, inward {r.inwardDate})
+            <span className="mono">{r.lotId}</span> ({fmtNum(r.bars)} bars · {fmtKg(r.kg)}, inward {r.inwardDate})
           </span>
         ))}
-        {short > 0 && <div>Short by {short} PCS — add a Raw Material Inward first.</div>}
+        {short && (
+          <div>
+            Short by {[shortBars > 0 ? `${fmtNum(shortBars)} bars` : '', shortKg > 0 ? fmtKg(shortKg) : ''].filter(Boolean).join(' and ')} — add a Raw Material Inward first.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -99,6 +120,8 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
   const [cutLen, setCutLen] = useState(String(p0.cuttingLength));
   const [weightG, setWeightG] = useState<string | null>(null);
   const [planned, setPlanned] = useState('');
+  // Cutting: the bars / pieces this job will use — counted on their own, the pieces cut do not use up bars (migration 87)
+  const [bars, setBars] = useState('');
   const [dieNo, setDieNo] = useState(p0.dieNo);
   const [machineNo, setMachineNo] = useState('');
   const [date, setDate] = useState(todayISO());
@@ -137,9 +160,14 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
   const rawRow = st.rawOf(mat.material, mat.od);
   const rawFree = rawRow ? rawRow.free : avail;
   const partsAvail = st.semiOf(productId, entry)?.available ?? 0;
-  const limit = fromParts ? partsAvail : rawFree;
-  const errPlanned = planned === '' ? null : !(plannedN > 0) || !Number.isInteger(plannedN) ? 'Enter a whole quantity' : plannedN > limit ? (fromParts ? `Only ${limit} PCS in stock for ${STAGE_LABEL[entry]}` : `Only ${limit} PCS free${rawRow && rawRow.reserved ? ` (${rawRow.reserved} already planned)` : ''}`) : null;
-  const invalid = planned === '' || !!errPlanned || !(Number(cutLen) > 0);
+  const stockNow = rawStockOf(state, matKey);
+  // a product that starts after Cutting uses our parts stock, which is still limited; the quantity to CUT is not limited by the bar count
+  const errPlanned = planned === '' ? null : !(plannedN > 0) || !Number.isInteger(plannedN) ? 'Enter a whole quantity' : fromParts && plannedN > partsAvail ? `Only ${partsAvail} PCS in stock for ${STAGE_LABEL[entry]}` : null;
+  const barsN = bars.trim() === '' ? 0 : Number(bars);
+  const errBars = fromParts || bars.trim() === '' ? null : !(barsN >= 0) || !Number.isInteger(barsN) ? 'Enter a whole number' : barsN > Math.max(rawFree, 0) ? `Only ${fmtNum(Math.max(rawFree, 0))} bars free${rawRow && rawRow.reserved ? ` (${fmtNum(rawRow.reserved)} held by other job cards)` : ''}` : null;
+  // the weight this job will take from stock: pieces × weight per piece
+  const cutKg = !fromParts && plannedN > 0 && Number(weightShown) > 0 ? Math.round(plannedN * Number(weightShown)) / 1000 : 0;
+  const invalid = planned === '' || !!errPlanned || !!errBars || !(Number(cutLen) > 0);
 
   const pickProduct = (id: string) => {
     const p = state.products.find((x) => x.id === id)!;
@@ -158,6 +186,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           { productId, plannedQty: plannedN, customer: customer || undefined, salesOrderNo: soNo || undefined, materialKey: matKey, cuttingLength: Number(cutLen), pieceWeightG: Number(weightShown) || undefined, dieNo, machineNo },
           tsFor(date, now),
         );
+        if (!fromParts && bars.trim() !== '') await api.setCuttingBars(created, barsN);
       },
       { title: 'Job card created', message: fromParts ? `${plannedN} PCS of ${product.name} taken from our stock — it starts at ${STAGE_LABEL[entry]}.` : `${plannedN} PCS of ${product.name} to cut. Enter the cutting result on the Cutting page.` },
     ));
@@ -255,9 +284,14 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           <NumInput value={weightShown} onChange={setWeightG} suffix="g" />
         </Field>
         )}
-        <Field label={fromParts ? `Qty to ${STAGE_LABEL[entry]}` : 'Qty to Cut'} required error={errPlanned} hint={fromParts ? `${fmtNum(partsAvail)} PCS in our stock` : undefined}>
+        <Field label={fromParts ? `Qty to ${STAGE_LABEL[entry]}` : 'Qty to Cut'} required error={errPlanned} hint={fromParts ? `${fmtNum(partsAvail)} PCS in our stock` : cutKg > 0 ? `≈ ${fmtKg(cutKg)} from stock` : 'Pieces to cut — not limited by the bar count'}>
           <NumInput value={planned} onChange={setPlanned} bad={!!errPlanned} autoFocus />
         </Field>
+        {!fromParts && (
+          <Field label="Bars / Pieces Consumed" error={errBars} hint={`${fmtNum(Math.max(rawFree, 0))} bars free · ${fmtKg(stockNow.kg)} in stock — can be changed at Cutting`}>
+            <NumInput value={bars} onChange={setBars} bad={!!errBars} suffix="bars" />
+          </Field>
+        )}
         <Field label="Die No.">
           <input className="input mono" list="job-die-list" value={dieNo} onChange={(e) => setDieNo(e.target.value)} placeholder="Optional — pick a forging die" />
           <datalist id="job-die-list">
@@ -287,7 +321,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
             Product Master
           </button>
         </div>
-      ) : avail === 0 ? (
+      ) : avail === 0 && stockNow.kg <= 0 ? (
         <div className="callout warn">
           <PackagePlus size={16} />
           <div style={{ flex: 1 }}>
@@ -298,7 +332,7 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           </button>
         </div>
       ) : (
-        <FifoPreview keyId={matKey} qty={plannedN} />
+        <FifoPreview keyId={matKey} bars={barsN} kg={cutKg} />
       )}
     </Modal>
   );

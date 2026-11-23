@@ -425,7 +425,7 @@ function JobSearch() {
       <Search size={17} />
       <input
         ref={ref}
-        placeholder="Search or trace a job — e.g. JOB-2026-0001"
+        placeholder="Search or trace a job — e.g. EAF/2026-0001"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);

@@ -28,8 +28,12 @@ const toBase64 = (blob: Blob) =>
     r.readAsDataURL(blob);
   });
 
+/** a file name that is safe on every system: document numbers like EAF/2026-0001 contain "/", which would mean a folder */
+export const safeFileName = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-');
+
 /** save a file: a normal download in the browser; in the app it is written to the phone and the share sheet opens (Save to Drive / WhatsApp / Open with…) */
-export async function saveFile(filename: string, blob: Blob): Promise<void> {
+export async function saveFile(name: string, blob: Blob): Promise<void> {
+  const filename = safeFileName(name);
   if (!isNative()) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
