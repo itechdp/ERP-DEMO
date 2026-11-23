@@ -1,5 +1,5 @@
-// Metal Weight Calculator: every shape against hand-calculated weights, units, pieces, checks.  Run: npm run test:metalweight
-import { computeWeight, LB_PER_KG, OTHER_METALS, SHAPES, toMm, type WeightInput } from '../src/metalweight/calc';
+// Metal Weight Calculator: Round Bar and Pipe, by length and by weight, against hand-worked values.  Run: npm run test:metalweight
+import { calculate, CM_PER, fromCm, MATERIALS, materialOfDensity, toCm, type CalcInput } from '../src/metalweight/calc';
 import { pieceWeightKg } from '../src/store/materials';
 
 let failed = 0;
@@ -9,69 +9,65 @@ const check = (name: string, ok: boolean, detail?: unknown) => {
 };
 const near = (a: number, b: number, tol = 0.0005) => Math.abs(a - b) <= tol;
 const STEEL = 7.85;
-const w = (shape: WeightInput['shape'], sizes: Record<string, number | null>, length: number, density = STEEL, extra: Partial<WeightInput> = {}) =>
-  computeWeight({ shape, sizes, sizeUnit: 'mm', length, lengthUnit: 'mm', density, qty: 1, ...extra });
+const base: CalcInput = {
+  shape: 'round', mode: 'length', density: STEEL, d: null, dUnit: 'mm', od: null, odUnit: 'mm', pipeBy: 'wall', wall: null, wallUnit: 'mm',
+  length: null, lengthUnit: 'mm', weight: null, weightUnit: 'kg', pieces: null, price: null,
+};
+const calc = (x: Partial<CalcInput>) => calculate({ ...base, ...x });
 
-// Each expected value below is worked out by hand from the geometry (area in cm² × length in cm × density), then compared with the code.
-// ---- round bar: 50 mm × 1 m steel.  Area = π/4 × 5² = 19.63495 cm²; volume = 1963.495 cm³; × 7.85 = 15413.44 g
-const r = w('round', { d: 50 }, 1000);
-check('round bar Ø50 × 1000 mm steel = 15.41344 kg', r.ok && near(r.pieceKg, 15.41344, 0.00001), r.pieceKg);
-check('its volume is 1963.495 cm³ and area 1963.495 mm²', near(r.volumeCm3, 1963.495, 0.001) && near(r.areaMm2, 1963.495, 0.001), [r.volumeCm3, r.areaMm2]);
-check('weight per metre = the same 15.41344 kg/m', near(r.kgPerM, 15.41344, 0.00001), r.kgPerM);
-check('agrees with the ERP\'s own job-card formula (pieceWeightKg) for round bars', near(r.pieceKg, pieceWeightKg(50, 1000, STEEL), 1e-9), [r.pieceKg, pieceWeightKg(50, 1000, STEEL)]);
-check('round bar in aluminium 2.70: Ø50 × 1 m = 5.30144 kg', near(w('round', { d: 50 }, 1000, 2.7).pieceKg, 5.30144, 0.00001), w('round', { d: 50 }, 1000, 2.7).pieceKg);
-// ---- square bar: 20 mm × 1 m steel.  4 cm² × 100 cm = 400 cm³ × 7.85 = 3140 g
-check('square bar 20 × 1000 mm steel = 3.140 kg', near(w('square', { a: 20 }, 1000).pieceKg, 3.14, 0.00001), w('square', { a: 20 }, 1000).pieceKg);
-// ---- hexagon bar: 24 mm A/F × 1 m steel.  area = (√3/2) × 2.4² = 4.98830 cm²; × 100 = 498.830 cm³; × 7.85 = 3915.82 g
-check('hex bar 24 A/F × 1000 mm steel = 3.91582 kg', near(w('hex', { af: 24 }, 1000).pieceKg, 3.91582, 0.00001), w('hex', { af: 24 }, 1000).pieceKg);
-// ---- flat bar: 50 × 10 × 1 m.  5 cm² × 100 = 500 cm³ × 7.85 = 3925 g
-check('flat bar 50 × 10 × 1000 mm steel = 3.925 kg', near(w('flat', { w: 50, t: 10 }, 1000).pieceKg, 3.925, 0.00001), w('flat', { w: 50, t: 10 }, 1000).pieceKg);
-// ---- plate: 1 m × 1 m × 10 mm steel = 100 cm × 100 cm × 1 cm = 10000 cm³ × 7.85 = 78.5 kg
-check('plate 1000 × 1000 × 10 mm steel = 78.5 kg', near(w('flat', { w: 1000, t: 10 }, 1000).pieceKg, 78.5, 0.00001), w('flat', { w: 1000, t: 10 }, 1000).pieceKg);
-// ---- round tube: OD 60, wall 5 (ID 50), 1 m.  area = π/4 × (36 − 25) = 8.63938 cm²; × 100 = 863.938 cm³; × 7.85 = 6781.9 g
-check('round tube OD60 wall 5 × 1000 mm steel = 6.78191 kg', near(w('roundTube', { od: 60, t: 5 }, 1000).pieceKg, 6.78191, 0.00001), w('roundTube', { od: 60, t: 5 }, 1000).pieceKg);
-check('round tube equals the outer bar minus the hollow (Ø60 bar − Ø50 bar)', near(w('roundTube', { od: 60, t: 5 }, 1000).pieceKg, w('round', { d: 60 }, 1000).pieceKg - w('round', { d: 50 }, 1000).pieceKg, 1e-9));
-// ---- square tube 50 × 50 × 3, 1 m.  area = 2500 − 44² = 564 mm² = 5.64 cm²; × 100 = 564 cm³; × 7.85 = 4427.4 g
-check('square tube 50×50×3 × 1000 mm steel = 4.4274 kg', near(w('rectTube', { w: 50, h: 50, t: 3 }, 1000).pieceKg, 4.4274, 0.00001), w('rectTube', { w: 50, h: 50, t: 3 }, 1000).pieceKg);
-// ---- rectangular tube 100 × 50 × 4, 2 m.  area = 5000 − 92 × 42 = 5000 − 3864 = 1136 mm² = 11.36 cm²; × 200 = 2272 cm³; × 7.85 = 17835.2 g
-check('rectangular tube 100×50×4 × 2000 mm steel = 17.8352 kg', near(w('rectTube', { w: 100, h: 50, t: 4 }, 2000).pieceKg, 17.8352, 0.00001), w('rectTube', { w: 100, h: 50, t: 4 }, 2000).pieceKg);
+// ---- the three checks asked for
+// Steel round bar D 50 mm × L 1000 mm: A = π × 2.5² = 19.634954 cm²; V = 1963.4954 cm³; × 7.85 = 15413.44 g = 15.41344 kg
+const r = calc({ d: 50, length: 1000 });
+check('Steel 7.85, Round Bar D 50 mm, L 1000 mm, 1 piece = 15.41 kg (15.41344)', r.ok && near(r.totalKg, 15.41344, 0.00001) && near(r.pieceKg, 15.41344, 0.00001), r);
+check('…its area is 19.635 cm² and volume 1963.495 cm³', near(r.areaCm2, 19.634954, 0.000001) && near(r.volumeCm3, 1963.4954, 0.0001), [r.areaCm2, r.volumeCm3]);
+const back = calc({ mode: 'weight', d: 50, weight: 15.41 });
+check('By Weight, D 50 mm and 15.41 kg = length ≈ 1000 mm (999.78)', back.ok && near(fromCm(back.lengthCm, 'mm'), 999.777, 0.01), fromCm(back.lengthCm, 'mm'));
+const exact = calc({ mode: 'weight', d: 50, weight: r.totalKg });
+check('By Weight with the exact 15.41344 kg gives exactly 1000 mm back', near(fromCm(exact.lengthCm, 'mm'), 1000, 1e-9), fromCm(exact.lengthCm, 'mm'));
+check('a blank form (as after CLEAR) gives no result, only "enter …" messages', !calc({ density: null }).ok && Object.keys(calc({ density: null }).errors).sort().join() === 'd,density,length', calc({ density: null }).errors);
 
-// ---- thin tube: OD 20, wall 2 (ID 16), 1 m.  area = π/4 × (4 − 2.56) = 1.13097 cm²; × 100 = 113.097 cm³; × 7.85 = 887.81 g
-check('round tube OD20 wall 2 × 1000 mm steel = 0.88781 kg', near(w('roundTube', { od: 20, t: 2 }, 1000).pieceKg, 0.88781, 0.00001), w('roundTube', { od: 20, t: 2 }, 1000).pieceKg);
+// ---- the same as the ERP's own job-card formula for a round bar
+check('agrees with pieceWeightKg (job cards) for D 50 × 1000 mm', near(r.pieceKg, pieceWeightKg(50, 1000, STEEL), 1e-9), [r.pieceKg, pieceWeightKg(50, 1000, STEEL)]);
 
-// ---- units
-check('unit conversions: 1 in = 25.4 mm, 1 ft = 304.8 mm, 1 m = 1000 mm, 1 cm = 10 mm', toMm(1, 'in') === 25.4 && toMm(1, 'ft') === 304.8 && toMm(1, 'm') === 1000 && toMm(1, 'cm') === 10);
-// 2 in round steel × 12 in: D = 50.8 mm, L = 304.8 mm: π/4 × 5.08² = 20.26830 cm² × 30.48 = 617.7762 cm³ × 7.85 = 4849.5 g = 4.8495 kg = 10.691 lb
-const inch = computeWeight({ shape: 'round', sizes: { d: 2 }, sizeUnit: 'in', length: 12, lengthUnit: 'in', density: STEEL, qty: 1 });
-check('2 in round steel bar × 12 in = 4.84956 kg = 10.6914 lb', near(inch.pieceKg, 4.84956, 0.00001) && near(inch.pieceKg * LB_PER_KG, 10.6914, 0.0001), [inch.pieceKg, inch.pieceKg * LB_PER_KG]);
-check('size in mm and length in metres give the same weight as everything in mm', near(computeWeight({ shape: 'round', sizes: { d: 50 }, sizeUnit: 'mm', length: 1, lengthUnit: 'm', density: STEEL, qty: 1 }).pieceKg, r.pieceKg, 1e-9));
-check('size in cm and length in feet are converted separately', near(computeWeight({ shape: 'square', sizes: { a: 2 }, sizeUnit: 'cm', length: 1, lengthUnit: 'ft', density: STEEL, qty: 1 }).pieceKg, w('square', { a: 20 }, 304.8).pieceKg, 1e-9));
-check('kg → lb uses 2.20462', near(LB_PER_KG, 2.20462, 0.00001));
+// ---- units: everything goes to cm first
+check('mm × 0.1, cm × 1, m × 100, inch × 2.54, ft × 30.48', CM_PER.mm === 0.1 && CM_PER.cm === 1 && CM_PER.m === 100 && CM_PER.inch === 2.54 && CM_PER.ft === 30.48);
+check('toCm / fromCm are inverse', near(fromCm(toCm(37.5, 'inch'), 'inch'), 37.5, 1e-12) && near(toCm(1, 'ft'), 30.48, 1e-12));
+check('D 5 cm and L 1 m give the same as 50 mm × 1000 mm', near(calc({ d: 5, dUnit: 'cm', length: 1, lengthUnit: 'm' }).totalKg, r.totalKg, 1e-9));
+// 2 inch × 1 ft steel: D 5.08 cm → A = 20.268299 cm²; × 30.48 = 617.7778 cm³; × 7.85 = 4849.56 g
+check('2 inch × 1 ft steel = 4.84956 kg', near(calc({ d: 2, dUnit: 'inch', length: 1, lengthUnit: 'ft' }).totalKg, 4.84956, 0.00001), calc({ d: 2, dUnit: 'inch', length: 1, lengthUnit: 'ft' }).totalKg);
 
-// ---- pieces
-const q = w('round', { d: 50 }, 1000, STEEL, { qty: 12 });
-check('12 pieces: total = 12 × one piece, one piece unchanged', near(q.totalKg, r.pieceKg * 12, 1e-9) && near(q.pieceKg, r.pieceKg, 1e-12) && q.qty === 12);
-check('a blank quantity means 1 piece', near(w('round', { d: 50 }, 1000, STEEL, { qty: null }).totalKg, r.pieceKg, 1e-12));
+// ---- pieces and price
+const p = calc({ d: 50, length: 1000, pieces: 12, price: 80 });
+check('12 pieces: total = 12 × one piece (184.961 kg), each still 15.413 kg', near(p.totalKg, 12 * r.pieceKg, 1e-9) && near(p.pieceKg, r.pieceKg, 1e-12) && p.pieces === 12);
+check('cost = total weight × price per kg (184.961 × 80 = ₹ 14,796.90)', p.cost != null && near(p.cost, 12 * r.pieceKg * 80, 1e-6) && near(p.cost, 14796.90, 0.01), p.cost);
+check('no price → no cost; blank pieces = 1', r.cost === null && r.pieces === 1);
+check('pieces must be a whole number of 1 or more', !!calc({ d: 50, length: 1000, pieces: 0 }).errors.pieces && !!calc({ d: 50, length: 1000, pieces: 2.5 }).errors.pieces);
+check('a negative price is refused', !!calc({ d: 50, length: 1000, price: -1 }).errors.price);
+// by weight with pieces: 100 kg in 4 pieces of D 50 → 25 kg each → 25000 / 7.85 = 3184.713 cm³ / 19.634954 = 162.196 cm
+const w4 = calc({ mode: 'weight', d: 50, weight: 100, pieces: 4, price: 60 });
+check('By Weight, 100 kg in 4 pieces of D 50 = 1621.96 mm each, 25 kg each, ₹ 6,000', near(fromCm(w4.lengthCm, 'mm'), 1621.96, 0.01) && near(w4.pieceKg, 25, 1e-9) && near(w4.cost ?? 0, 6000, 1e-9), [fromCm(w4.lengthCm, 'mm'), w4.pieceKg, w4.cost]);
+check('By Weight in grams: 15413.44 g = the same 1000 mm', near(fromCm(calc({ mode: 'weight', d: 50, weight: 15413.4415, weightUnit: 'g' }).lengthCm, 'mm'), 1000, 0.001));
+check('By Weight shows the length in m and ft too (1 m = 3.2808 ft)', near(fromCm(exact.lengthCm, 'm'), 1, 1e-12) && near(fromCm(exact.lengthCm, 'ft'), 3.28084, 0.00001));
 
-// ---- density
-check('weight is in proportion to density (brass 8.47 vs steel 7.85)', near(w('round', { d: 50 }, 1000, 8.47).pieceKg / r.pieceKg, 8.47 / 7.85, 1e-9));
-check('a density over 25 g/cm³ is refused as a slip', !!w('round', { d: 50 }, 1000, 78.5).errors.density);
+// ---- pipe / round tube
+// OD 60, T 5 → ID 50: A = π × (3² − 2.5²) = π × 2.75 = 8.639380 cm²; × 100 cm = 863.938 cm³; × 7.85 = 6781.91 g
+const pipe = calc({ shape: 'pipe', od: 60, pipeBy: 'wall', wall: 5, length: 1000 });
+check('Pipe OD 60, T 5, L 1000 mm steel = 6.78191 kg (ID 50 mm)', pipe.ok && near(pipe.totalKg, 6.78191, 0.00001) && near((pipe.idCm ?? 0) * 10, 50, 1e-9), pipe);
+check('Pipe given by ID 50 instead of T 5 is the same', near(calc({ shape: 'pipe', od: 60, pipeBy: 'id', wall: 50, length: 1000 }).totalKg, pipe.totalKg, 1e-9));
+check('Pipe = the outer bar minus the hole', near(pipe.totalKg, calc({ d: 60, length: 1000 }).totalKg - calc({ d: 50, length: 1000 }).totalKg, 1e-9));
+check('Pipe by weight: 6.78191 kg → 1000 mm back', near(fromCm(calc({ shape: 'pipe', mode: 'weight', od: 60, wall: 5, weight: pipe.totalKg }).lengthCm, 'mm'), 1000, 1e-6));
+check('a wall of half the OD or more, or an ID ≥ OD, is refused', !!calc({ shape: 'pipe', od: 20, wall: 10, length: 100 }).errors.wall && !!calc({ shape: 'pipe', od: 20, pipeBy: 'id', wall: 20, length: 100 }).errors.wall && calc({ shape: 'pipe', od: 20, wall: 9.9, length: 100 }).ok);
 
-// ---- checking input
-check('every shape lists its size fields and a formula', SHAPES.length === 6 && SHAPES.every((s) => s.fields.length >= 1 && s.formula.length > 10));
-check('empty sizes ask for each missing value', Object.keys(computeWeight({ shape: 'flat', sizes: { w: null, t: null }, sizeUnit: 'mm', length: null, lengthUnit: 'mm', density: STEEL, qty: 1 }).errors).sort().join() === 'length,t,w');
-check('zero and negative sizes are refused', !!w('round', { d: 0 }, 1000).errors.d && !!w('round', { d: -5 }, 1000).errors.d && !!w('round', { d: 50 }, -1).errors.length);
-check('a refused input gives no weight', w('round', { d: 0 }, 1000).ok === false && w('round', { d: 0 }, 1000).pieceKg === 0);
-check('a tube whose wall is half the OD or more is refused (no hole left)', !!w('roundTube', { od: 20, t: 10 }, 1000).errors.t && !!w('roundTube', { od: 20, t: 12 }, 1000).errors.t && w('roundTube', { od: 20, t: 9.9 }, 1000).ok);
-check('a rectangular tube whose wall is half the smaller side or more is refused', !!w('rectTube', { w: 100, h: 20, t: 10 }, 1000).errors.t && w('rectTube', { w: 100, h: 20, t: 9 }, 1000).ok);
-check('pieces must be a whole number of 1 or more', !!w('round', { d: 50 }, 1000, STEEL, { qty: 0 }).errors.qty && !!w('round', { d: 50 }, 1000, STEEL, { qty: 2.5 }).errors.qty && !!w('round', { d: 50 }, 1000, STEEL, { qty: -1 }).errors.qty);
-check('a missing density is refused', !!w('round', { d: 50 }, 1000, null as unknown as number).errors.density);
-// 3000 × 100 × 12000 mm = 3.6e9 mm³ = 3.6e6 cm³; × 7.85 = 28 260 000 g = 28 260 kg
-check('very small and very large parts still calculate (a 12 m heavy plate = 28 260 kg)', w('round', { d: 0.5 }, 1).pieceKg > 0 && near(w('flat', { w: 3000, t: 100 }, 12000).pieceKg, 28260, 0.001), w('flat', { w: 3000, t: 100 }, 12000).pieceKg);
-check('an input that is NaN is treated as missing, not as zero weight', !!computeWeight({ shape: 'round', sizes: { d: Number.NaN }, sizeUnit: 'mm', length: 1000, lengthUnit: 'mm', density: STEEL, qty: 1 }).errors.d);
+// ---- checks on the input
+check('zero / negative sizes are refused', !!calc({ d: 0, length: 1000 }).errors.d && !!calc({ d: 50, length: -1 }).errors.length);
+check('a missing or impossible density is refused', !!calc({ d: 50, length: 1000, density: null }).errors.density && !!calc({ d: 50, length: 1000, density: 78.5 }).errors.density);
+check('By Weight needs the weight', !!calc({ mode: 'weight', d: 50 }).errors.weight && !calc({ mode: 'weight', d: 50 }).errors.length);
+check('a refused input gives no weight', !calc({ d: 0, length: 1000 }).ok && calc({ d: 0, length: 1000 }).totalKg === 0);
 
-check('the common-metals list has carbon steel 7.85, stainless 304 7.93, cast iron 7.2, aluminium 2.7, brass 8.5, copper 8.96', ['Mild / carbon steel:7.85', 'Stainless steel 304:7.93', 'Cast iron (grey):7.2', 'Aluminium (general):2.7', 'Brass (general):8.5', 'Copper (general):8.96'].every((x) => OTHER_METALS.some((m) => `${m.name}:${m.density}` === x)));
-check('every density in it is a real metal density (1 to 25 g/cm³) and names are unique', OTHER_METALS.every((m) => m.density > 1 && m.density < 25) && new Set(OTHER_METALS.map((m) => m.name)).size === OTHER_METALS.length);
+// ---- materials
+check('materials: Steel 7.85, Brass 8.50, Aluminium 2.70, Copper 8.96, SS 304 7.93, SS 316 7.98', ['Steel:7.85', 'Brass:8.5', 'Aluminium:2.7', 'Copper:8.96', 'SS 304:7.93', 'SS 316:7.98'].every((x) => MATERIALS.some((m) => `${m.label}:${m.density}` === x)) && MATERIALS.length === 6);
+check('a typed density finds its material, or none (= Custom)', materialOfDensity(7.85)?.id === 'steel' && materialOfDensity(8.1) === undefined);
+check('aluminium D 50 × 1 m = 5.30144 kg', near(calc({ d: 50, length: 1000, density: 2.7 }).totalKg, 5.30144, 0.00001));
 
 console.log(failed ? `\n${failed} FAILED` : '\nAll metal weight checks passed');
 process.exit(failed ? 1 : 0);
