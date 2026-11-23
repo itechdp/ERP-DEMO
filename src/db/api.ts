@@ -364,6 +364,26 @@ export const createJobWork = (i: JobWorkInput, ts?: string) =>
     },
     p_ts: ts,
   });
+/** One line of a Job Work receipt: what came in, and the product its job card makes (migration 91). */
+export interface JobWorkLine { itemName: string; material: string; sizeMm?: number; productId: string; receivedQty: number; receivedWeight?: number }
+/** Receives a whole Job Work receipt — one job card per line, all or nothing (supabase/migrations/91). Returns the job numbers. */
+export const receiveJobWork = (h: Omit<JobWorkInput, 'productId' | 'receivedQty' | 'receivedWeight' | 'itemDescription'>, lines: JobWorkLine[], ts?: string) =>
+  call<string[]>('receive_job_work', {
+    p_header: {
+      customer: h.customer.trim(),
+      challan_no: h.challanNo.trim(),
+      challan_date: h.challanDate || null,
+      material_source: h.materialSource,
+      processes: h.processes,
+      qc_required: h.qcRequired,
+      charge_basis: h.chargeBasis,
+      rate: h.rate ?? null,
+      process_rates: h.processRates ?? {},
+      due_date: h.dueDate || null,
+    },
+    p_lines: lines.map((l) => ({ item_name: l.itemName.trim(), material: l.material.trim(), size_mm: l.sizeMm ?? null, product_id: l.productId, received_qty: l.receivedQty, received_weight: l.receivedWeight ?? null })),
+    p_ts: ts,
+  });
 /** Edits the challan, description, weight, customer, due date and charges of a received batch (supabase/migrations/45). */
 export const editJobWork = (jobNo: string, i: { customer: string; challanNo: string; challanDate: string; itemDescription: string; receivedWeight?: number; dueDate: string; chargeBasis: 'none' | 'piece' | 'kg' | 'process'; rate?: number; processRates?: Record<string, number> }, ts?: string) =>
   call<null>('edit_job_work', {

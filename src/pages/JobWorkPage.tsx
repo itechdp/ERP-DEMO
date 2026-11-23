@@ -7,12 +7,14 @@ import { withDocNo } from '../db/client';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import { DocNoField, useDocNo } from '../components/DocNoField';
 import { STAGE_LABEL } from '../store/engine';
+import { MATERIAL_FAMILIES } from '../store/materials';
 import { jobWorkDeleteReason } from '../store/deletable';
 import { Confirm, Empty, Field, FilterMenu, JobLink, Modal, NumInput, PageHeader, Search, Tabs } from '../components/ui';
 import { JobCardReport } from '../jobwork/JobCardReport';
 import { useStock } from '../stock/service';
 import { fmtDate, fmtNum, matches, todayISO } from '../components/format';
-import { BASIS_LABEL, chargeText, printJobWorkReceipt, processText } from '../jobwork/print';
+import { BASIS_LABEL, printJobWorkReceipt, processText } from '../jobwork/print';
+import { PartyInventory, lineText } from '../jobwork/PartyInventory';
 import { inr } from '../sales/print';
 import type { JobWork } from '../store/types';
 import { useTabAccess } from '../auth/tabs';
@@ -39,8 +41,8 @@ export function JobWorkPage() {
   const [srcF, setSrcF] = useState('all');
   const [deleting, setDeleting] = useState<JobWork | null>(null);
   const [editing, setEditing] = useState<JobWork | null>(null);
-  const [tab0, setTab] = useState<'batches' | 'report'>('batches');
-  const ta = useTabAccess('job_work', ['batches', 'report'] as const);
+  const [tab0, setTab] = useState<'batches' | 'party' | 'report'>('batches');
+  const ta = useTabAccess('job_work', ['batches', 'party', 'report'] as const);
   const tab = ta.pick(tab0);
 
   const jobOf = (w: JobWork) => state.jobs.find((j) => j.jobNo === w.jobNo);
@@ -48,7 +50,7 @@ export function JobWorkPage() {
   const rows = list
     .filter((w) => stageF === 'all' || jobOf(w)?.currentStage === stageF)
     .filter((w) => srcF === 'all' || w.materialSource === srcF)
-    .filter((w) => matches(q, w.jobNo, w.challanNo, w.itemDescription, state.products.find((p) => p.id === jobOf(w)?.productId)?.name, searchable(jobOf(w)?.customer)));
+    .filter((w) => matches(q, w.jobNo, w.receiptNo, w.challanNo, w.itemDescription, w.itemName, w.material, state.products.find((p) => p.id === jobOf(w)?.productId)?.name, searchable(jobOf(w)?.customer)));
   const pg = usePaged(rows, rows.length);
   const stages = [...new Set(list.map((w) => jobOf(w)?.currentStage).filter(Boolean))] as string[];
 
@@ -60,12 +62,14 @@ export function JobWorkPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <><ListButtons doc={() => ({ filename: 'Job-Work-In', title: 'Job Work In', form: FORM_FORMATS.report, rows: rows.map((w) => ({ job: w.jobNo, challan: w.challanNo, date: w.challanDate, item: w.itemDescription, customer: canSee('party_names') ? jobOf(w)?.customer : '', qty: w.receivedQty, weight: w.receivedWeight, source: w.materialSource === 'customer' ? 'Customer material' : 'Our material', stage: jobOf(w)?.currentStage })), cols: [{ label: 'Job No.', key: 'job' }, { label: 'Challan No.', key: 'challan' }, { label: 'Challan Date', key: 'date', kind: 'date' }, { label: 'Item', key: 'item', width: 28 }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Received (PCS)', key: 'qty', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Material', key: 'source', width: 18 }, { label: 'Now at', key: 'stage' }], totals: ['qty', 'weight'] })} /><Write res="job_work">{add}</Write></> : undefined} />
+      <PageHeader eyebrow="Workflow" title="Job Work In" actions={list.length > 0 ? <><ListButtons doc={() => ({ filename: 'Job-Work-In', title: 'Job Work In', form: FORM_FORMATS.report, rows: rows.map((w) => ({ job: w.jobNo, challan: w.challanNo, date: w.challanDate, item: lineText(w) || w.itemDescription, customer: canSee('party_names') ? jobOf(w)?.customer : '', qty: w.receivedQty, weight: w.receivedWeight, source: w.materialSource === 'customer' ? 'Customer material' : 'Our material', stage: jobOf(w)?.currentStage })), cols: [{ label: 'Job No.', key: 'job' }, { label: 'Challan No.', key: 'challan' }, { label: 'Challan Date', key: 'date', kind: 'date' }, { label: 'Item', key: 'item', width: 28 }, { label: 'Customer', key: 'customer', width: 24 }, { label: 'Received (PCS)', key: 'qty', kind: 'num' }, { label: 'Weight (KG)', key: 'weight', kind: 'num' }, { label: 'Material', key: 'source', width: 18 }, { label: 'Now at', key: 'stage' }], totals: ['qty', 'weight'] })} /><Write res="job_work">{add}</Write></> : undefined} />
       <div style={{ marginBottom: 16 }}>
-        <Tabs value={tab} onChange={setTab} items={ta.only([{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'report', label: 'Job Card Report' }])} />
+        <Tabs value={tab} onChange={setTab} items={ta.only([{ value: 'batches', label: 'Job Work In', count: list.length }, { value: 'party', label: 'Party Inventory' }, { value: 'report', label: 'Job Card Report' }])} />
       </div>
       {tab === 'report' ? (
         <JobCardReport />
+      ) : tab === 'party' ? (
+        <PartyInventory />
       ) : (
       <div className="card">
         {list.length === 0 ? (
@@ -122,8 +126,17 @@ export function JobWorkPage() {
                             <div className="sub">{w.challanDate ? fmtDate(w.challanDate) : ''}</div>
                           </td>
                           <td>
-                            <div className="strong">{p?.name ?? '—'}</div>
-                            {w.itemDescription && <div className="sub">{w.itemDescription}</div>}
+                            {lineText(w) ? (
+                              <>
+                                <div className="strong">{lineText(w)}</div>
+                                <div className="sub">→ {p?.name ?? '—'}{w.receiptNo && w.receiptNo !== w.jobNo ? ` · receipt ${w.receiptNo}` : ''}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="strong">{p?.name ?? '—'}</div>
+                                {w.itemDescription && <div className="sub">{w.itemDescription}</div>}
+                              </>
+                            )}
                           </td>
                           <td className="r num nowrap">
                             {fmtNum(w.receivedQty)} PCS
@@ -263,9 +276,6 @@ function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
         <Field label="Due Date">
           <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
         </Field>
-        <Field label="Item Description" full>
-          <input className="input" value={f.itemDescription} onChange={(e) => set('itemDescription', e.target.value)} />
-        </Field>
       </div>
       {can('sales_rates') && (
         <>
@@ -298,11 +308,20 @@ function JobWorkEdit({ w, onClose }: { w: JobWork; onClose: () => void }) {
 }
 
 // ============================================================== the form ===
-/** Receive a customer's parts: what came in, which processes to do, whose material, QC, and how it is charged. */
+/** one line of the receipt as typed */
+interface LineIn { item: string; material: string; size: string; productId: string; auto: boolean; qty: string; weight: string }
+const blankLine = (): LineIn => ({ item: 'Round Bar', material: '', size: '', productId: '', auto: true, qty: '', weight: '' });
+
+/**
+ * Receive a customer's material for job work: one receipt (challan) with one or more lines — e.g. 70 mm Round Bar 100 KG and
+ * 25 mm Round Bar 150 KG. Each line becomes its own job card; the processes, material source, QC, due date and charges are the
+ * same for the whole receipt. The customer's material is tracked in Job Work → Party Inventory, never in our Raw Material Inventory.
+ */
 export function JobWorkForm({ onClose }: { onClose: () => void }) {
   const { state, run, busy } = useStore();
   const { can } = useAccess();
-  const [f, setF] = useState({ customer: '', challanNo: '', challanDate: todayISO(), productId: '', itemDescription: '', qty: '', weight: '', dueDate: '' });
+  const [f, setF] = useState({ customer: '', challanNo: '', challanDate: todayISO(), dueDate: '' });
+  const [lines, setLines] = useState<LineIn[]>([blankLine()]);
   const [proc, setProc] = useState<Proc>({ cutting: false, forging: false, trimming: false, heatTreatment: true });
   const [source, setSource] = useState<'customer' | 'own'>('customer');
   const [qcRequired, setQcRequired] = useState(true);
@@ -312,61 +331,103 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
   const doc = useDocNo('job', true);
   const st = useStock();
   const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }));
-
-  const product = state.products.find((p) => p.id === f.productId);
-  const qtyN = Number(f.qty);
   const anyProcess = proc.cutting || proc.forging || proc.trimming || proc.heatTreatment;
   const src = source; // our own stock: raw bar when Cutting is ticked, otherwise our stock of parts (Product Master) that are ready for the first process
   const firstKey = PROCESSES.find((x) => proc[x.key])?.key;
-  const ownAvail = !product ? 0 : proc.cutting ? state.rawMaterials.filter((l) => l.material === product.material && l.od === product.od).reduce((t, l) => t + l.availableQty, 0) : firstKey ? st.semiOf(product.id, firstKey)?.available ?? 0 : 0;
-
-  const errQty = f.qty === '' ? null : !(qtyN > 0) || !Number.isInteger(qtyN) ? 'Enter a whole number of pieces' : src === 'own' && qtyN > ownAvail ? (proc.cutting ? `Only ${fmtNum(ownAvail)} PCS of ${product?.material} OD ${product?.od} mm in our stock` : `Only ${fmtNum(ownAvail)} PCS of ${product?.name} in our stock, ready for ${PROCESSES.find((x) => x.key === firstKey)?.label ?? 'the first process'}`) : null;
-  const valid = !!f.productId && qtyN > 0 && Number.isInteger(qtyN) && anyProcess && (!can('party_names') || f.customer.trim() !== '') && !errQty;
   const first = PROCESSES.find((x) => proc[x.key]);
+
+  // the product a line's job card makes: picked by hand, or found from the material and size when exactly one product matches
+  const matchProduct = (material: string, size: string) => {
+    const m = material.trim().toLowerCase();
+    const od = Number(size);
+    if (!m && !(od > 0)) return '';
+    const hits = state.products.filter((p) => (!m || p.material.toLowerCase().includes(m)) && (!(od > 0) || p.od === od));
+    return hits.length === 1 ? hits[0].id : '';
+  };
+  const setLine = (i: number, patch: Partial<LineIn>) =>
+    setLines((ls) =>
+      ls.map((l, k) => {
+        if (k !== i) return l;
+        const n = { ...l, ...patch };
+        if (('material' in patch || 'size' in patch) && n.auto) n.productId = matchProduct(n.material, n.size);
+        return n;
+      }),
+    );
+  const ownAvailOf = (productId: string) => {
+    const product = state.products.find((p) => p.id === productId);
+    if (!product) return 0;
+    return proc.cutting ? state.rawMaterials.filter((l) => l.material === product.material && l.od === product.od).reduce((t, l) => t + l.availableQty, 0) : firstKey ? st.semiOf(product.id, firstKey)?.available ?? 0 : 0;
+  };
+  const lineErr = (l: LineIn): string | null => {
+    const q = Number(l.qty);
+    if (!l.item.trim()) return 'Enter the item';
+    if (!l.productId) return 'Choose the product it is made into';
+    if (l.qty === '' || !(q > 0) || !Number.isInteger(q)) return 'Enter a whole number of pieces';
+    if (src === 'customer' && !(Number(l.weight) > 0)) return 'Enter the weight in KG';
+    if (l.size !== '' && !(Number(l.size) > 0)) return 'Size must be above 0';
+    if (src === 'own' && q > ownAvailOf(l.productId)) return `Only ${fmtNum(ownAvailOf(l.productId))} PCS in our stock`;
+    return null;
+  };
+  const errs = lines.map(lineErr);
+  const totalQty = lines.reduce((t, l) => t + (Number(l.qty) || 0), 0);
+  const totalKg = Math.round(lines.reduce((t, l) => t + (Number(l.weight) || 0), 0) * 1000) / 1000;
+  const valid = lines.length > 0 && errs.every((e) => !e) && anyProcess && (!can('party_names') || f.customer.trim() !== '');
+  // material names already known: Material Master families and materials, and what earlier receipts used
+  const materialHints = useMemo(() => [...new Set([...MATERIAL_FAMILIES, ...state.jobWork.map((w) => w.material ?? '')].filter(Boolean))].sort(), [state.jobWork]);
 
   const submit = async () => {
     const processRates: Record<string, number> = {};
     for (const x of PROCESSES) if (proc[x.key] && Number(pRates[x.key]) > 0) processRates[x.key] = Number(pRates[x.key]);
-    const input: api.JobWorkInput = {
-      productId: f.productId,
+    const header = {
       customer: f.customer,
       challanNo: f.challanNo,
       challanDate: f.challanDate,
-      itemDescription: f.itemDescription,
-      receivedQty: qtyN,
-      receivedWeight: Number(f.weight) > 0 ? Number(f.weight) : undefined,
       materialSource: src,
       processes: proc,
       qcRequired,
-      chargeBasis: can('sales_rates') ? basis : 'none',
+      chargeBasis: can('sales_rates') ? basis : ('none' as const),
       rate: can('sales_rates') && (basis === 'piece' || basis === 'kg') && Number(rate) > 0 ? Number(rate) : undefined,
       processRates: can('sales_rates') && basis === 'process' ? processRates : undefined,
       dueDate: f.dueDate,
     };
-    if (await withDocNo(doc.custom, () => run((ts) => api.createJobWork(input, ts), { title: 'Parts received', message: `${fmtNum(qtyN)} PCS of ${product?.name} — job card created at ${first?.label}.` }))) onClose();
+    const body: api.JobWorkLine[] = lines.map((l) => ({ itemName: l.item, material: l.material, sizeMm: Number(l.size) > 0 ? Number(l.size) : undefined, productId: l.productId, receivedQty: Number(l.qty), receivedWeight: Number(l.weight) > 0 ? Number(l.weight) : undefined }));
+    // a typed job number only makes sense for a one-line receipt; several lines are numbered automatically
+    const custom = lines.length === 1 ? doc.custom : undefined;
+    const ok = await withDocNo(custom, () =>
+      run((ts) => api.receiveJobWork(header, body, ts), {
+        title: 'Material received',
+        message: `${lines.length} line${lines.length === 1 ? '' : 's'} · ${fmtNum(totalQty)} PCS${totalKg ? ` · ${totalKg} KG` : ''} — ${lines.length === 1 ? 'a job card was' : `${lines.length} job cards were`} created at ${first?.label}.`,
+      }),
+    );
+    if (ok) onClose();
   };
-
   return (
     <Modal
       open
       onClose={onClose}
       size="lg"
       icon={Handshake}
-      title="Receive Parts for Job Work"
+      title="Receive Material for Job Work"
       footer={
         <>
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
           <button className="btn btn-primary" disabled={!valid || busy} onClick={submit}>
-            <Handshake size={15} /> Receive Parts
+            <Handshake size={15} /> Receive {lines.length > 1 ? `${lines.length} Items` : 'Material'}
           </button>
         </>
       }
     >
-      <div className="section-label">Parts received</div>
+      <div className="section-label">Receipt</div>
       <div className="form-grid three">
-        <DocNoField label="Job Card No." no={doc.no} setNo={doc.setNo} />
+        {lines.length === 1 ? (
+          <DocNoField label="Job Card No." no={doc.no} setNo={doc.setNo} />
+        ) : (
+          <Field label="Job Card No." hint="One job card per line, numbered automatically">
+            <input className="input" readOnly value={`${lines.length} job cards`} />
+          </Field>
+        )}
         <Field label="Customer" required={can('party_names')}>
           <CustomerSelect value={f.customer} onChange={(name) => set('customer', name)} required={can('party_names')} />
         </Field>
@@ -376,25 +437,68 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
         <Field label="Challan Date">
           <input className="input" type="date" max={todayISO()} value={f.challanDate} onChange={(e) => set('challanDate', e.target.value)} />
         </Field>
-        <Field label="Item" required hint="From the Product Master — it gives the cutting length, die and heat-treatment settings">
-          <select value={f.productId} onChange={(e) => set('productId', e.target.value)}>
-            <option value="">Select item…</option>
-            {state.products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.code} · {p.name}
-              </option>
+      </div>
+
+      <div className="section-label">Items received</div>
+      <datalist id="jw-items">
+        {['Round Bar', 'Hex Bar', 'Square Bar', 'Flat Bar', 'Billet', 'Forged Parts', 'Machined Parts'].map((x) => <option key={x} value={x} />)}
+      </datalist>
+      <datalist id="jw-materials">
+        {materialHints.map((x) => <option key={x} value={x} />)}
+      </datalist>
+      <div className="table-wrap">
+        <table className="tbl form-tbl">
+          <thead>
+            <tr>
+              <th style={{ width: 34 }}>#</th>
+              <th style={{ minWidth: 130 }}>Item *</th>
+              <th style={{ minWidth: 120 }}>Material</th>
+              <th style={{ width: 100 }}>Size (mm)</th>
+              <th style={{ width: 110 }} className="r">Qty (PCS) *</th>
+              <th style={{ width: 120 }} className="r">Weight (KG){src === 'customer' ? ' *' : ''}</th>
+              <th style={{ minWidth: 170 }}>Made into (job card) *</th>
+              <th style={{ width: 40 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l, i) => (
+              <tr key={i}>
+                <td className="center muted">{i + 1}</td>
+                <td><input list="jw-items" value={l.item} onChange={(e) => setLine(i, { item: e.target.value })} placeholder="Round Bar" /></td>
+                <td><input list="jw-materials" value={l.material} onChange={(e) => setLine(i, { material: e.target.value })} placeholder="e.g. Brass" /></td>
+                <td><input type="number" min="0" step="any" className="right" value={l.size} onChange={(e) => setLine(i, { size: e.target.value })} placeholder="e.g. 70" /></td>
+                <td><input type="number" min="0" step="1" className="right" value={l.qty} onChange={(e) => setLine(i, { qty: e.target.value })} /></td>
+                <td><input type="number" min="0" step="any" className="right" value={l.weight} onChange={(e) => setLine(i, { weight: e.target.value })} /></td>
+                <td>
+                  <select value={l.productId} onChange={(e) => setLine(i, { productId: e.target.value, auto: false })} title="The product this line's job card makes — it gives the cutting length, die and heat-treatment settings">
+                    <option value="">Select product…</option>
+                    {state.products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} · Ø{p.od}</option>
+                    ))}
+                  </select>
+                  {errs[i] && <div className="text-xs" style={{ color: 'var(--crit)', marginTop: 4 }}>{errs[i]}</div>}
+                </td>
+                <td className="center">
+                  <button type="button" className="icon-btn danger" title="Remove this line" aria-label={`Remove line ${i + 1}`} disabled={lines.length === 1} onClick={() => setLines((ls) => ls.filter((_, k) => k !== i))}>
+                    <Trash2 size={15} />
+                  </button>
+                </td>
+              </tr>
             ))}
-          </select>
-        </Field>
-        <Field label="Quantity Received" required error={errQty}>
-          <NumInput value={f.qty} onChange={(v) => set('qty', v)} bad={!!errQty} />
-        </Field>
-        <Field label="Weight Received" hint="Optional — used when charging per kg">
-          <NumInput value={f.weight} onChange={(v) => set('weight', v)} suffix="KG" step="any" />
-        </Field>
-        <Field label="Item Description" full>
-          <input className="input" value={f.itemDescription} onChange={(e) => set('itemDescription', e.target.value)} placeholder="Customer's part name / drawing no. / remarks" />
-        </Field>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={4}>
+                <button type="button" className="btn btn-sm btn-subtle" onClick={() => setLines((ls) => [...ls, blankLine()])}>
+                  <Plus size={14} /> Add Item
+                </button>
+              </td>
+              <td className="r num strong">{fmtNum(totalQty)}</td>
+              <td className="r num strong">{totalKg ? `${totalKg} KG` : '—'}</td>
+              <td colSpan={2} className="text-xs muted">{lines.length} line{lines.length === 1 ? '' : 's'}</td>
+            </tr>
+          </tfoot>
+        </table>
       </div>
 
       <div className="section-label">Work to be done</div>
@@ -407,7 +511,7 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div className="form-grid three" style={{ marginTop: 16 }}>
-        <Field label="Material" hint={src === 'own' ? (proc.cutting ? `${product ? fmtNum(ownAvail) + ' PCS in our stock · ' : ''}issued oldest-first when Cutting starts` : `${product ? fmtNum(ownAvail) + ' PCS of our parts ready for ' + (first?.label ?? 'the first process') + ' · ' : ''}taken from the product's stock in Product Master`) : 'Nothing is taken from our stock'}>
+        <Field label="Material" hint={src === 'own' ? (proc.cutting ? 'Our raw bar — issued oldest-first when Cutting starts' : "Our parts — taken from the product's stock in Product Master") : "The customer's — kept in Party Inventory, never in our stock"}>
           <select value={src} onChange={(e) => setSource(e.target.value as 'customer' | 'own')}>
             <option value="customer">Customer's material</option>
             <option value="own">Our material</option>
@@ -423,7 +527,6 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
           <input className="input" type="date" value={f.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
         </Field>
       </div>
-
       {can('sales_rates') && (
         <>
           <div className="section-label">Charges (confidential)</div>
@@ -454,9 +557,8 @@ export function JobWorkForm({ onClose }: { onClose: () => void }) {
         <div className="callout info" style={{ marginTop: 16 }}>
           <Handshake size={16} />
           <div>
-            Creates a job card of <b>{fmtNum(qtyN)} PCS</b> {product?.name} that starts at <b>{first.label}</b>
-            {PROCESSES.some((x) => !proc[x.key]) ? ` — ${PROCESSES.filter((x) => !proc[x.key]).map((x) => x.label).join(', ')} are skipped` : ''}.{' '}
-            {chargeText({ jobNo: '', challanNo: '', challanDate: '', itemDescription: '', receivedQty: qtyN, materialSource: src, processes: proc, qcRequired, chargeBasis: can('sales_rates') ? basis : 'none', rate: Number(rate) || undefined, processRates: Object.fromEntries(Object.entries(pRates).map(([k, v]) => [k, Number(v) || 0])), billableQty: qtyN, createdAt: '' })}
+            Creates {lines.length === 1 ? 'a job card' : <b>{lines.length} job cards</b>} ({fmtNum(totalQty)} PCS{totalKg ? `, ${totalKg} KG` : ''}) that start at <b>{first.label}</b>
+            {PROCESSES.some((x) => !proc[x.key]) ? ` — ${PROCESSES.filter((x) => !proc[x.key]).map((x) => x.label).join(', ')} are skipped` : ''}.
           </div>
         </div>
       )}

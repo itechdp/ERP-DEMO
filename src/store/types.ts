@@ -53,6 +53,11 @@ export interface JobWork {
   billableQty: number;
   amount?: number; // CONFIDENTIAL — worked out by the database
   createdAt: string;
+  /** migration 91: the receipt this line belongs to (the job number of its first line), and what came in */
+  receiptNo?: string;
+  itemName?: string; // e.g. Round Bar
+  material?: string; // e.g. Brass
+  sizeMm?: number;
 }
 
 /** One inward lot of raw material (round bar billets). FIFO is applied across lots of the same material + OD. */

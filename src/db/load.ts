@@ -350,6 +350,10 @@ export async function loadERPState(): Promise<ERPState> {
         billableQty: num0(r.billable_qty),
         amount: num(r.amount),
         createdAt: str(r.created_at),
+        receiptNo: r.receipt_no ? str(r.receipt_no) : undefined,
+        itemName: r.item_name ? str(r.item_name) : undefined,
+        material: r.material ? str(r.material) : undefined,
+        sizeMm: r.size_mm == null ? undefined : num0(r.size_mm),
       }),
     ),
     counters: { job: 0, dispatch: 0, lot: 0, fg: 0, seq: 0 }, // numbering is done by the database

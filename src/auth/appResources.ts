@@ -519,7 +519,7 @@ const BASE_RESOURCES: AppResourceDefinition[] = [
 export const PAGE_TABS: Record<string, { key: string; label: string }[]> = {
   work_hub: [{ key: 'overview', label: 'Work Hub' }, { key: 'mytasks', label: 'My Tasks' }],
   qc: [{ key: 'register', label: 'Inspection Register' }, { key: 'hardness', label: 'Hardness Reports' }, { key: 'dimension', label: 'Dimension Reports' }],
-  job_work: [{ key: 'batches', label: 'Job Work In' }, { key: 'report', label: 'Job Card Report' }],
+  job_work: [{ key: 'batches', label: 'Job Work In' }, { key: 'party', label: 'Party Inventory' }, { key: 'report', label: 'Job Card Report' }],
   raw_inventory: [{ key: 'stock', label: 'Raw Material Stock' }, { key: 'inward', label: 'Inward Register' }, { key: 'issues', label: 'Issues to Production' }],
   die_details: [{ key: 'forging', label: 'Forging Dies' }, { key: 'trimming', label: 'Trimming Dies' }, { key: 'history', label: 'Die History' }, { key: 'images', label: 'Images & Drawings' }],
   procurement_po: [{ key: 'items', label: 'Items & Receipt Progress' }, { key: 'receipts', label: 'Receipts' }, { key: 'approvals', label: 'Approval Trail' }, { key: 'revisions', label: 'Revision History' }],

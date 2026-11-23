@@ -1,3 +1,4 @@
+import { lineText } from './lineText';
 // Job-work challans — same look as the Sales printouts and the Process Route Card (Everest Auto Forge header block, navy ruled
 // tables, blue values). Customer names, rates and amounts are left out for roles that may not see them.
 import { canSee, colOk } from '../auth/access';
@@ -47,6 +48,7 @@ export function jobWorkReceiptHtml(s: ERPState, w: JobWork) {
     ['Challan Date', dmy(w.challanDate)],
     ['Item', p.name],
     ['Part No.', p.code],
+    ...(lineText(w) ? ([['Received', `${lineText(w)}${w.receiptNo && w.receiptNo !== w.jobNo ? ` (receipt ${w.receiptNo})` : ''}`, true]] as Pair[]) : []),
     ...(w.itemDescription ? ([['Description', w.itemDescription, true]] as Pair[]) : []),
     ['Quantity Received', `${w.receivedQty} PCS`],
     ['Weight Received', w.receivedWeight ? `${w.receivedWeight} KG` : ''],

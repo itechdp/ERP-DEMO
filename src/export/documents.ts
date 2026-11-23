@@ -1,3 +1,4 @@
+import { lineText } from '../jobwork/lineText';
 // Every document of the system as a SheetSpec (see docOutput.tsx): the same description gives the Excel sheet in the company layout and the PDF.
 // Confidential figures follow the signed-in person's access, exactly as on the printouts: customer / supplier names (party names),
 // sales rates, purchase rates.
@@ -383,7 +384,7 @@ export function jobWorkReceiptSpec(s: ERPState, w: JobWork, user: string): Sheet
       [`Quality Check :- ${w.qcRequired ? 'Required' : 'Not required'}`, `Work :- ${procs}`, `Weight :- ${w.receivedWeight ? `${w.receivedWeight} KG` : ''}`],
     ],
     widths: [7, 26, 14, 36, 12],
-    blocks: [{ headers: ['Sr. No.', 'Item', 'Part No.', 'Description', 'Qty (PCS)'], align: ['center', 'left', 'left', 'left', 'right'], rows: [{ cells: [1, p.name, p.code, w.itemDescription, w.receivedQty] as SheetValue[] }] }],
+    blocks: [{ headers: ['Sr. No.', 'Item', 'Part No.', 'Description', 'Qty (PCS)'], align: ['center', 'left', 'left', 'left', 'right'], rows: [{ cells: [1, p.name, p.code, lineText(w) || w.itemDescription, w.receivedQty] as SheetValue[] }] }],
     checkedBy: user,
   };
 }
