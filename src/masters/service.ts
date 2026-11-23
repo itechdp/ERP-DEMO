@@ -25,6 +25,16 @@ export interface MaterialInput { old?: string; family: string; material: string;
 export async function saveMaterial(m: MaterialInput) {
   fail((await supabase.rpc('save_material', { p_old: m.old ?? null, p_family: m.family, p_material: m.material, p_grade: m.grade, p_density: m.density, p_default_od: m.defaultOd })).error);
 }
+/** Plant staff (Settings → Drop-down Lists → Plant Staff, migration 85): add / change a name, or remove it. */
+const staffFail = (e: { message: string } | null) => {
+  if (e) throw new Error(/save_staff|delete_staff|designation|schema cache|does not exist/i.test(e.message) ? 'The plant staff list is not set up in the database yet. Run migration 85 (85_plant_staff.sql) in the Supabase SQL editor.' : dbMessage(e as never));
+};
+export async function saveStaff(id: number | null, name: string, designation: string, active: boolean) {
+  staffFail((await supabase.rpc('save_staff', { p_id: id, p_name: name, p_designation: designation, p_active: active })).error);
+}
+export async function deleteStaff(id: number) {
+  staffFail((await supabase.rpc('delete_staff', { p_id: id })).error);
+}
 export async function deleteMaterial(name: string) {
   fail((await supabase.rpc('delete_material', { p_material: name })).error);
 }

@@ -45,6 +45,7 @@ function stageParams(r: StageRecord) {
   }
   if (r.machine && colOk('stage.machine')) items.push(['Machine', r.machine]);
   if (r.operator && colOk('stage.operator')) items.push(['Checked by', r.operator]);
+  if (p.manpower && colOk('stage.operator')) items.push(['Manpower / Forger', p.manpower]);
   return items;
 }
 

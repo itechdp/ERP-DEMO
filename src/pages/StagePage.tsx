@@ -315,6 +315,8 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
   const [received, setReceived] = useState(String(rec?.input ?? 0));
   const [rejection, setRejection] = useState('0');
   const [checkedBy, setCheckedBy] = useState(rec?.operator ?? '');
+  // the forger / operator(s) who did the work — a name from Settings → Drop-down Lists → Plant Staff, saved with the stage record
+  const [manpower, setManpower] = useState(String(rec?.params.manpower ?? ''));
   const [date, setDate] = useState(todayISO());
   // T1–T4: the four temperatures recorded when a batch is heat-treated (each starts at the item's standard, or the saved value)
   const [temps, setTemps] = useState<string[]>(() => ['t1', 't2', 't3', 't4'].map((k) => String(rec?.params[k] ?? rec?.params.temperature ?? p.htTemperature)));
@@ -349,6 +351,10 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
 
   const save = async () => {
     if (invalid) return;
+    const stageParams: Record<string, string | number> = {
+      ...(stage === 'forging' ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : stage === 'heatTreatment' ? htParams(temps) : {}),
+      ...(manpower ? { manpower } : {}),
+    };
     const done = await run(
       (now) =>
         api.completeStage(
@@ -358,7 +364,7 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
             inputQty: editableInput ? inN : undefined,
             loss: rejN,
             operator: checkedBy,
-            params: stage === 'forging' ? (skipTrim || skipHT ? { ...(skipTrim ? { skipTrimming: 1 } : {}), ...(skipHT ? { skipHeatTreatment: 1 } : {}) } : undefined) : stage === 'heatTreatment' ? htParams(temps) : undefined,
+            params: Object.keys(stageParams).length ? stageParams : undefined,
           },
           tsFor(date, now),
         ),
@@ -429,12 +435,10 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
           <NumInput value={Number.isFinite(ok) && ok >= 0 ? ok : ''} readOnly />
         </Field>
         <Field label="Checked By">
-          <select value={checkedBy} onChange={(e) => setCheckedBy(e.target.value)}>
-            <option value="">Select…</option>
-            {masters.operators.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
+          <StaffSelect value={checkedBy} onChange={setCheckedBy} staff={masters.staff} />
+        </Field>
+        <Field label="Manpower / Forger">
+          <StaffSelect value={manpower} onChange={setManpower} staff={masters.staff} />
         </Field>
         {stage === 'heatTreatment' &&
           temps.map((t, i) => (
@@ -454,6 +458,23 @@ export function StageModal({ stage, jobNo, onClose }: { stage: ProcessStage; job
 
 /** Jobs still at an earlier stage — shows why they are not here yet and lets the user finish that step. */
 /** Heat-treatment temperatures that were entered: T1–T4, empty ones left out (the first one entered is also the single "temperature"). */
+/** A name from the plant staff list (Settings → Drop-down Lists → Plant Staff), shown with the designation.
+ *  A saved name that has since been removed from the list is kept and shown as it is. */
+function StaffSelect({ value, onChange, staff }: { value: string; onChange: (v: string) => void; staff: { name: string; designation: string }[] }) {
+  const missing = value !== '' && !staff.some((s) => s.name === value);
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{staff.length ? 'Select…' : 'No names yet — add them in Settings → Drop-down Lists → Plant Staff'}</option>
+      {missing && <option value={value}>{value}</option>}
+      {staff.map((s) => (
+        <option key={s.name} value={s.name}>
+          {s.name} ({s.designation})
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function htParams(temps: string[]) {
   const out: Record<string, number> = {};
   temps.forEach((v, i) => {

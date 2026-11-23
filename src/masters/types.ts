@@ -19,5 +19,10 @@ export interface MasterRow {
   id: number;
   name: string;
   stage?: string;
+  /** plant staff only (the operators list, migration 85): Supervisor, Forger, Operator or Helper */
+  designation?: string;
   active: boolean;
 }
+
+/** the designations a plant staff member can have (same list as save_staff in migration 85) */
+export const STAFF_DESIGNATIONS = ['Supervisor', 'Forger', 'Operator', 'Helper'] as const;

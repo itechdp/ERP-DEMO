@@ -3,8 +3,8 @@ import { ArrowDown, ArrowUp, ListOrdered, Pencil, Plus, RotateCcw, Trash2 } from
 import { Confirm, Empty, Field, Modal, PageHeader } from '../components/ui';
 import { MaterialModal } from '../masters/AddItem';
 import { OPTION_LISTS, defaultsOf } from '../masters/optionLists';
-import { deleteMaterial, saveMasterName, saveOptionList } from '../masters/service';
-import type { MasterRow } from '../masters/types';
+import { deleteMaterial, deleteStaff, saveMasterName, saveOptionList, saveStaff } from '../masters/service';
+import { STAFF_DESIGNATIONS, type MasterRow } from '../masters/types';
 import { MATERIAL_FAMILIES, MATERIAL_MASTER, type MaterialSpec } from '../store/materials';
 import { useStore } from '../store/StoreContext';
 
@@ -21,7 +21,7 @@ export function ListsPage() {
     { pick: { kind: 'materials' }, label: 'Raw materials', hint: 'The Material drop-down (stock, products, jobs)' },
     ...OPTION_LISTS.map((l) => ({ pick: { kind: 'list', key: l.key } as Pick, label: l.label, hint: l.hint })),
     { pick: { kind: 'master', which: 'machine' }, label: 'Machines', hint: 'Cutting, forging, trimming, heat-treatment machines' },
-    { pick: { kind: 'master', which: 'operator' }, label: 'Operators', hint: 'The operator names offered when a stage is run' },
+    { pick: { kind: 'master', which: 'operator' }, label: 'Plant Staff', hint: 'Supervisors, forgers, operators — offered in Checked By and Manpower / Forger' },
     { pick: { kind: 'master', which: 'inspector' }, label: 'Inspectors', hint: 'The inspector names offered in QC and hardness' },
   ];
   const cur = entries.find((e) => same(e.pick, pick)) ?? entries[0];
@@ -174,34 +174,51 @@ function MasterEditor({ which }: { which: 'machine' | 'operator' | 'inspector' }
   const { masters, refresh, toast } = useStore();
   const rows: MasterRow[] = which === 'machine' ? masters.rows.machines : which === 'operator' ? masters.rows.operators : masters.rows.inspectors;
   const [editing, setEditing] = useState<MasterRow | 'new' | null>(null);
+  const [deleting, setDeleting] = useState<MasterRow | null>(null);
+  const staff = which === 'operator';
   const toggle = async (r: MasterRow) => {
     try {
-      await saveMasterName(which, r.id, r.name, r.stage ?? null, !r.active);
+      if (staff) await saveStaff(r.id, r.name, r.designation ?? 'Operator', !r.active);
+      else await saveMasterName(which, r.id, r.name, r.stage ?? null, !r.active);
       await refresh();
     } catch (e) {
       toast({ kind: 'error', title: 'Could not change it', message: errText(e) });
     }
   };
-  const noun = which === 'machine' ? 'machine' : which === 'operator' ? 'operator' : 'inspector';
+  const remove = async (r: MasterRow) => {
+    try {
+      await deleteStaff(r.id);
+      await refresh();
+      toast({ kind: 'success', title: 'Deleted', message: r.name });
+    } catch (e) {
+      toast({ kind: 'error', title: 'Could not delete it', message: errText(e) });
+    }
+    setDeleting(null);
+  };
+  const noun = which === 'machine' ? 'machine' : staff ? 'staff member' : 'inspector';
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
-        <p className="text-sm muted" style={{ margin: 0 }}>Switch one off to stop offering it in the forms — nothing already saved changes.</p>
+        <p className="text-sm muted" style={{ margin: 0 }}>{staff ? 'The names offered in Checked By and Manpower / Forger. Switch one off to stop offering it, or delete it — names already saved on a job do not change.' : 'Switch one off to stop offering it in the forms — nothing already saved changes.'}</p>
         <button className="btn btn-primary" style={{ marginLeft: 'auto' }} onClick={() => setEditing('new')}><Plus size={15} /> Add {noun}</button>
       </div>
       {rows.length === 0 ? (
-        <Empty icon={ListOrdered} title={`No ${noun}s yet`} />
+        <Empty icon={ListOrdered} title={staff ? 'No plant staff yet' : `No ${noun}s yet`} />
       ) : (
         <div className="table-wrap">
           <table className="tbl">
-            <thead><tr><th>Name</th>{which === 'machine' && <th>Process</th>}<th>Status</th><th className="act">Actions</th></tr></thead>
+            <thead><tr><th>Name</th>{which === 'machine' && <th>Process</th>}{staff && <th>Designation</th>}<th>Status</th><th className="act">Actions</th></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} style={r.active ? undefined : { opacity: 0.6 }}>
                   <td className="strong">{r.name}</td>
                   {which === 'machine' && <td>{STAGES.find(([k]) => k === r.stage)?.[1] ?? r.stage}</td>}
+                  {staff && <td>{r.designation ?? 'Operator'}</td>}
                   <td><button role="switch" aria-checked={r.active} aria-label={`${r.name} in use`} className={`tg ${r.active ? 'on' : ''}`} onClick={() => void toggle(r)} /></td>
-                  <td className="r nowrap"><button className="icon-btn" title="Edit" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)}><Pencil size={16} /></button></td>
+                  <td className="r nowrap">
+                    <button className="icon-btn" title="Edit" aria-label={`Edit ${r.name}`} onClick={() => setEditing(r)}><Pencil size={16} /></button>
+                    {staff && <button className="icon-btn danger" title="Delete" aria-label={`Delete ${r.name}`} onClick={() => setDeleting(r)}><Trash2 size={16} /></button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -209,6 +226,7 @@ function MasterEditor({ which }: { which: 'machine' | 'operator' | 'inspector' }
         </div>
       )}
       {editing && <MasterModal which={which} row={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}
+      <Confirm open={!!deleting} title="Delete staff member" message={deleting ? `Delete ${deleting.name}? Jobs that already show this name keep it.` : ''} confirmLabel="Delete" tone="danger" onConfirm={() => deleting && void remove(deleting)} onClose={() => setDeleting(null)} />
     </>
   );
 }
@@ -217,11 +235,14 @@ function MasterModal({ which, row, onClose }: { which: 'machine' | 'operator' | 
   const { refresh, toast } = useStore();
   const [name, setName] = useState(row?.name ?? '');
   const [stage, setStage] = useState(row?.stage ?? 'cutting');
+  const [designation, setDesignation] = useState(row?.designation ?? 'Operator');
   const [busy, setBusy] = useState(false);
+  const staff = which === 'operator';
   const submit = async () => {
     setBusy(true);
     try {
-      await saveMasterName(which, row?.id ?? null, name.trim(), which === 'machine' ? stage : null, row?.active ?? true);
+      if (staff) await saveStaff(row?.id ?? null, name.trim(), designation, row?.active ?? true);
+      else await saveMasterName(which, row?.id ?? null, name.trim(), which === 'machine' ? stage : null, row?.active ?? true);
       await refresh();
       toast({ kind: 'success', title: row ? 'Saved' : 'Added', message: name.trim() });
       onClose();
@@ -235,7 +256,7 @@ function MasterModal({ which, row, onClose }: { which: 'machine' | 'operator' | 
       dialog
       open
       onClose={onClose}
-      title={`${row ? 'Edit' : 'Add'} ${which}`}
+      title={`${row ? 'Edit' : 'Add'} ${staff ? 'staff member' : which}`}
       footer={
         <>
           <button className="btn" onClick={onClose}>Cancel</button>
@@ -244,7 +265,14 @@ function MasterModal({ which, row, onClose }: { which: 'machine' | 'operator' | 
       }
     >
       <div style={{ display: 'grid', gap: 14 }}>
-        <Field label="Name" required><input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus /></Field>
+        <Field label="Name" required><input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder={staff ? 'e.g. Rameshbhai Patel' : undefined} autoFocus /></Field>
+        {staff && (
+          <Field label="Designation" required>
+            <select value={designation} onChange={(e) => setDesignation(e.target.value)}>
+              {STAFF_DESIGNATIONS.map((d) => <option key={d}>{d}</option>)}
+            </select>
+          </Field>
+        )}
         {which === 'machine' && (
           <Field label="Process" required>
             <select value={stage} onChange={(e) => setStage(e.target.value)}>

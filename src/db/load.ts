@@ -63,7 +63,10 @@ export interface Masters {
   suppliers: string[];
   customers: string[];
   machines: Record<'cutting' | 'forging' | 'trimming' | 'heatTreatment' | 'cnc' | 'vmc', string[]>;
+  /** the names of the plant staff in use (the operators list) — offered in Checked By and Manpower / Forger */
   operators: string[];
+  /** the same people with their designation, for labelling the drop-downs */
+  staff: { name: string; designation: string }[];
   inspectors: string[];
   /** the customer master with all details (empty for roles without access to party names) */
   customerList: Customer[];
@@ -91,13 +94,15 @@ export async function loadMasters(): Promise<Masters> {
   const mats = ((extra[1].data ?? []) as Row[]).map((r) => ({ material: str(r.material), family: str(r.family), grade: str(r.grade), density: num0(r.density), defaultOd: num0(r.default_od) }));
   applyMaterialMaster(mats);
   applyBarSizes((options.od_size ?? defaultsOf('od_size')).map(Number).filter((n) => n > 0));
-  const mapRows = (rows: Row[]): MasterRow[] => rows.map((r) => ({ id: num0(r.id), name: str(r.name), stage: r.stage ? str(r.stage) : undefined, active: r.active !== false }));
+  const mapRows = (rows: Row[]): MasterRow[] => rows.map((r) => ({ id: num0(r.id), name: str(r.name), stage: r.stage ? str(r.stage) : undefined, designation: r.designation ? str(r.designation) : undefined, active: r.active !== false }));
   const byStage = (s: string) => machines.filter((m) => m.stage === s && m.active !== false).map((m) => str(m.name));
   return {
     suppliers: suppliers.filter((r) => r.active !== false).map((r) => str(r.name)),
     customers: customers.filter((r) => r.active !== false).map((r) => str(r.name)),
     machines: { cutting: byStage('cutting'), forging: byStage('forging'), trimming: byStage('trimming'), heatTreatment: byStage('heatTreatment'), cnc: byStage('cnc'), vmc: byStage('vmc') },
     operators: operators.filter((r) => r.active !== false).map((r) => str(r.name)),
+    // before migration 85 there is no designation: everyone counts as an Operator
+    staff: operators.filter((r) => r.active !== false).map((r) => ({ name: str(r.name), designation: r.designation ? str(r.designation) : 'Operator' })),
     inspectors: inspectors.filter((r) => r.active !== false).map((r) => str(r.name)),
     customerList: customers.map(
       (r): Customer => ({
