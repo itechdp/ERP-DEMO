@@ -29,6 +29,7 @@ import { useFollowups } from '../followups/useFollowups';
 import { BellRing, Cog, Cpu } from 'lucide-react';
 import { AnimatedNum } from '../components/motion';
 import { UtilityWidgets } from '../widgets/UtilityWidgets';
+import { PendingOrders } from '../widgets/PendingOrders';
 import { fmtKg, fmtNum, plural, timeAgo, todayISO } from '../components/format';
 
 const FEED_ICON: Record<Activity['kind'], typeof Play> = {
@@ -175,6 +176,9 @@ export function Dashboard({ navigate }: { navigate: (r: string) => void }) {
       </div>
       {/* standalone utility cards: calculator, petty cash, quick material log */}
       <UtilityWidgets />
+
+      {/* sales orders still waiting for production — "Send to Production" opens a New Job Card for the order */}
+      <PendingOrders />
 
       {/* ---------------- Production flow ---------------- */}
       <div className="card mb-lg">

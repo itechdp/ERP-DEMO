@@ -33,7 +33,7 @@ export function ActionHost({ page }: { page?: boolean }) {
   let body: ReactNode = null;
   switch (action.kind) {
     case 'newJob':
-      body = <NewJobModal open onClose={close} />;
+      body = <NewJobModal key={action.soNo ?? ''} open soNo={action.soNo} onClose={close} />;
       break;
     case 'jobWork':
       body = <JobWorkForm onClose={close} />;

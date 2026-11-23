@@ -1,5 +1,7 @@
 import * as api from '../db/api';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { fetchOrder } from '../salesmod/service';
+import type { OrderLine } from '../salesmod/types';
 import { Layers, PackagePlus, Scissors } from 'lucide-react';
 import { useStore } from '../store/StoreContext';
 import { canSee } from '../auth/access';
@@ -81,7 +83,7 @@ export const tsFor = (date: string, nowTs: string) => {
 };
 
 /** New Job Card — the same header fields as the client's paper Process Route Card. */
-export function NewJobModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function NewJobModal({ open, soNo, onClose }: { open: boolean; soNo?: string; onClose: () => void }) {
   const { state, openAction } = useStore();
   if (!state.products.length)
     return (
@@ -106,10 +108,10 @@ export function NewJobModal({ open, onClose }: { open: boolean; onClose: () => v
         <p>Open <b>Product Master</b> and add your first product (code, raw material, cutting length, finished weight and heat-treatment settings). Director and Plant Head can do this.</p>
       </Modal>
     );
-  return <NewJobForm open={open} onClose={onClose} openAction={openAction} />;
+  return <NewJobForm open={open} presetSo={soNo} onClose={onClose} openAction={openAction} />;
 }
 
-function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () => void; openAction: ReturnType<typeof useStore>['openAction'] }) {
+function NewJobForm({ open, presetSo, onClose, openAction }: { open: boolean; presetSo?: string; onClose: () => void; openAction: ReturnType<typeof useStore>['openAction'] }) {
   const { state, masters, run, openTrace, busy } = useStore();
   const pf = useProductFlows();
   const st = useStock();
@@ -130,11 +132,43 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
   const [soNo, setSoNo] = useState('');
   const { orders } = useOrders();
   const openOrders = orders.filter((o) => o.status === 'Confirmed' || o.status === 'In Production');
+  // the chosen order's lines; choosing an order fills in the item (matched by name in Product Master) and the quantity of a PCS line
+  const [soLines, setSoLines] = useState<OrderLine[]>([]);
+  const findProduct = (name: string) => {
+    const n = name.trim().toLowerCase();
+    if (!n) return undefined;
+    return (
+      state.products.find((p) => p.name.trim().toLowerCase() === n) ??
+      state.products.find((p) => p.code.trim().toLowerCase() === n) ??
+      state.products.find((p) => p.name.trim().toLowerCase().includes(n) || n.includes(p.name.trim().toLowerCase()))
+    );
+  };
+  const applyLine = (l: OrderLine) => {
+    const p = findProduct(l.product);
+    if (p) pickProduct(p.id);
+    if (l.qty && l.qty > 0 && (l.uom || 'PCS').toUpperCase() === 'PCS') setPlanned(String(Math.round(l.qty)));
+  };
   const pickOrder = (no: string) => {
     setSoNo(no);
-    const o = openOrders.find((x) => x.soNo === no);
+    setSoLines([]);
+    const o = orders.find((x) => x.soNo === no);
     if (o?.customer) setCustomer(o.customer);
+    if (!o) return;
+    void fetchOrder(o.id)
+      .then(({ lines }) => {
+        setSoLines(lines);
+        const first = lines.find((l) => findProduct(l.product)) ?? lines[0];
+        if (first) applyLine(first);
+      })
+      .catch(() => undefined);
   };
+  // opened from Dashboard → Pending Sales Orders → Send to Production: the order is chosen as soon as the orders are loaded
+  const presetDone = useRef(false);
+  useEffect(() => {
+    if (!presetSo || presetDone.current || !orders.some((o) => o.soNo === presetSo)) return;
+    presetDone.current = true;
+    pickOrder(presetSo);
+  }, [orders, presetSo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const materials = useMemo(() => {
     const m = new Map<string, number>();
@@ -309,6 +343,27 @@ function NewJobForm({ open, onClose, openAction }: { open: boolean; onClose: () 
           </select>
         </Field>
       </div>
+
+      {soNo && soLines.length > 0 && (
+        <div className={`callout ${soLines.some((l) => findProduct(l.product)) ? 'info' : 'warn'}`} style={{ marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <b>{soNo}</b>
+            {soLines.length > 1 ? ` has ${soLines.length} lines — pick the one this job card is for (make another job card for the next line):` : ':'}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {soLines.map((l, k) => {
+                const p = findProduct(l.product);
+                const on = !!p && p.id === productId;
+                return (
+                  <button key={k} type="button" className={`btn btn-sm ${on ? 'btn-primary' : 'btn-subtle'}`} onClick={() => applyLine(l)} title={p ? `Use ${p.name}` : 'No product with this name in Product Master'}>
+                    {l.product || '—'}{l.qty ? ` · ${fmtNum(l.qty)} ${l.uom || 'PCS'}` : ''}{!p ? ' (not in Product Master)' : ''}
+                  </button>
+                );
+              })}
+            </div>
+            {!soLines.some((l) => findProduct(l.product)) && <div style={{ marginTop: 6 }}>No product in Product Master has this name — choose the Item Name yourself.</div>}
+          </div>
+        </div>
+      )}
 
       {fromParts ? (
         <div className={`callout ${partsAvail > 0 ? 'info' : 'warn'}`}>

@@ -22,7 +22,7 @@ const qs = (o: Record<string, string | number | undefined>) => {
 export function actionToHash(a: Action): string {
   switch (a.kind) {
     case 'newJob':
-      return 'form/new-job';
+      return 'form/new-job' + qs({ so: a.soNo });
     case 'jobWork':
       return 'form/job-work';
     case 'product':
@@ -45,7 +45,7 @@ export function actionToHash(a: Action): string {
 export function hashToAction(route: string, q: URLSearchParams): Action | null {
   switch (route) {
     case 'form/new-job':
-      return { kind: 'newJob' };
+      return { kind: 'newJob', soNo: q.get('so') ?? undefined };
     case 'form/job-work':
       return { kind: 'jobWork' };
     case 'form/product':

@@ -5,7 +5,7 @@
 import { supabase } from './client';
 
 /** what changed: the main ERP data (store), the furnaces, or one of the dashboard scratch tools */
-export type SyncScope = 'erp' | 'furnaces' | 'petty' | 'material';
+export type SyncScope = 'erp' | 'furnaces' | 'petty' | 'material' | 'notify';
 type Listener = (scope: SyncScope) => void;
 
 const listeners = new Set<Listener>();

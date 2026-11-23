@@ -8,7 +8,7 @@ import { actionParent, actionToHash, closeForm, hashToAction, leaveForm, openFor
 
 /** A shop-floor action that opens its form wherever the user is (page, dashboard, drawer, bell menu). */
 export type Action =
-  | { kind: 'newJob' }
+  | { kind: 'newJob'; /** a Sales Order to make the job card for (Dashboard → Send to Production) */ soNo?: string }
   | { kind: 'jobWork' }
   | { kind: 'product'; id?: string; /** show the record read-only (same form, nothing editable) */ view?: boolean }
   | { kind: 'inward'; material?: string; od?: number; /** a lot to correct (edit) instead of a new inward */ id?: string; view?: boolean }

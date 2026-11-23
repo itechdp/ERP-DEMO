@@ -16,6 +16,7 @@ import { PersonSelect } from '../components/PersonSelect';
 import { CustomerSelect } from '../masters/CustomerSelect';
 import { fetchAssignableUsers, type AssignableUser } from '../tasks/service';
 import { usePaged } from '../components/Pager';
+import { playTaskChime } from '../tasks/sound';
 
 export interface SalesPageDef {
   route: string;
@@ -276,6 +277,8 @@ function SalesFormBody({ cfg, rec, onDone, viewOnly }: { cfg: KindCfg; rec?: Sal
       for (const f of fields) payload[SNAKE[f.key] ?? f.key] = (v[f.key] ?? '').trim();
       const no = await withDocNo(rec ? undefined : doc.custom, () => api.saveSalesRecord(cfg.kind, rec?.id, payload));
       toast({ kind: 'success', title: rec ? `${cfg.singular} updated` : `${cfg.singular} added`, message: no });
+      // a task given to somebody (new, or handed to another person): the chime confirms it here too; the person gets it with their pop-up
+      if (cfg.kind === 'task' && (v.assignee ?? '').trim() && (!rec || (rec.assignee ?? '') !== v.assignee)) playTaskChime();
       onDone();
     } catch (e) {
       toast({ kind: 'error', title: 'Action not allowed', message: dbMessage(e) });

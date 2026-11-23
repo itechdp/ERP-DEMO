@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { fetchRecent, markSeen, type AppNotification } from './service';
+import { onRemoteChange } from '../db/sync';
+import { playTaskChime, primeSound } from './sound';
 
 const POLL_MS = 20000;
 
@@ -24,15 +26,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [all, setAll] = useState<AppNotification[]>([]);
   const [popups, setPopups] = useState<AppNotification[]>([]);
   const popped = useRef(new Set<number>());
+  // the first read only shows what was waiting (no sound); a task assigned after that rings once with its pop-up
+  const firstCheck = useRef(true);
 
   const check = useCallback(async () => {
     const list = await fetchRecent();
     setAll(list);
     const fresh = list.filter((n) => !n.seenAt && !popped.current.has(n.id));
+    const first = firstCheck.current;
+    firstCheck.current = false;
     if (!fresh.length) return;
     fresh.forEach((n) => popped.current.add(n.id));
     setPopups((cur) => [...[...fresh].reverse(), ...cur].slice(0, 5));
+    // a task assigned while the app is open rings; at sign-in only one assigned in the last 3 minutes (not old ones still waiting)
+    const recent = Date.now() - 3 * 60_000;
+    if (fresh.some((n) => n.kind === 'task_assigned' && (!first || Date.parse(n.createdAt) >= recent))) playTaskChime();
   }, []);
+
+  useEffect(() => primeSound(), []);
+  // another device assigned a task: look now rather than at the next 20-second check
+  useEffect(() => onRemoteChange((scope) => scope === 'notify' && void check()), [check]);
 
   useEffect(() => {
     void check();

@@ -6,6 +6,7 @@
 // Parameter names (p_…) must match the SQL function signatures exactly.
 // ---------------------------------------------------------------------------
 import { supabase } from './client';
+import { announceChange } from './sync';
 import { parseMaterialKey } from '../store/engine';
 import type { CompleteInput, DispatchInput, HardnessInput, InwardInput, JobInput, QCInput, StartInput } from '../store/engine';
 import type { Product, ProcessStage } from '../store/types';
@@ -277,8 +278,12 @@ export const removeProtectedColumn = (key: string) => call<void>('remove_protect
 
 // ------------------------------------------------------- sales & orders ---
 /** Create (id undefined) or edit one Sales & Orders record (supabase/migrations/21). Returns its number, e.g. QT-2026-0001. */
-export const saveSalesRecord = (kind: string, id: number | undefined, payload: Record<string, string>) =>
-  call<string>('save_sales_record', { p_kind: kind, p_id: id ?? null, p_payload: payload });
+export const saveSalesRecord = async (kind: string, id: number | undefined, payload: Record<string, string>) => {
+  const no = await call<string>('save_sales_record', { p_kind: kind, p_id: id ?? null, p_payload: payload });
+  // a task (re)assigned: the person's screen looks for the new notification straight away instead of at its next check
+  if (kind === 'task') announceChange('notify');
+  return no;
+};
 /** Delete one Sales & Orders record (needs Write on its page). */
 export const deleteSalesRecord = (kind: string, id: number) => call<null>('delete_sales_record', { p_kind: kind, p_id: id });
 
