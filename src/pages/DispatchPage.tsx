@@ -157,12 +157,18 @@ export function DispatchPage() {
                       <td className="nowrap">{fmtDate(d.date)}</td>
                       <td>
                         <Badge status={d.status} />
+                        {d.status === 'Ready for Dispatch' && <div className="sub">Draft — not dispatched yet</div>}
                       </td>
                       <td className="r nowrap">
                         {d.status === 'Ready for Dispatch' && (
-                          <button className="btn btn-sm btn-success" onClick={() => setShipping(d)}>
-                            <Truck size={13} /> Dispatch
-                          </button>
+                          <>
+                            <button className="btn btn-sm btn-subtle" title="Open the draft: add or correct bags, then dispatch" onClick={() => openAction({ kind: 'dispatch', fgId: d.fgId, draftNo: d.dispatchNo })}>
+                              <FileText size={13} /> Continue
+                            </button>{' '}
+                            <button className="btn btn-sm btn-success" onClick={() => setShipping(d)}>
+                              <Truck size={13} /> Dispatch
+                            </button>
+                          </>
                         )}
                         <button className="icon-btn" style={{ display: 'inline-grid', verticalAlign: 'middle', marginLeft: 4 }} title="Print process route card" onClick={() => printRouteCard(state, d.jobNo, flowOfJob(d.jobNo))}>
                           <ClipboardList size={16} />
@@ -215,37 +221,73 @@ export function DispatchPage() {
   );
 }
 
-/** Packing / dispatch as on the route card: Vehicle No. and one row per bag (qty + weight). */
-export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onClose: () => void }) {
+/**
+ * Packing / dispatch as on the route card: Vehicle No. and one row per bag — Weight first (read off the scale), then Qty.
+ * "Save as Draft" keeps the bags (and holds the pieces back in Finished Goods) so the packing can go on another day; the draft is
+ * opened again from the Dispatch list ("Continue") and sent with "Dispatch" once it is complete.
+ */
+export function NewDispatchModal({ fgId: initial, draftNo, onClose }: { fgId: string; draftNo?: string; onClose: () => void }) {
   const { state, run, busy } = useStore();
-  const lots = state.finishedGoods.filter((f) => fgAvailable(f) > 0);
-  const [fgId, setFgId] = useState(lots.find((f) => f.id === initial)?.id ?? lots[0]?.id ?? '');
+  const draft = draftNo ? state.dispatches.find((x) => x.dispatchNo === draftNo && x.status === 'Ready for Dispatch') : undefined;
+  // the draft's own lot stays in the list even when all of it is held by the draft
+  const lots = state.finishedGoods.filter((f) => fgAvailable(f) > 0 || f.id === draft?.fgId);
+  const [fgId, setFgId] = useState(draft?.fgId ?? lots.find((f) => f.id === initial)?.id ?? lots[0]?.id ?? '');
   const fg = lots.find((f) => f.id === fgId);
   const product = fg ? getProduct(state, fg.productId) : null;
-  const avail = fg ? fgAvailable(fg) : 0;
-  const doc = useDocNo('dispatch', true);
-  const [vehicle, setVehicle] = useState('');
-  const [date, setDate] = useState(todayISO());
-  const [bags, setBags] = useState<{ qty: string; weight: string }[]>([{ qty: '', weight: '' }]);
+  // what this dispatch may hold: the free stock, plus what the draft already holds
+  const avail = fg ? fgAvailable(fg) + (draft && draft.fgId === fg.id ? draft.qty : 0) : 0;
+  const doc = useDocNo('dispatch', !draft);
+  const [vehicle, setVehicle] = useState(draft?.vehicleNo ?? '');
+  const [date, setDate] = useState(draft?.date ?? todayISO());
+  const [bags, setBags] = useState<{ qty: string; weight: string }[]>(() =>
+    draft && draft.bags.length ? draft.bags.map((b) => ({ qty: String(b.qty), weight: b.weight ? String(b.weight) : '' })) : [{ qty: '', weight: '' }],
+  );
 
   const unitKg = product?.finishedWeight ?? 0;
   const rows = bags.map((b) => {
     const q = Number(b.qty);
     const autoKg = q > 0 ? round3(q * unitKg) : 0;
-    return { q, kg: Number(b.weight) > 0 ? Number(b.weight) : autoKg, autoKg, bad: b.qty !== '' && (!(q > 0) || !Number.isInteger(q)) };
+    const empty = b.qty.trim() === '' && b.weight.trim() === '';
+    // a bag weighed but not counted yet: the pieces it should hold, as a hint
+    const qtyHint = !(q > 0) && Number(b.weight) > 0 && unitKg > 0 ? Math.round(Number(b.weight) / unitKg) : 0;
+    return { q, kg: Number(b.weight) > 0 ? Number(b.weight) : autoKg, autoKg, qtyHint, empty, bad: !empty && (!(q > 0) || !Number.isInteger(q)) };
   });
-  const totalQty = rows.reduce((t, r) => t + (r.q > 0 ? r.q : 0), 0);
-  const totalKg = round3(rows.reduce((t, r) => t + r.kg, 0));
+  const used = rows.filter((r) => !r.empty);
+  const totalQty = used.reduce((t, r) => t + (r.q > 0 ? r.q : 0), 0);
+  const totalKg = round3(used.reduce((t, r) => t + r.kg, 0));
   const over = totalQty > avail;
-  const invalid = !fg || !vehicle.trim() || totalQty === 0 || over || rows.some((r) => r.bad || !(r.q > 0));
+  const bagsOk = !!fg && used.length > 0 && totalQty > 0 && !over && !used.some((r) => r.bad);
+  const invalid = !bagsOk || !vehicle.trim();
+  const payloadBags = () => used.map((r) => ({ qty: r.q, weight: r.kg }));
 
   const setBag = (i: number, k: 'qty' | 'weight', v: string) => setBags((list) => list.map((b, j) => (j === i ? { ...b, [k]: v } : b)));
 
+  const saveDraft = async () => {
+    const run1 = () =>
+      run((now) => api.saveDispatchDraft(draft?.dispatchNo ?? null, { fgId, vehicleNo: vehicle, date, bags: payloadBags() }, tsFor(date, now)), {
+        title: 'Draft saved',
+        message: `${fmtNum(totalQty)} PCS in ${used.length} bag${used.length === 1 ? '' : 's'} (${totalKg.toFixed(3)} KG) — open it from Dispatch → Continue to go on.`,
+      });
+    const ok = draft ? await run1() : await withDocNo(doc.custom, run1);
+    if (ok) onClose();
+  };
+
   const submit = async () => {
-    const ok = await withDocNo(doc.custom, () => run(
-      (now) => api.createDispatch({ fgId, vehicleNo: vehicle, date, status: 'Dispatched', bags: rows.map((r) => ({ qty: r.q, weight: r.kg })) }, tsFor(date, now)),
-      { title: 'Goods dispatched', message: `${totalQty} PCS in ${bags.length} bag${bags.length === 1 ? '' : 's'} on ${vehicle.toUpperCase()}.` },
-    ));
+    const ok = draft
+      ? await run(
+          async (now) => {
+            // the draft as it is on the form now, then sent
+            await api.saveDispatchDraft(draft.dispatchNo, { fgId, vehicleNo: vehicle, date, bags: payloadBags() }, tsFor(date, now));
+            await api.markDispatched(draft.dispatchNo, vehicle, tsFor(date, now));
+          },
+          { title: 'Goods dispatched', message: `${draft.dispatchNo}: ${fmtNum(totalQty)} PCS in ${used.length} bag${used.length === 1 ? '' : 's'} on ${vehicle.toUpperCase()}.` },
+        )
+      : await withDocNo(doc.custom, () =>
+          run((now) => api.createDispatch({ fgId, vehicleNo: vehicle, date, status: 'Dispatched', bags: payloadBags() }, tsFor(date, now)), {
+            title: 'Goods dispatched',
+            message: `${totalQty} PCS in ${used.length} bag${used.length === 1 ? '' : 's'} on ${vehicle.toUpperCase()}.`,
+          }),
+        );
     if (ok) onClose();
   };
 
@@ -255,27 +297,46 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
       onClose={onClose}
       size="lg"
       icon={Truck}
-      title="Dispatch"
-      subtitle="Bag-wise packing, as on the route card."
+      title={draft ? `Dispatch — ${draft.dispatchNo} (draft)` : 'Dispatch'}
+      subtitle={draft ? 'Continue packing: add or correct bags, then Dispatch — or save the draft again.' : 'Bag-wise packing, as on the route card.'}
       footer={
         <>
           <button className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-success" disabled={invalid || busy} onClick={submit}>
+          <button className="btn btn-subtle" disabled={!bagsOk || busy} onClick={() => void saveDraft()} title="Keep the bags and hold the pieces; dispatch later">
+            <FileText size={15} /> Save as Draft
+          </button>
+          <button className="btn btn-success" disabled={invalid || busy} onClick={() => void submit()}>
             <Truck size={15} /> Dispatch {totalQty > 0 ? `${fmtNum(totalQty)} PCS` : ''}
           </button>
         </>
       }
     >
-      {lots.length === 0 ? (
+      {draftNo && !draft ? (
+        <Empty icon={PackageOpen} title="This draft is no longer open" text={`${draftNo} has already been dispatched or deleted.`} />
+      ) : lots.length === 0 ? (
         <Empty icon={PackageOpen} title="No finished goods available" text="Complete QC on a job to add stock to Finished Goods." />
       ) : (
         <>
+          {draft && (
+            <div className="callout info" style={{ marginBottom: 14 }}>
+              <FileText size={16} />
+              <div>
+                Draft saved with <b>{fmtNum(draft.qty)} PCS</b> in {draft.bags.length} bag{draft.bags.length === 1 ? '' : 's'} ({fmtKg(draft.weight)}). These pieces are held for this dispatch.
+              </div>
+            </div>
+          )}
           <div className="form-grid three">
-            <DocNoField label="Dispatch No." no={doc.no} setNo={doc.setNo} />
+            {draft ? (
+              <Field label="Dispatch No.">
+                <input className="input" readOnly value={draft.dispatchNo} />
+              </Field>
+            ) : (
+              <DocNoField label="Dispatch No." no={doc.no} setNo={doc.setNo} />
+            )}
             <Field label="Job Card No." required hint={product ? `${product.name} · ${fmtNum(avail)} PCS available` : undefined}>
-              <select value={fgId} onChange={(e) => setFgId(e.target.value)}>
+              <select value={fgId} disabled={!!draft} onChange={(e) => setFgId(e.target.value)}>
                 {lots.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.jobNo} · {getProduct(state, f.productId).name}
@@ -286,18 +347,18 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
             <Field label="Date">
               <input className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} />
             </Field>
-            <Field label="Vehicle No." required>
+            <Field label="Vehicle No." required hint="Needed to Dispatch — not for a draft">
               <input className="input mono" placeholder="GJ13AX3059" value={vehicle} onChange={(e) => setVehicle(e.target.value.toUpperCase())} />
             </Field>
           </div>
 
           <div className="section-label">Bags</div>
-          <table className="bag-tbl">
+          <table className="bag-tbl big">
             <thead>
               <tr>
                 <th>Bag</th>
-                <th>Qty (PCS)</th>
                 <th>Weight (KG)</th>
+                <th>Qty (PCS)</th>
                 <th />
               </tr>
             </thead>
@@ -306,10 +367,10 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
                 <tr key={i}>
                   <td className="muted">{i + 1}</td>
                   <td>
-                    <input className={`input num ${rows[i].bad ? 'bad' : ''}`} type="number" min={1} value={b.qty} autoFocus={i === bags.length - 1 && i > 0} onChange={(e) => setBag(i, 'qty', e.target.value)} />
+                    <input className="input num" type="number" inputMode="decimal" min={0} step="any" value={b.weight} placeholder={rows[i].autoKg ? String(rows[i].autoKg) : '0.000'} autoFocus={i === bags.length - 1 && i > 0} onChange={(e) => setBag(i, 'weight', e.target.value)} aria-label={`Bag ${i + 1} weight`} />
                   </td>
                   <td>
-                    <input className="input num" type="number" min={0} step="any" value={b.weight} placeholder={rows[i].autoKg ? String(rows[i].autoKg) : ''} onChange={(e) => setBag(i, 'weight', e.target.value)} />
+                    <input className={`input num ${rows[i].bad ? 'bad' : ''}`} type="number" inputMode="numeric" min={1} value={b.qty} placeholder={rows[i].qtyHint ? `≈ ${rows[i].qtyHint}` : ''} onChange={(e) => setBag(i, 'qty', e.target.value)} aria-label={`Bag ${i + 1} quantity`} />
                   </td>
                   <td>
                     {bags.length > 1 && (
@@ -328,14 +389,15 @@ export function NewDispatchModal({ fgId: initial, onClose }: { fgId: string; onC
                     <Plus size={14} /> Add bag
                   </button>
                 </td>
-                <td className={`strong num ${over ? 'loss' : ''}`}>{fmtNum(totalQty)} PCS</td>
                 <td className="strong num">{totalKg.toFixed(3)} KG</td>
+                <td className={`strong num ${over ? 'loss' : ''}`}>{fmtNum(totalQty)} PCS</td>
                 <td />
               </tr>
             </tfoot>
           </table>
           {over && <div className="callout err">Total {fmtNum(totalQty)} PCS is more than the {fmtNum(avail)} PCS available for this job.</div>}
-          {!over && totalQty > 0 && <div className="hint muted" style={{ marginTop: 10, fontSize: 12.5 }}>Weight left blank is calculated from {unitKg} kg per piece.</div>}
+          {used.some((r) => r.bad) && <div className="callout warn">Enter the pieces (Qty) for every bag that has a weight — or clear the bag.</div>}
+          {!over && totalQty > 0 && <div className="hint muted" style={{ marginTop: 10, fontSize: 12.5 }}>A weight left blank is calculated from {unitKg} kg per piece. Empty bags are not saved.</div>}
         </>
       )}
     </Modal>

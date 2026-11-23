@@ -2,6 +2,18 @@ import { canSee, currentUserName } from '../auth/access';
 import { printHtml } from '../components/printHtml';
 import { PO_UFLOW_CSS, rupeesInWords } from '../sales/print';
 import type { PODetail } from './types';
+import { supabase } from '../db/client';
+import { partyLines } from '../masters/partyDirectory';
+
+/** the supplier's full details from the Supplier Master (address, state, GSTIN, phone) — null when they cannot be read */
+async function supplierDetails(id: number) {
+  try {
+    const { data } = await supabase.from('suppliers').select('address, state, gstin, phone').eq('id', id).maybeSingle();
+    return (data as { address?: string | null; state?: string | null; gstin?: string | null; phone?: string | null } | null) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -12,9 +24,11 @@ const dmy = (iso?: string | null) => {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getFullYear()).slice(2)}`;
 };
 
-export function printPurchaseOrder(po: PODetail) {
+export async function printPurchaseOrder(po: PODetail) {
   const showRates = canSee('purchase_rates');
   const showParty = canSee('party_names');
+  // the vendor's full address and GSTIN (party names are confidential: only for those who may see them)
+  const vendorLines = showParty && po.supplierId ? partyLines(await supplierDetails(po.supplierId) ?? undefined) : [];
 
   const isInter = po.taxType === 'inter';
   const totalTaxable = po.taxableAmount || 0;
@@ -74,6 +88,7 @@ export function printPurchaseOrder(po: PODetail) {
           <div class="po-addr-head">VENDOR / SUPPLIER</div>
           <div class="po-addr-body">
             <div class="po-addr-company">${esc(vendorParty)}</div>
+            ${vendorLines.map((t) => (t.startsWith('GSTIN:') ? `<div><b>${esc(t)}</b></div>` : `<div>${esc(t)}</div>`)).join('')}
             ${showParty && po.supplierEmail ? `<div>Email: ${esc(po.supplierEmail)}</div>` : ''}
             <div>Priority: <b>${esc(po.urgency)}</b></div>
             <div>Payment Terms: <b>${esc(po.paymentTerms || '30 Days')}</b></div>
@@ -236,7 +251,6 @@ export function printPurchaseOrder(po: PODetail) {
   <!-- Footer Meta -->
   <div class="po-foot-meta">
     <span>This is a computer-generated purchase order. &nbsp;·&nbsp; Subject to Rajkot Jurisdiction. E.&amp;O.E.</span>
-    <span>${esc(poNumber)} &nbsp;•&nbsp; Page 1 of 1</span>
   </div>
 </div>`;
 

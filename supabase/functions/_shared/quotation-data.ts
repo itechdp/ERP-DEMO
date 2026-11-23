@@ -19,9 +19,11 @@ export async function loadQuotation(admin: Admin, id: number): Promise<LoadedQuo
   const { data: q, error } = await admin.from('sales_quotations').select('*').eq('id', id).maybeSingle();
   if (error || !q) throw new HttpError(404, 'That quotation was not found.');
   if (!q.qt_no) throw new HttpError(409, 'This quotation has no number yet: it has not been approved.');
-  const [{ data: items }, { data: co }] = await Promise.all([
+  const [{ data: items }, { data: co }, { data: cust }] = await Promise.all([
     admin.from('sales_quotation_items').select('*').eq('quotation_id', id).order('line_no', { ascending: true }),
     admin.from('company_settings').select('name, address, gstin, phone, email').eq('id', 1).maybeSingle(),
+    // the customer's address and GSTIN from the customer master (matched by name, as the quotation stores the name)
+    admin.from('customers').select('address, city, state, gstin').ilike('name', String(q.customer ?? '').trim().replace(/[\\%_]/g, (c: string) => `\\${c}`)).limit(1).maybeSingle(),
   ]);
   if (!items || items.length === 0) throw new HttpError(409, 'This quotation has no products.');
   return {
@@ -43,7 +45,7 @@ export async function loadQuotation(admin: Admin, id: number): Promise<LoadedQuo
         approved_by: q.approved_by,
         approved_at: q.approved_at,
       },
-      customer: { name: q.customer, contact: q.contact, phone: q.phone, email: q.email },
+      customer: { name: q.customer, contact: q.contact, phone: q.phone, email: q.email, address: cust?.address, city: cust?.city, state: cust?.state, gstin: cust?.gstin },
       // deno-lint-ignore no-explicit-any
       items: items.map((i: any) => {
         const net = num(i.rate) * (1 - num(i.discount_pct) / 100);

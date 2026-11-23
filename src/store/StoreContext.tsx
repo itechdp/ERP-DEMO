@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { dbMessage } from '../db/client';
 import { announceChange, onRemoteChange, onWindowBack } from '../db/sync';
+import { setCustomerDirectory } from '../masters/partyDirectory';
 import { loadERPState, loadMasters, type Masters } from '../db/load';
 import { useAccess } from '../auth/access';
 import type { ERPState, ProcessStage } from './types';
@@ -15,7 +16,7 @@ export type Action =
   | { kind: 'stage'; stage: ProcessStage; jobNo: string; /** correct an entry that was already saved (Completed) */ edit?: boolean }
   | { kind: 'qc'; jobNo: string }
   | { kind: 'hardness'; id?: string; jobNo?: string; view?: boolean }
-  | { kind: 'dispatch'; fgId: string };
+  | { kind: 'dispatch'; fgId: string; /** continue a saved draft (a dispatch still "Ready for Dispatch") */ draftNo?: string };
 
 export interface Toast {
   id: number;
@@ -101,6 +102,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const loadedRef = useRef(0);
   const fetchAll = useCallback(async () => {
     const [state, masters] = await Promise.all([loadERPState(), loadMasters()]);
+    setCustomerDirectory(masters.customerList); // printouts read the customer's address and GSTIN from here
     setData({ state, masters });
     loadedRef.current = Date.now();
     setLoadedAt(loadedRef.current);

@@ -4,6 +4,14 @@ import { PO_UFLOW_CSS, esc, dmy, rupeesInWords } from '../sales/print';
 import { inr } from './calc';
 import { finalCostOf, isCosted, printableRows, rowNo } from './costing';
 import type { CostRow, OrderLine, OrderRow, QuotationLine, QuotationRow } from './types';
+import { customerByName, partyLines } from '../masters/partyDirectory';
+
+/** the customer block under the name: full address, GSTIN, then the contact on this document */
+const custBlock = (name: string, contact: string, phone: string, email: string) => {
+  const addr = partyLines(customerByName(name)).map((t) => (t.startsWith('GSTIN:') ? `<b>${esc(t)}</b>` : esc(t)));
+  const reach = [contact && `Attention: <b>${esc(contact)}</b>`, phone && `Phone: <b>${esc(phone)}</b>`, email && `Email: <b>${esc(email)}</b>`].filter(Boolean).join(' &nbsp;·&nbsp; ');
+  return `<div class="qt-cust">${[addr.join('<br/>'), reach].filter(Boolean).join('<br/>') || '&nbsp;'}</div>`;
+};
 
 export interface QuotationOutput {
   /**
@@ -33,8 +41,8 @@ const costSheetHtml = (lines: QuotationLine[]) =>
     .join('');
 
 const CSS = `
-@page { size: A4; margin: 10mm 12mm 14mm 12mm; }
-.po-doc { max-width: none; }
+@page { size: A4; margin: 0; }
+.po-doc { max-width: none; padding: 10mm 12mm 14mm; }
 .qt-title { margin: 6px 0 12px; border: 1px solid #bce8e7; border-radius: 4px; overflow: hidden; display: flex; align-items: center; gap: 10px; }
 .qt-title .band { background: #e6f6f6 !important; color: #166564 !important; font-weight: 700; font-size: 10.5px; padding: 9px 14px; letter-spacing: 0.06em; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .qt-title .name { font-size: 15px; font-weight: 800; color: #0f172a; }
@@ -87,7 +95,7 @@ export function quotationHtml(q: QuotationRow, lines: QuotationLine[], opts: Quo
       </table></div></td>
   </tr></table>
   <div class="qt-title"><div class="band">To</div><div class="name">${esc(q.customer)}</div></div>
-  <div class="qt-cust">${[q.contact && `Attention: <b>${esc(q.contact)}</b>`, q.phone && `Phone: <b>${esc(q.phone)}</b>`, q.email && `Email: <b>${esc(q.email)}</b>`].filter(Boolean).join(' &nbsp;·&nbsp; ') || '&nbsp;'}</div>
+  ${custBlock(q.customer, q.contact, q.phone, q.email)}
   ${table}
   ${opts.detailed ? costSheetHtml(lines) : ''}
   <div class="qt-terms">
@@ -97,7 +105,7 @@ export function quotationHtml(q: QuotationRow, lines: QuotationLine[], opts: Quo
     ${q.remarks ? `<div><b>Remarks:</b> ${esc(q.remarks)}</div>` : ''}
   </div>
   <div class="qt-sign"><div>Customer acceptance (signature &amp; date)</div><div>For Everest Auto Forge Pvt. Ltd.</div></div>
-  <div class="po-foot-meta"><span>This is a computer-generated quotation. &nbsp;·&nbsp; E.&amp;O.E.</span><span>${esc(q.docNo)}</span></div>
+  <div class="po-foot-meta"><span>This is a computer-generated quotation. &nbsp;·&nbsp; E.&amp;O.E.</span></div>
 </div>`;
   return html;
 }
@@ -130,7 +138,7 @@ export function printSalesOrder(o: OrderRow, lines: OrderLine[]) {
       </table></div></td>
   </tr></table>
   <div class="qt-title"><div class="band">Customer</div><div class="name">${esc(o.customer)}</div></div>
-  <div class="qt-cust">${[o.contact && `Attention: <b>${esc(o.contact)}</b>`, o.phone && `Phone: <b>${esc(o.phone)}</b>`, o.email && `Email: <b>${esc(o.email)}</b>`].filter(Boolean).join(' &nbsp;·&nbsp; ') || '&nbsp;'}</div>
+  ${custBlock(o.customer, o.contact, o.phone, o.email)}
   <table class="qt-table"><thead><tr><th style="width:28px">#</th><th>Product</th><th class="r">Qty</th><th>UOM</th><th class="r">Rate</th><th class="r">Amount</th></tr></thead>
     <tbody>${rows}<tr class="tot"><td colspan="5" class="r">Total</td><td class="r">${inr(total)}</td></tr></tbody></table>
   <div class="qt-words"><b>Amount in words:</b> ${esc(rupeesInWords(total))}</div>
@@ -140,7 +148,7 @@ export function printSalesOrder(o: OrderRow, lines: OrderLine[]) {
     ${o.remarks ? `<div><b>Remarks:</b> ${esc(o.remarks)}</div>` : ''}
   </div>
   <div class="qt-sign"><div>Prepared by</div><div>For Everest Auto Forge Pvt. Ltd.</div></div>
-  <div class="po-foot-meta"><span>This is a computer-generated sales order. &nbsp;·&nbsp; E.&amp;O.E.</span><span>${esc(o.soNo)}</span></div>
+  <div class="po-foot-meta"><span>This is a computer-generated sales order. &nbsp;·&nbsp; E.&amp;O.E.</span></div>
 </div>`;
   printHtml(`Sales Order ${o.soNo}`, html, PO_UFLOW_CSS + CSS);
 }

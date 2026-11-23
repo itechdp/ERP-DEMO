@@ -36,7 +36,7 @@ export function actionToHash(a: Action): string {
     case 'hardness':
       return 'form/hardness' + qs({ id: a.id, job: a.jobNo, view: a.view ? 1 : undefined });
     case 'dispatch':
-      return 'form/dispatch' + qs({ fg: a.fgId });
+      return 'form/dispatch' + qs({ fg: a.fgId, draft: a.draftNo });
     default:
       return '';
   }
@@ -64,7 +64,7 @@ export function hashToAction(route: string, q: URLSearchParams): Action | null {
     case 'form/hardness':
       return { kind: 'hardness', id: q.get('id') ?? undefined, jobNo: q.get('job') ?? undefined, view: q.get('view') === '1' };
     case 'form/dispatch':
-      return { kind: 'dispatch', fgId: q.get('fg') ?? '' };
+      return { kind: 'dispatch', fgId: q.get('fg') ?? '', draftNo: q.get('draft') ?? undefined };
     default:
       return null;
   }

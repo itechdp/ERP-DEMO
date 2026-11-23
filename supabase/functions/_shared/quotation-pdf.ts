@@ -22,7 +22,7 @@ export interface QuotationPdfData {
     approved_by?: string | null;
     approved_at?: string | null;
   };
-  customer: { name: string; contact?: string | null; phone?: string | null; email?: string | null };
+  customer: { name: string; contact?: string | null; phone?: string | null; email?: string | null; address?: string | null; city?: string | null; state?: string | null; gstin?: string | null };
   items: { line_no: number; product: string; grade?: string | null; size?: string | null; uom: string; qty: number; rate: number; discount_pct: number; net_rate: number; amount: number }[];
 }
 
@@ -139,6 +139,9 @@ export async function buildQuotationPdf(d: QuotationPdfData): Promise<Uint8Array
   };
   const customer = boxLines('QUOTATION FOR', [
     { t: d.customer.name, big: true, b: true },
+    ...(d.customer.address ? [{ t: d.customer.address }] : []),
+    ...([d.customer.city, d.customer.state].filter(Boolean).length ? [{ t: [d.customer.city, d.customer.state].filter(Boolean).join(', ') }] : []),
+    ...(d.customer.gstin ? [{ t: `GSTIN: ${d.customer.gstin}`, b: true }] : []),
     ...(d.customer.contact ? [{ t: `Attention: ${d.customer.contact}` }] : []),
     ...(d.customer.phone ? [{ t: `Phone: ${d.customer.phone}` }] : []),
     ...(d.customer.email ? [{ t: `Email: ${d.customer.email}` }] : []),
@@ -274,9 +277,9 @@ export async function buildQuotationPdf(d: QuotationPdfData): Promise<Uint8Array
   const pages = pdf.getPages();
   pages.forEach((p, i) => {
     page = p;
-    hline(M, PAGE_W - M, M + 14, LINE);
+    // no rule and no quotation number down here: the number is in the header box already
     text('This is a computer-generated quotation.', M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72) });
-    text(`${q.qt_no}  •  Page ${i + 1} of ${pages.length}`, PAGE_W - M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72), right: PAGE_W - M });
+    if (pages.length > 1) text(`Page ${i + 1} of ${pages.length}`, PAGE_W - M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72), right: PAGE_W - M });
   });
 
   pdf.setTitle(`Sales Quotation ${q.qt_no}`);

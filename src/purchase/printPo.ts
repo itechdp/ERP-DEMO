@@ -11,11 +11,11 @@ type Toast = (t: { kind: 'success' | 'error' | 'info'; title: string; message?: 
  * Works in every status. If the server is not reachable it falls back to the plain print with a note saying why.
  */
 export async function printPoWithAttachments(po: PODetail, toast: Toast) {
-  if (po.attachments.length === 0) return printPurchaseOrder(po);
+  if (po.attachments.length === 0) return void (await printPurchaseOrder(po));
   try {
     await openUrl(await getPOPdfUrl(po.id));
   } catch (e) {
     toast({ kind: 'error', title: 'Printing the PO without its attachments', message: e instanceof Error ? e.message : String(e) });
-    printPurchaseOrder(po);
+    await printPurchaseOrder(po);
   }
 }

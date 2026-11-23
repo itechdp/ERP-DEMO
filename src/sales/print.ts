@@ -107,9 +107,9 @@ export const SALES_CSS = `
 
 export const PO_UFLOW_CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-@page { size: A4 portrait; margin: 10mm 15mm 15mm 15mm; }
+@page { size: A4 portrait; margin: 0; } /* no page margin: the browser then adds no header / footer (date, title, page address) of its own */
 body { margin: 0 !important; padding: 0 !important; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important; color: #1e293b; font-size: 11px; line-height: 1.45; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; letter-spacing: -0.01em; }
-.po-doc { width: 100%; max-width: 820px; margin: 0 auto; color: #1e293b; box-sizing: border-box; }
+.po-doc { width: 100%; max-width: 820px; margin: 0 auto; color: #1e293b; box-sizing: border-box; padding: 10mm 15mm 15mm; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 .po-top-table { width: 100%; border-collapse: collapse; margin-top: 0; margin-bottom: 16px; }
 .po-top-table td { vertical-align: top; padding: 0; }
 .po-header-left { display: flex; align-items: flex-start; }
@@ -170,7 +170,7 @@ body { margin: 0 !important; padding: 0 !important; font-family: 'Inter', -apple
 .po-sig-sub { margin-top: 3px; font-size: 8.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #94a3b8; }
 .po-sig-line { border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 9.5px; font-weight: 600; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; }
 
-.po-foot-meta { border-top: 1px solid #e2e8f0; margin-top: 30px; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8.5px; color: #94a3b8; }
+.po-foot-meta { margin-top: 30px; padding-top: 8px; display: flex; justify-content: space-between; font-size: 8.5px; color: #94a3b8; }
 `;
 
 export function purchaseOrderUflowHtml(r: SalesRecord): string {
@@ -358,7 +358,6 @@ export function purchaseOrderUflowHtml(r: SalesRecord): string {
   <!-- Footer Meta -->
   <div class="po-foot-meta">
     <span>This is a computer-generated purchase order. &nbsp;·&nbsp; Subject to Rajkot Jurisdiction. E.&amp;O.E.</span>
-    <span>${esc(poNumber)} &nbsp;•&nbsp; Page 1 of 1</span>
   </div>
 </div>
 `;

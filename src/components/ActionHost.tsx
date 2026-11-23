@@ -54,7 +54,7 @@ export function ActionHost({ page }: { page?: boolean }) {
       body = <HardnessForm key={(action.id ?? action.jobNo ?? 'new') + (action.view ? '-v' : '')} id={action.id} jobNo={action.jobNo} viewOnly={action.view} onClose={close} />;
       break;
     case 'dispatch':
-      body = <NewDispatchModal key={action.fgId} fgId={action.fgId} onClose={close} />;
+      body = <NewDispatchModal key={action.fgId + (action.draftNo ?? '')} fgId={action.fgId} draftNo={action.draftNo} onClose={close} />;
       break;
   }
   return <PageFormCtx.Provider value={{ eyebrow: action.kind === 'stage' ? stageEyebrow(action.stage) : EYEBROW[action.kind] }}>{body}</PageFormCtx.Provider>;

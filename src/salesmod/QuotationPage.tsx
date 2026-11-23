@@ -18,10 +18,10 @@ import { CostSheetEditor } from './CostSheetEditor';
 import { CostingTable } from './CostingTable';
 import { computeCosting, costingProblem, dropBlankCustom, emptyCosting, finalCostOf, isCosted, parseCosting, serializeCosting, unitCostOf, type CostingState } from './costing';
 import { CustomerSelect } from '../masters/CustomerSelect';
-import { MaterialPick, SizePick } from '../masters/MaterialPick';
+import { QuoteHistory } from './QuoteHistory';
 import { ADD_NEW, useAddOption } from '../masters/AddItem';
 import { useOptions } from '../masters/useOptions';
-import { UOMS, type QuotationHeader, type QuotationLine, type QuotationRow } from './types';
+import type { QuotationHeader, QuotationLine, QuotationRow } from './types';
 import { usePaged } from '../components/Pager';
 
 // A new product is priced with the 14-row costing table. Its Final Cost is saved as the rate (qty 1, no discount), so orders, reports and
@@ -437,15 +437,12 @@ function QuotationForm({ editId, onClose, onSaved }: { editId: number | null; on
                         </div>
                       </div>
                       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        <Field label="Product" required><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></Field>
-                        <div style={grid}>
-                          <Field label="Grade"><MaterialPick mode="grade" grade={l.grade} onChange={(v) => setLine(i, { grade: v.grade })} /></Field>
-                          <Field label="Size"><SizePick value={l.size} onChange={(v) => setLine(i, { size: v })} /></Field>
-                          <Field label="UOM">
-                            <select value={l.uom} onChange={(e) => setLine(i, { uom: e.target.value })}>
-                              {UOMS.map((u) => <option key={u}>{u}</option>)}
-                            </select>
-                          </Field>
+                        {/* Grade, Size and UOM are no longer asked: a product is priced per piece with the costing table (values saved earlier are kept) */}
+                        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 260px' }}>
+                            <Field label="Product" required><input value={l.product} onChange={(e) => setLine(i, { product: e.target.value })} aria-label={`Product ${i + 1}`} /></Field>
+                          </div>
+                          <QuoteHistory customer={h.customer} product={l.product} excludeId={editId ?? null} />
                         </div>
                         {st ? (
                           <div>
@@ -722,7 +719,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
           <table className="tbl">
             <thead>
               <tr>
-                <th>#</th><th>Product</th><th>Grade / Size</th><th className="right">Qty</th>
+                <th>#</th><th>Product</th>{lines.some((l) => l.grade || l.size) && <th>Grade / Size</th>}<th className="right">Qty</th>
                 {showMoney && <><th className="right">Rate</th><th className="right">Disc.</th><th className="right">Net rate</th><th className="right">Amount</th></>}
                 {showMargin && <><th className="right">Unit cost</th><th className="right">Margin</th></>}
               </tr>
@@ -732,7 +729,7 @@ export function QuotationDetail({ id, onBack, onEdit, navigate, initialStep = nu
                 <tr key={l.id ?? i}>
                   <td className="mono">{i + 1}</td>
                   <td className="strong">{l.product}</td>
-                  <td>{[l.grade, l.size].filter(Boolean).join(' • ') || '—'}</td>
+                  {lines.some((x) => x.grade || x.size) && <td>{[l.grade, l.size].filter(Boolean).join(' • ') || '—'}</td>}
                   <td className="right mono nowrap">{isCosted(l) ? <span className="muted" title="Priced per piece with the costing table">per piece</span> : <>{fmtNum(l.qty ?? 0)} {l.uom}</>}</td>
                   {showMoney && (
                     <>

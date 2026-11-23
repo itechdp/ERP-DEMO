@@ -116,6 +116,9 @@ export const createDispatch = (i: DispatchInput, ts?: string) =>
     p_ts: ts,
   });
 
+/** Save a dispatch as a draft (migration 92): new (no number) or an existing draft, whose bags are replaced by these. Nothing leaves yet. */
+export const saveDispatchDraft = (dispatchNo: string | null, i: { fgId: string; vehicleNo: string; date: string; bags: { qty: number; weight: number }[] }, ts?: string) =>
+  call<string>('save_dispatch_draft', { p_dispatch_no: dispatchNo, p_fg_id: i.fgId, p_vehicle_no: i.vehicleNo, p_date: i.date, p_bags: i.bags, p_ts: ts });
 export const markDispatched = (dispatchNo: string, vehicleNo: string, ts?: string) =>
   call<void>('mark_dispatched', { p_dispatch_no: dispatchNo, p_vehicle_no: vehicleNo, p_ts: ts });
 

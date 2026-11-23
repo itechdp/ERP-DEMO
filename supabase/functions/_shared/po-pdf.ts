@@ -346,9 +346,9 @@ export async function buildPoPdf(d: PoPdfData): Promise<Uint8Array> {
   const pages = pdf.getPages();
   pages.forEach((p, i) => {
     page = p;
-    hline(M, PAGE_W - M, M + 14, LINE);
+    // no rule and no PO number down here: the PO number is in the header box already
     text('This is a computer-generated purchase order.', M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72) });
-    text(`${poLabel}  •  Page ${i + 1} of ${pages.length}`, PAGE_W - M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72), right: PAGE_W - M });
+    if (pages.length > 1) text(`Page ${i + 1} of ${pages.length}`, PAGE_W - M, M + 4, { size: 7.5, color: rgb(0.58, 0.64, 0.72), right: PAGE_W - M });
   });
 
   pdf.setTitle(`Purchase Order ${poLabel}`);
